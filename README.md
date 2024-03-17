@@ -2,7 +2,7 @@
 
 Project of SmartPendant for grblHAL
 
-![Image](https://github.com/Devtronic-US/SmartPendant/Media/Devtronic_SmartPendant_Case.png "Devtronic SmartPendant Case")
+![Image](https://github.com/Devtronic-US/SmartPendant/raw/main/Media/Devtronic_SmartPendant_Case.png "Devtronic SmartPendant Case")
 
 ## Software
 
@@ -25,7 +25,7 @@ This handwheel also works from 3.3V. STM321F411 pins handwheel connected to is 5
 
 ## Schematic
 
-![Image](https://github.com/Devtronic-US/SmartPendant/Media/Schematic_Smart_Pendant_v1_1.png "Devtronic SmartPendant Schematic")
+![Image](https://github.com/Devtronic-US/SmartPendant/raw/main/Media/Schematic_Smart_Pendant_v1_1.png "Devtronic SmartPendant Schematic")
 
 # Thanks
 
