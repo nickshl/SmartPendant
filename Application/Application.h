@@ -90,6 +90,8 @@ class Application : public AppTask
 
     // Pointers to screens
     IScreen* scr[7] = {&DirectControlScr::GetInstance(), &OverrideCtrlScr::GetInstance(), &DelayControlScr::GetInstance(), &RotaryTableScr::GetInstance(), &ProgrammSender::GetInstance(), &ProbeScr::GetInstance(), &SettingsScr::GetInstance()};
+    // Screen counter
+    uint32_t scr_cnt = 0u;
     // Current screen index
     uint32_t scr_idx = 0u;
 
@@ -111,6 +113,8 @@ class Application : public AppTask
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // Input driver instance
     InputDrv& input_drv = InputDrv::GetInstance();
+    // NVM instance
+    NVM& nvm = NVM::GetInstance();
 
     // Task queue message types
     enum TaskQueueMsgType

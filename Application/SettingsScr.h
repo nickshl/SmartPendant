@@ -80,6 +80,7 @@ class SettingsScr : public IScreen
     enum
     {
       TX_CONTROL,
+      MODE,
       UNITS,
       SCREEN_INVERT,
       MAX_ITEMS

@@ -56,19 +56,27 @@ Result Application::Setup()
   mpg_btn.SetPressed(false);
   mpg_btn.Show(1000);
 
-  // Tabs for screens
-  tabs.SetParams(0, 0, display_drv.GetScreenW(), 40, NumberOf(scr));
-  // Images
-//  tabs.SetImage(0, MPG);
-//  tabs.SetImage(2, RotaryTable);
-  // Captions
-  tabs.SetText(0, "MPG", nullptr, Font_12x16::GetInstance());
-  tabs.SetText(1, "OVER", "RIDE", Font_8x12::GetInstance());
-  tabs.SetText(2, "POWER", "FEED", Font_8x12::GetInstance());
-  tabs.SetText(3, "ROTARY", "TABLE", Font_8x12::GetInstance());
-  tabs.SetText(4, "SD", "CARD", Font_8x12::GetInstance());
-  tabs.SetText(5, "PROBE", nullptr, Font_8x12::GetInstance());
-  tabs.SetText(6, "SETTINGS", nullptr, Font_6x8::GetInstance());
+  // Tabs for screens(first call to set parameters)
+  tabs.SetParams(0, 0, display_drv.GetScreenW(), 40, Tabs::MAX_TABS);
+  // Screens & Captions
+  tabs.SetText(scr_cnt, "MPG", nullptr, Font_12x16::GetInstance());
+//  tabs.SetImage(scr_cnt, MPG);
+  scr[scr_cnt++] = &DirectControlScr::GetInstance();
+  tabs.SetText(scr_cnt, "OVER", "RIDE", Font_8x12::GetInstance());
+  scr[scr_cnt++] = &OverrideCtrlScr::GetInstance();
+  tabs.SetText(scr_cnt, "POWER", "FEED", Font_8x12::GetInstance());
+  scr[scr_cnt++] = &DelayControlScr::GetInstance();
+  tabs.SetText(scr_cnt, "ROTARY", "TABLE", Font_8x12::GetInstance());
+//  tabs.SetImage(scr_cnt, RotaryTable);
+  scr[scr_cnt++] = &RotaryTableScr::GetInstance();
+  tabs.SetText(scr_cnt, "SD", "CARD", Font_8x12::GetInstance());
+  scr[scr_cnt++] = &ProgrammSender::GetInstance();
+  tabs.SetText(scr_cnt, "PROBE", nullptr, Font_8x12::GetInstance());
+  scr[scr_cnt++] = &ProbeScr::GetInstance();
+  tabs.SetText(scr_cnt, "SETTINGS", nullptr, Font_6x8::GetInstance());
+  scr[scr_cnt++] = &SettingsScr::GetInstance();
+  // Tabs for screens(second call to resize to actual numbers of tabs
+  tabs.SetParams(0, 0, display_drv.GetScreenW(), 40, scr_cnt);
   // Set callback
   tabs.SetCallback(this);
   tabs.Show(2000);

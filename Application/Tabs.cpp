@@ -31,8 +31,6 @@ void Tabs::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t n)
   list.SetParams(x, y, w, h);
   // Set list for itself
   SetList(list);
-  // Show itself for Action(). It will not show on display until list show.
-  VisObject::Show(1000);
 
   // X and Y start coordinates of object is zero because of new list
   x_start = 0;
@@ -45,20 +43,52 @@ void Tabs::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t n)
   height = h;
 
   // Check input
-  if(n > 8) n = 8;
+  if(n > MAX_TABS) n = MAX_TABS;
   // Set tabs count
   tabs_cnt = n;
   // Calculate tab width
   tab_w = w / n;
 
   // TODO: border doubles on tab sides
-  for(uint32_t i = 0; i < n; i++)
+  for(uint32_t i = 0; i < MAX_TABS; i++)
   {
-    box[i].SetList(list);
-    box[i].SetParams(tab_w*i, 0, tab_w,height, border_color, true);
-    box[i].SetBorderWidth(1);
-    box[i].SetBackgroundColor(tab_color);
-    box[i].Show(0); // It will not show on display until list show
+    // If current tab should be show
+    if(i < n)
+    {
+      box[i].SetList(list);
+      box[i].SetParams(tab_w*i, 0, tab_w,height, border_color, true);
+      box[i].SetBorderWidth(1);
+      box[i].SetBackgroundColor(tab_color);
+      box[i].Show(0); // It will not show on display until list show
+      // Move image to the center of tab
+      if(img[i].IsInList())
+      {
+        img[i].Move((list.GetWidth() / tabs_cnt) * i + (list.GetWidth() / tabs_cnt - img[i].GetWidth()) / 2, 0);
+      }
+      // Move caption to the center of the tab
+      if(tab_cap[i][0].IsInList() && !tab_cap[i][1].IsInList())
+      {
+        tab_cap[i][0].Move((width / tabs_cnt) * i + (width / tabs_cnt - tab_cap[i][0].GetWidth()) / 2, (height - tab_cap[i][0].GetHeight()) / 2);
+      }
+      // Move caption first string to the top center of tab
+      if(tab_cap[i][0].IsInList() && tab_cap[i][1].IsInList())
+      {
+        tab_cap[i][0].Move((width / tabs_cnt) * i + (width / tabs_cnt - tab_cap[i][0].GetWidth()) / 2, (height - tab_cap[i][0].GetHeight() - tab_cap[i][1].GetHeight()) / 2);
+      }
+      // Move caption second string to the bottom center of tab
+      if(tab_cap[i][1].IsInList())
+      {
+        tab_cap[i][1].Move((width / tabs_cnt) * i + (width / tabs_cnt - tab_cap[i][1].GetWidth()) / 2, tab_cap[i][0].GetEndY() + 1);
+      }
+    }
+    else // Otherwise
+    {
+      // Hide everything
+      box[i].Hide();
+      img[i].Hide();
+      tab_cap[i][0].Hide();
+      tab_cap[i][1].Hide();
+    }
   }
   // Pressed tab - change inner color and remove bottom line
   tab.SetList(list);
@@ -70,42 +100,42 @@ void Tabs::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t n)
 // *****************************************************************************
 // ***   Public: SetImage   ****************************************************
 // *****************************************************************************
-void Tabs::SetImage(uint32_t tab, const ImageDesc& img_dsc)
+void Tabs::SetImage(uint32_t tab_idx, const ImageDesc& img_dsc)
 {
-  if(tab < NumberOf(img))
+  if(tab_idx < NumberOf(img))
   {
-    img[tab].SetList(list);
-    img[tab].SetImage(img_dsc);
-    img[tab].Move((list.GetWidth() / tabs_cnt) * tab + (list.GetWidth() / tabs_cnt - img[tab].GetWidth()) / 2, 0);
-    img[tab].Show(3); // It will not show on display if list isn't show
+    img[tab_idx].SetList(list);
+    img[tab_idx].SetImage(img_dsc);
+    img[tab_idx].Move((list.GetWidth() / tabs_cnt) * tab_idx + (list.GetWidth() / tabs_cnt - img[tab_idx].GetWidth()) / 2, 0);
+    img[tab_idx].Show(3); // It will not show on display if list isn't show
   }
 }
 
 // *****************************************************************************
 // ***   Public: SetText   *****************************************************
 // *****************************************************************************
-void Tabs::SetText(uint32_t tab, const char *str1, const char *str2, Font& font)
+void Tabs::SetText(uint32_t tab_idx, const char *str1, const char *str2, Font& font)
 {
-  if((tab < NumberOf(img)) && (str1 != nullptr))
+  if((tab_idx < NumberOf(tab_cap)) && (str1 != nullptr))
   {
     // If no second string
     if(str2 == nullptr)
     {
-      tab_cap[tab][0].SetList(list);
-      tab_cap[tab][0].SetParams(str1, 0, 0, COLOR_WHITE, font);
-      tab_cap[tab][0].Move((width / tabs_cnt) * tab + (width / tabs_cnt - tab_cap[tab][0].GetWidth()) / 2, (height - tab_cap[tab][0].GetHeight()) / 2);
-      tab_cap[tab][0].Show(3); // It will not show on display if list isn't show
+      tab_cap[tab_idx][0].SetList(list);
+      tab_cap[tab_idx][0].SetParams(str1, 0, 0, COLOR_WHITE, font);
+      tab_cap[tab_idx][0].Move((width / tabs_cnt) * tab_idx + (width / tabs_cnt - tab_cap[tab_idx][0].GetWidth()) / 2, (height - tab_cap[tab_idx][0].GetHeight()) / 2);
+      tab_cap[tab_idx][0].Show(3); // It will not show on display if list isn't show
     }
     else
     {
-      tab_cap[tab][0].SetList(list);
-      tab_cap[tab][1].SetList(list);
-      tab_cap[tab][0].SetParams(str1, 0, 0, COLOR_WHITE, font);
-      tab_cap[tab][1].SetParams(str2, 0, 0, COLOR_WHITE, font);
-      tab_cap[tab][0].Move((width / tabs_cnt) * tab + (width / tabs_cnt - tab_cap[tab][0].GetWidth()) / 2, (height - tab_cap[tab][0].GetHeight() - tab_cap[tab][1].GetHeight()) / 2);
-      tab_cap[tab][1].Move((width / tabs_cnt) * tab + (width / tabs_cnt - tab_cap[tab][1].GetWidth()) / 2, tab_cap[tab][0].GetEndY() + 1);
-      tab_cap[tab][0].Show(3); // It will not show on display if list isn't show
-      tab_cap[tab][1].Show(3); // It will not show on display if list isn't show
+      tab_cap[tab_idx][0].SetList(list);
+      tab_cap[tab_idx][1].SetList(list);
+      tab_cap[tab_idx][0].SetParams(str1, 0, 0, COLOR_WHITE, font);
+      tab_cap[tab_idx][1].SetParams(str2, 0, 0, COLOR_WHITE, font);
+      tab_cap[tab_idx][0].Move((width / tabs_cnt) * tab_idx + (width / tabs_cnt - tab_cap[tab_idx][0].GetWidth()) / 2, (height - tab_cap[tab_idx][0].GetHeight() - tab_cap[tab_idx][1].GetHeight()) / 2);
+      tab_cap[tab_idx][1].Move((width / tabs_cnt) * tab_idx + (width / tabs_cnt - tab_cap[tab_idx][1].GetWidth()) / 2, tab_cap[tab_idx][0].GetEndY() + 1);
+      tab_cap[tab_idx][0].Show(3); // It will not show on display if list isn't show
+      tab_cap[tab_idx][1].Show(3); // It will not show on display if list isn't show
     }
   }
 }
@@ -152,8 +182,17 @@ void Tabs::SetCallback(AppTask* task, CallbackPtr func, void* param)
 // *****************************************************************************
 Result Tabs::Show(uint32_t z)
 {
-  // Show list and return result
-  return list.Show(z);
+  // Show itself for Action(). It will not show on display until list show.
+  Result result = VisObject::Show(z + 1u);
+
+  if(result.IsGood())
+  {
+    // Show list
+    result = list.Show(z);
+  }
+
+  // Return result
+  return result;
 }
 
 // *****************************************************************************
@@ -161,8 +200,17 @@ Result Tabs::Show(uint32_t z)
 // *****************************************************************************
 Result Tabs::Hide()
 {
-  // Hide list and return result
-  return list.Hide();
+  // Hide itself
+  Result result = VisObject::Hide();
+
+  if(result.IsGood())
+  {
+    // Hide list
+    result = list.Hide();
+  }
+
+  // Return result
+  return result;
 }
 
 // *****************************************************************************

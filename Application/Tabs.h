@@ -30,6 +30,9 @@
 class Tabs : public VisObject
 {
   public:
+    // Maximum allowed number of tabs
+    static constexpr uint32_t MAX_TABS = 8u;
+
     // *************************************************************************
     // ***   Public: Constructor   *********************************************
     // *************************************************************************
@@ -101,6 +104,7 @@ class Tabs : public VisObject
     virtual void Action(VisObject::ActionType action, int32_t tx, int32_t ty, int32_t tpx, int32_t tpy);
 
   private:
+
     // Callback function pointer
     AppTask* callback_task = nullptr;
     CallbackPtr callback_func = nullptr;
@@ -124,11 +128,11 @@ class Tabs : public VisObject
     VisList list;
 
     // Tabs objects
-    Box box[8u];
+    Box box[MAX_TABS];
     // Image object for each tab
-    Image img[8u];
+    Image img[MAX_TABS];
     // Two string objects for each tab
-    String tab_cap[8u][2];
+    String tab_cap[MAX_TABS][2];
     // Selected tab object
     Box tab;
 

@@ -176,7 +176,12 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
     // If requested position changed
     if(jog_val[i] != 0)
     {
-      // Calculate distance - number of encoder clicks mutiplied by click value
+      // In "lathe" mode we have to invert X axis
+      if((i == GrblComm::AXIS_X) && nvm.GetMode())
+      {
+        jog_val[i] = -jog_val[i];
+      }
+      // Calculate distance - number of encoder clicks multiplied by click value
       int32_t distance_um = jog_val[i] * scale;
       // Speed in encoder clicks per second
       uint32_t speed = InputDrv::GetInstance().GetEncoderSpeed();

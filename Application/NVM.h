@@ -60,6 +60,16 @@ class NVM
     Result SetCtrlTx(uint8_t tx_ctrl);
 
     // *************************************************************************
+    // ***   GetMode function   ************************************************
+    // *************************************************************************
+    uint8_t GetMode() {return data.mode;}
+
+    // *************************************************************************
+    // ***   SetMode function   ************************************************
+    // *************************************************************************
+    Result SetMode(uint8_t mode);
+
+    // *************************************************************************
     // ***   GetDisplayInvert function   ***************************************
     // *************************************************************************
     bool GetDisplayInvert() {return data.invert_display;}
@@ -88,8 +98,9 @@ class NVM
     typedef struct
     {
       uint8_t tx_ctrl = 0u;
-      bool    invert_display = false;
-      bool    is_metric = true;
+      uint8_t mode = 0u;
+      uint8_t invert_display = false;
+      uint8_t is_metric = true;
     } Nvm_t;
     // Data
     Nvm_t data;

@@ -328,7 +328,7 @@ Result DelayControlScr::ProcessEncoderCallback(DelayControlScr* obj_ptr, void* p
       {
         // Calculate new speed
         int32_t new_number = ths.dw_speed.GetNumber() + enc_val;
-        // Speed can;t be negative(and zero too, but whatever)
+        // Speed can't be negative(and zero too, but whatever)
         if(new_number < 0) new_number = 0;
         // Set new speed number
         ths.dw_speed.SetNumber(new_number);

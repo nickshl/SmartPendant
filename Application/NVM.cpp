@@ -66,6 +66,23 @@ Result NVM::SetCtrlTx(uint8_t tx_ctrl)
 }
 
 // *****************************************************************************
+// ***   SetMode function   **************************************************
+// *****************************************************************************
+Result NVM::SetMode(uint8_t mode)
+{
+  Result result = Result::RESULT_OK;
+
+  // Save data
+  data.mode = mode;
+
+  // Write data into EEPROM
+  result = eep->Write((uint8_t*)&data.mode - (uint8_t*)&data, (uint8_t*)&data.mode, sizeof(data.mode));
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
 // ***   SetDisplayInvert function   *******************************************
 // *****************************************************************************
 Result NVM::SetDisplayInvert(bool invert_display)
