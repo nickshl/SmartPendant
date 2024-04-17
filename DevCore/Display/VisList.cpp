@@ -178,7 +178,7 @@ void VisList::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
     // Set pointer to first element
     VisObject* p_obj = object_list;
     // Count
-    int32_t cnt = ((start_x + n - 1) > x_end) ? x_end - start_x + 1: n;
+    int32_t cnt = ((start_x + n - 1) > x_end) ? (x_end - start_x + 1) : n;
     // Do for all objects
     while(p_obj != nullptr)
     {

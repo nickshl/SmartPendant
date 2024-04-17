@@ -216,6 +216,7 @@ class DisplayDrv : public AppTask
     // Display FPS/touch coordinates
     static constexpr bool DISPLAY_DEBUG_INFO = false;
     static constexpr bool DISPLAY_DEBUG_AREA = false;
+    static constexpr bool DISPLAY_DEBUG_TOUCH = false;
 
     // Display driver object
     IDisplay* display = nullptr;
@@ -264,6 +265,9 @@ class DisplayDrv : public AppTask
     char str[32] = {"       "};
     // FPS string
     String fps_str;
+
+    // Touch debug circle
+    Circle touch_cir;
 
     // Semaphore for update screen
     RtosSemaphore screen_update;

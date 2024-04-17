@@ -1,5 +1,5 @@
 //******************************************************************************
-//  @file Tabs.h
+//  @file Header.h
 //  @author Nicolai Shlapunov
 //
 //  @details Application: User Application Class, header
@@ -15,8 +15,8 @@
 //
 //******************************************************************************
 
-#ifndef Tabs_h
-#define Tabs_h
+#ifndef Header_h
+#define Header_h
 
 // *****************************************************************************
 // ***   Includes   ************************************************************
@@ -24,19 +24,22 @@
 #include "DevCfg.h"
 #include "DisplayDrv.h"
 
+#include "UiEngine.h"
+#include "InputDrv.h"
+
 // *****************************************************************************
-// ***   Tabs Class   **********************************************************
+// ***   Header Class   ********************************************************
 // *****************************************************************************
-class Tabs : public VisObject
+class Header : public VisObject
 {
   public:
-    // Maximum allowed number of tabs
-    static constexpr uint32_t MAX_TABS = 16u;
+    // Maximum allowed number of pages
+    static constexpr uint32_t MAX_PAGES = 16u;
 
     // *************************************************************************
     // ***   Public: Constructor   *********************************************
     // *************************************************************************
-    Tabs() {};
+    Header() {};
 
     // *************************************************************************
     // ***   Public: SetParams   ***********************************************
@@ -46,12 +49,12 @@ class Tabs : public VisObject
     // *************************************************************************
     // ***   Public: SetImage   ************************************************
     // *************************************************************************
-    void SetImage(uint32_t tab, const ImageDesc& img_dsc);
+    void SetImage(uint32_t page_idx, const ImageDesc& img_dsc);
 
     // *************************************************************************
     // ***   Public: SetText   *************************************************
     // *************************************************************************
-    void SetText(uint32_t tab, const char *str1, const char *str2, Font& font);
+    void SetText(uint32_t page_idx, const char *str_in, Font& font);
 
     // *************************************************************************
     // ***   Public: SetFont   *************************************************
@@ -64,14 +67,14 @@ class Tabs : public VisObject
     void SetBorder(color_t c);
 
     // *************************************************************************
-    // ***   Public: SetSelectedTab   ******************************************
+    // ***   Public: SetSelectedPage   *****************************************
     // *************************************************************************
-    void SetSelectedTab(uint32_t n);
+    void SetSelectedPage(uint32_t n);
 
     // *************************************************************************
-    // ***   Public: GetSelectedTab   ******************************************
+    // ***   Public: GetSelectedPage   *****************************************
     // *************************************************************************
-    uint32_t GetSelectedTab() {return selected_tab;}
+    uint32_t GetSelectedPage() {return selected_page;}
 
     // *************************************************************************
     // ***   Public: Set callback function   ***********************************
@@ -110,34 +113,41 @@ class Tabs : public VisObject
     CallbackPtr callback_func = nullptr;
     void* callback_param = nullptr;
 
-    // Border color
-    color_t border_color = COLOR_WHITE;
-    // Tab color
-    color_t tab_color = COLOR_GREY;
-    // Selected Tab color
-    color_t selected_tab_color = COLOR_DARKGREY;
+    // Selected page
+    uint32_t selected_page = 0u;
+    // Number of pages
+    uint32_t pages_cnt = 0u;
 
-    // Current tab
-    uint32_t selected_tab = 0u;
-    // Number of tabs
-    uint32_t tabs_cnt = 0u;
-    // Width of tab
-    int32_t tab_w = 0;
+    // Image object for each page
+    Image img[MAX_PAGES];
+    // String objects for each page
+    String str[MAX_PAGES];
+    // Button objects for each page
+    UiButton button[MAX_PAGES];
 
-    // List that contains all menu elements
-    VisList list;
+    // Line
+    Line line_bottm;
+    // Buttons
+    UiButton btn_left;
+    UiButton btn_right;
+    // Box for cover screen
+    Box box;
 
-    // Tabs objects
-    Box box[MAX_TABS];
-    // Image object for each tab
-    Image img[MAX_TABS];
-    // Two string objects for each tab
-    String tab_cap[MAX_TABS][2];
-    // Selected tab object
-    Box tab;
+    // Button callback entry
+    InputDrv::CallbackListEntry btn_cble;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
+
+    // *************************************************************************
+    // ***   Private: ProcessUiCallback function   *****************************
+    // *************************************************************************
+    static Result ProcessUiCallback(Header* obj_ptr, void* ptr);
+
+    // *************************************************************************
+    // ***   Private: ProcessButtonCallback function   *************************
+    // *************************************************************************
+    static Result ProcessButtonCallback(Header* obj_ptr, void* ptr);
 };
 
 #endif

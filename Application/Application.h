@@ -29,6 +29,7 @@
 #include "StHalUart.h"
 
 #include "DataWindow.h"
+#include "Header.h"
 #include "Tabs.h"
 
 #include "InputDrv.h"
@@ -89,14 +90,14 @@ class Application : public AppTask
     static const uint32_t TASK_TIMER_PERIOD_MS = 20U;
 
     // Pointers to screens
-    IScreen* scr[7] = {&DirectControlScr::GetInstance(), &OverrideCtrlScr::GetInstance(), &DelayControlScr::GetInstance(), &RotaryTableScr::GetInstance(), &ProgrammSender::GetInstance(), &ProbeScr::GetInstance(), &SettingsScr::GetInstance()};
+    IScreen* scr[16u] = {0};
     // Screen counter
     uint32_t scr_cnt = 0u;
     // Current screen index
     uint32_t scr_idx = 0u;
 
-    // Tabs
-    Tabs tabs;
+    // Pages
+    Header header;
 
     // MPG button
     UiButton mpg_btn;

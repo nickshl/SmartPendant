@@ -222,8 +222,8 @@ void Line::SetParams(int32_t x1, int32_t y1, int32_t x2, int32_t y2, color_t c)
   y_start = y1;
   x_end = x2;
   y_end = y2;
-  width  = (x1 < x2) ? (x2 - x1) : (x1 - x2);
-  height = (y1 < y2) ? (y2 - y1) : (y1 - y2);
+  width  = (x1 < x2) ? (x2 - x1) : (x1 - x2) + 1; // Width is one more than coordinates difference
+  height = (y1 < y2) ? (y2 - y1) : (y1 - y2) + 1; // Height is one more than coordinates difference
   rotation = 0;
   // Invalidate area for new position/size
   InvalidateObjArea();

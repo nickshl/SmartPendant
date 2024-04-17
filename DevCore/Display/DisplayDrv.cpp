@@ -66,6 +66,15 @@ Result DisplayDrv::Setup()
       fps_str.Show(0xFFFFFFFFU);
     }
 
+    // Show string if flag is set
+    if(DISPLAY_DEBUG_TOUCH)
+    {
+      // Set string parameters
+      touch_cir.SetParams(0, 0, 3, COLOR_YELLOW, true);
+      // Max Z
+      touch_cir.Show(0xFFFFFFFFU);
+    }
+
     // Set result
     result = Result::RESULT_OK;
   }
@@ -234,6 +243,11 @@ Result DisplayDrv::Loop()
     list.Action(tmp_is_touch ? VisObject::ACT_TOUCH : VisObject::ACT_UNTOUCH, tmp_tx, tmp_ty, tx, ty);
     // Give semaphore after changes
     line_mutex.Release();
+  }
+  // Show touch position
+  if(DISPLAY_DEBUG_TOUCH)
+  {
+    if((tx != tmp_tx) || (ty != tmp_ty)) touch_cir.Move(tx, ty);
   }
   // Save new touch state
   is_touch = tmp_is_touch;

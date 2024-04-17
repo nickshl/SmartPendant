@@ -56,33 +56,33 @@ Result Application::Setup()
   mpg_btn.SetPressed(false);
   mpg_btn.Show(1000);
 
-  // Tabs for screens(first call to set parameters)
-  tabs.SetParams(0, 0, display_drv.GetScreenW(), 40, Tabs::MAX_TABS);
+  // Pages for screens(first call to set parameters)
+  header.SetParams(0, 0, display_drv.GetScreenW(), 40, Header::MAX_PAGES);
   // Screens & Captions
-  tabs.SetText(scr_cnt, "MPG", nullptr, Font_12x16::GetInstance());
-//  tabs.SetImage(scr_cnt, MPG);
+  header.SetText(scr_cnt, "MPG", Font_12x16::GetInstance());
+  header.SetImage(scr_cnt, MPG);
   scr[scr_cnt++] = &DirectControlScr::GetInstance();
-  tabs.SetText(scr_cnt, "OVER", "RIDE", Font_8x12::GetInstance());
+  header.SetText(scr_cnt, "OVERRIDE", Font_12x16::GetInstance());
   scr[scr_cnt++] = &OverrideCtrlScr::GetInstance();
-  tabs.SetText(scr_cnt, "POWER", "FEED", Font_8x12::GetInstance());
+  header.SetText(scr_cnt, "POWER FEED", Font_12x16::GetInstance());
   scr[scr_cnt++] = &DelayControlScr::GetInstance();
-  tabs.SetText(scr_cnt, "ROTARY", "TABLE", Font_8x12::GetInstance());
-//  tabs.SetImage(scr_cnt, RotaryTable);
+  header.SetText(scr_cnt, "ROTARY TABLE", Font_12x16::GetInstance());
+  header.SetImage(scr_cnt, RotaryTable);
   scr[scr_cnt++] = &RotaryTableScr::GetInstance();
-  tabs.SetText(scr_cnt, "SD", "CARD", Font_8x12::GetInstance());
+  header.SetText(scr_cnt, "SD CARD", Font_12x16::GetInstance());
   scr[scr_cnt++] = &ProgrammSender::GetInstance();
-  tabs.SetText(scr_cnt, "PROBE", nullptr, Font_8x12::GetInstance());
+  header.SetText(scr_cnt, "PROBE", Font_12x16::GetInstance());
   scr[scr_cnt++] = &ProbeScr::GetInstance();
-  tabs.SetText(scr_cnt, "SETTINGS", nullptr, Font_6x8::GetInstance());
+  header.SetText(scr_cnt, "SETTINGS", Font_12x16::GetInstance());
   scr[scr_cnt++] = &SettingsScr::GetInstance();
-  // Tabs for screens(second call to resize to actual numbers of tabs
-  tabs.SetParams(0, 0, display_drv.GetScreenW(), 40, scr_cnt);
+  // Pages for screens(second call to resize to actual numbers of pages)
+  header.SetParams(0, 0, display_drv.GetScreenW(), 40, scr_cnt);
   // Set callback
-  tabs.SetCallback(this);
-  tabs.Show(2000);
+  header.SetCallback(this);
+  header.Show(2000);
 
   // Setup all screens
-  for(uint32_t i = 0u; i < NumberOf(scr); i++)
+  for(uint32_t i = 0u; i < scr_cnt; i++)
   {
     scr[i]->Setup(40, display_drv.GetScreenH() - 40 - status_box.GetHeight());
   }
@@ -93,7 +93,7 @@ Result Application::Setup()
   scr[scr_idx]->Show();
 
   // Set callback handler for left and right buttons
-  input_drv.AddButtonsCallbackHandler(this, reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT_UP | InputDrv::BTNM_RIGHT_UP | InputDrv::BTNM_USR, btn_cble);
+  input_drv.AddButtonsCallbackHandler(this, reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_USR, btn_cble);
 
   // All good
   return Result::RESULT_OK;
@@ -159,11 +159,11 @@ Result Application::ProcessCallback(const void* ptr)
   // Handle flag
   bool handled = false;
 
-  // Check if tab changed
-  if(ptr == &tabs)
+  // Check if page changed
+  if(ptr == &header)
   {
-    // Change screen if another tab selected
-    ChangeScreen(tabs.GetSelectedTab());
+    // Change screen if another page selected
+    ChangeScreen(header.GetSelectedPage());
     // Set handled flag to not call screen callback function
     handled = true;
   }
@@ -220,7 +220,7 @@ Result Application::ProcessButtonCallback(Application* obj_ptr, void* ptr)
       }
       else if(btn.btn == InputDrv::BTN_RIGHT_UP)
       {
-        if(ths.scr_idx < NumberOf(scr) - 1u) ths.ChangeScreen(ths.scr_idx + 1u);
+        if(ths.scr_idx < ths.scr_cnt - 1u) ths.ChangeScreen(ths.scr_idx + 1u);
       }
       else if(btn.btn == InputDrv::BTN_USR)
       {
@@ -263,8 +263,8 @@ void Application::ChangeScreen(uint8_t scrn)
   scr[scr_idx]->Hide();
   // Save scale to control
   scr_idx = scrn;
-  // Set new tab
-  tabs.SetSelectedTab(scr_idx);
+  // Set new page
+  header.SetSelectedPage(scr_idx);
   // Show new screen
   scr[scr_idx]->Show();
 }
