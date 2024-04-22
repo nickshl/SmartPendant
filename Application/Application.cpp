@@ -156,18 +156,6 @@ Result Application::ProcessMessage()
 // *****************************************************************************
 Result Application::ProcessCallback(const void* ptr)
 {
-  // Handle flag
-  bool handled = false;
-
-  // Check if page changed
-  if(ptr == &header)
-  {
-    // Change screen if another page selected
-    ChangeScreen(header.GetSelectedPage());
-    // Set handled flag to not call screen callback function
-    handled = true;
-  }
-
   // Check MPG button
   if(ptr == &mpg_btn)
   {
@@ -181,12 +169,12 @@ Result Application::ProcessCallback(const void* ptr)
       GrblComm::GetInstance().GainControl();
       mpg_btn.SetPressed(true);
     }
-    // Set handled flag to not call screen callback function
-    handled = true;
   }
-
-  // Process screen callback if needed
-  if(handled == false)
+  else if(ptr == &header) // Change screen when another page selected
+  {
+    ChangeScreen(header.GetSelectedPage());
+  }
+  else // Process screen callback if needed
   {
     scr[scr_idx]->ProcessCallback(ptr);
   }

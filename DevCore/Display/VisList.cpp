@@ -213,6 +213,13 @@ void VisList::DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y)
 // *****************************************************************************
 void VisList::Action(ActionType action, int32_t tx, int32_t ty, int32_t tpx, int32_t tpy)
 {
+  // All object in list relative to the list, not to the touch position.
+  // So, we have to adjust touch coordinates for that.
+  tx -= x_start;
+  ty -= y_start;
+  tpx -= x_start;
+  tpy -= y_start;
+
   // Switch for process action
   switch(action)
   {

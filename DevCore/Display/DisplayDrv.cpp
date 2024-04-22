@@ -244,17 +244,17 @@ Result DisplayDrv::Loop()
     // Give semaphore after changes
     line_mutex.Release();
   }
-  // Show touch position
+  // Debug code. Can be enabled at compilation time. Show touch position.
   if(DISPLAY_DEBUG_TOUCH)
   {
-    if((tx != tmp_tx) || (ty != tmp_ty)) touch_cir.Move(tx, ty);
+    if((tx != tmp_tx) || (ty != tmp_ty)) touch_cir.Move(tmp_tx, tmp_ty);
   }
   // Save new touch state
   is_touch = tmp_is_touch;
   tx = tmp_tx;
   ty = tmp_ty;
 
-  // FIX ME: debug code. Should be removed.
+  // Debug code. Can be enabled at compilation time.
   if(DISPLAY_DEBUG_INFO)
   {
     if(is_touch) sprintf(str, "X: %4ld, Y: %4ld", tx, ty);

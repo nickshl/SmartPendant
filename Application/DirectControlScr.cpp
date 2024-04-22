@@ -52,20 +52,30 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
     axis_names[i].SetScale(2u);
     axis_names[i].Move((dw[i].GetStartX() / 2) - (axis_names[i].GetWidth() / 2), (dw[i].GetStartY() + dw[i].GetHeight() / 2) - (axis_names[i].GetHeight() / 2));
     // Set/Zero button
-    set_btn[i].SetParams("<0>", dw[i].GetEndX() + BORDER_W, dw[i].GetStartY(), display_drv.GetScreenW() - dw[i].GetEndX() - BORDER_W * 2, dw[i].GetHeight(), true);
-    set_btn[i].SetCallback(AppTask::GetCurrent());
+    zero_btn[i].SetParams("<0>", dw[i].GetEndX() + BORDER_W, dw[i].GetStartY(), display_drv.GetScreenW() - dw[i].GetEndX() - BORDER_W * 2, dw[i].GetHeight(), true);
+    zero_btn[i].SetCallback(AppTask::GetCurrent());
   }
   // Scale buttons
   for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
   {
-    scale_btn[i].SetParams((i == 0u) ? "0.001 mm" : ((i == 1u) ? "0.01 mm" : "0.1 mm"), i*(display_drv.GetScreenW() / 3) + BORDER_W, dw[NumberOf(dw) - 1u].GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 3 - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
+    // Calculate scale button width
+    uint32_t scale_btn_w = (display_drv.GetScreenW() - BORDER_W * (NumberOf(scale_btn) + 1u)) / NumberOf(scale_btn);
+    // Set scale button parameters
+    scale_btn[i].SetParams(scale_str[i], BORDER_W + i * (scale_btn_w + BORDER_W), dw[NumberOf(dw) - 1u].GetEndY() + BORDER_W*2, scale_btn_w, Font_8x12::GetInstance().GetCharH() * 5, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent());
+    // Press button "0.01 mm"
+    if(scale_val[i] == 10u)
+    {
+      // Set corresponded button pressed
+      scale_btn[i].SetPressed(true);
+    }
   }
-
   // Set scale 0.01 mm
-  scale = 10;
-  // Set corresponded button pressed
-  scale_btn[1u].SetPressed(true);
+  scale = 10u;
+
+  // Left soft button
+  set_btn.SetParams("Set axis position", BORDER_W, height - (Font_8x12::GetInstance().GetCharH() * 5) - BORDER_W, display_drv.GetScreenW() - BORDER_W * 2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  set_btn.SetCallback(AppTask::GetCurrent());
 
   // Left soft button
   left_btn.SetParams("Run", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, display_drv.GetScreenW() / 2 - BORDER_W, Font_8x12::GetInstance().GetCharH() * 3, true);
@@ -88,7 +98,7 @@ Result DirectControlScr::Show()
   {
     dw[i].Show(100);
     axis_names[i].Show(100);
-    set_btn[i].Show(100);
+    zero_btn[i].Show(100);
   }
   // Scale buttons
   for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
@@ -102,6 +112,9 @@ Result DirectControlScr::Show()
   {
     dw[i].SetSeleced(false);
   }
+
+  // Set button
+  set_btn.Show(102);
 
   // Soft Buttons
   left_btn.Show(102);
@@ -131,13 +144,16 @@ Result DirectControlScr::Hide()
   {
     dw[i].Hide();
     axis_names[i].Hide();
-    set_btn[i].Hide();
+    zero_btn[i].Hide();
   }
   // Scale buttons
   for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
   {
     scale_btn[i].Hide();
   }
+
+  // Set button
+  set_btn.Hide();
 
   // Soft Buttons
   left_btn.Hide();
@@ -154,54 +170,86 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
 {
   Result result = Result::RESULT_OK;
 
-  // Update left button text
-  if(grbl_comm.GetState() == GrblComm::RUN)
+  // Process jog if set button is unpressed
+  if(set_btn.GetPressed() == false)
   {
-    left_btn.SetString("Hold");
+    // Update left button text
+    if(grbl_comm.GetState() == GrblComm::RUN)
+    {
+      left_btn.SetString("Hold");
+    }
+    else
+    {
+      left_btn.SetString("Run");
+    }
+
+    // Update numbers with current position
+    for(uint32_t i = 0u; i < NumberOf(dw); i++)
+    {
+      dw[i].SetNumber(grbl_comm.GetAxisPosition(i));
+    }
+
+    // Update numbers with current position
+    for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
+    {
+      // If requested position changed
+      if(jog_val[i] != 0)
+      {
+        // In "lathe" mode we have to invert X axis
+        if((i == GrblComm::AXIS_X) && nvm.GetMode())
+        {
+          jog_val[i] = -jog_val[i];
+        }
+        // Calculate distance - number of encoder clicks multiplied by click value
+        int32_t distance_um = jog_val[i] * scale;
+        // Speed in encoder clicks per second
+        uint32_t speed = InputDrv::GetInstance().GetEncoderSpeed();
+        // 20 clicks per second as minimum speed
+        if(speed < 20u) speed = 20u;
+        // Speed in um per second
+        speed *= scale;
+        // Convert speed from um/sec to mm*100/min
+        speed = speed * 60u / 10u;
+
+        result = grbl_comm.Jog(i, distance_um, speed);
+        // Clear value
+        jog_val[i] = 0;
+        // One axis at a time
+        break;
+      }
+    }
   }
   else
   {
-    left_btn.SetString("Run");
-  }
-
-  // Update numbers with current position
-  for(uint32_t i = 0u; i < NumberOf(dw); i++)
-  {
-    dw[i].SetNumber(grbl_comm.GetAxisPosition(i));
-  }
-
-  // Update numbers with current position
-  for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
-  {
-    // If requested position changed
-    if(jog_val[i] != 0)
+    for(uint32_t i = 0u; i < NumberOf(dw); i++)
     {
-      // In "lathe" mode we have to invert X axis
-      if((i == GrblComm::AXIS_X) && nvm.GetMode())
-      {
-        jog_val[i] = -jog_val[i];
-      }
-      // Calculate distance - number of encoder clicks multiplied by click value
-      int32_t distance_um = jog_val[i] * scale;
-      // Speed in encoder clicks per second
-      uint32_t speed = InputDrv::GetInstance().GetEncoderSpeed();
-      // 20 clicks per second as minimum speed
-      if(speed < 20u) speed = 20u;
-      // Speed in um per second
-      speed *= scale;
-      // Convert speed from um/sec to mm*100/min
-      speed = speed * 60u / 10u;
-
-      result = grbl_comm.Jog(i, distance_um, speed);
+      // Update number
+      dw[i].SetNumber(dw[i].GetNumber() + jog_val[i] * scale);
       // Clear value
       jog_val[i] = 0;
-      // One axis at a time
-      break;
+    }
+
+    // If state changed from IDLE
+    if(grbl_comm.GetState() != GrblComm::IDLE)
+    {
+      // Cancel axis value change
+      ProcessCallback(&set_btn);
     }
   }
 
   // Return result
   return result;
+}
+
+// *****************************************************************************
+// ***   UnpressButtons function   *********************************************
+// *****************************************************************************
+void DirectControlScr::UnpressButtons(void)
+{
+  for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
+  {
+    scale_btn[i].SetPressed(false);
+  }
 }
 
 // *****************************************************************************
@@ -213,75 +261,119 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
   // button, we have to check if Run button is active.
   if(ptr == &left_btn)
   {
-    // If we already run program
-    if(grbl_comm.GetState() != GrblComm::RUN)
+    // Process Run/Hold if set button is unpressed
+    if(set_btn.GetPressed() == false)
     {
-      grbl_comm.Run(); // Send Run command for continue
+      // If we already run program
+      if(grbl_comm.GetState() != GrblComm::RUN)
+      {
+        grbl_comm.Run(); // Send Run command for continue
+      }
+      else
+      {
+        grbl_comm.Hold(); // Send Hold command for pause
+      }
     }
     else
     {
-      grbl_comm.Hold(); // Send Hold command for pause
+      // Set axis value
+      for(uint32_t i = 0u; i < NumberOf(dw); i++)
+      {
+        grbl_comm.SetAxis(i, dw[i].GetNumber());
+      }
+      // Exit from set mode
+      ProcessCallback(&set_btn);
     }
   }
   // Process Reset button
   else if(ptr == &right_btn)
   {
-    // Send Stop command
-    grbl_comm.Stop();
-  }
-  else if(ptr == &scale_btn[0])
-  {
-    // Set pressed state for selected button and unpressed for selected one
-    scale_btn[0u].SetPressed(true);
-    scale_btn[1u].SetPressed(false);
-    scale_btn[2u].SetPressed(false);
-    // Save scale to control
-    scale = 1;
-  }
-  else if(ptr == &scale_btn[1])
-  {
-    // Set pressed state for selected button and unpressed for selected one
-    scale_btn[0u].SetPressed(false);
-    scale_btn[1u].SetPressed(true);
-    scale_btn[2u].SetPressed(false);
-    // Save scale to control
-    scale = 10;
-  }
-  else if(ptr == &scale_btn[2])
-  {
-    // Set pressed state for selected button and unpressed for selected one
-    scale_btn[0u].SetPressed(false);
-    scale_btn[1u].SetPressed(false);
-    scale_btn[2u].SetPressed(true);
-    // Save scale to control
-    scale = 100;
-  }
-  else
-  {
-    // Check axis data windows
-    for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
+    // Process Stop if set button is unpressed
+    if(set_btn.GetPressed() == false)
     {
-      if(ptr == &dw[i])
+      // Send Stop command
+      grbl_comm.Stop();
+    }
+    else
+    {
+      // Cancel axis value change
+      ProcessCallback(&set_btn);
+    }
+  }
+  // Process Set button
+  else if(ptr == &set_btn)
+  {
+    // We can change axis values onlu in IDLE state
+    if((set_btn.GetPressed() == false) && (grbl_comm.GetState() == GrblComm::IDLE))
+    {
+      // Enter axis value change mode
+      set_btn.SetPressed(true);
+      left_btn.SetString("Set");
+      right_btn.SetString("Cancel");
+      // Set yellow color for unselected sata windows
+      for(uint32_t i = 0u; i < NumberOf(dw); i++)
       {
-        // Set border to red for all windows
-        for(uint32_t j = 0u; j < GrblComm::AXIS_CNT; j++)
-        {
-          dw[j].SetSeleced(false);
-        }
-        // Then set border to green for selected one
-        dw[i].SetSeleced(true);
-        // Save axis to control
-        axis = (GrblComm::Axis_t)i;
-        // Break the cycle
-        break;
+        dw[i].SetBorderColor(COLOR_YELLOW);
       }
-      else if(ptr == &set_btn[i])
+    }
+    else
+    {
+      // Cancel axis value change mode
+      set_btn.SetPressed(false);
+      right_btn.SetString("Stop");
+      // Set red color for unselected sata windows
+      for(uint32_t i = 0u; i < NumberOf(dw); i++)
       {
-        grbl_comm.ZeroAxis((GrblComm::Axis_t)i);
-        break;
+        dw[i].SetBorderColor(COLOR_RED);
       }
     }
   }
+  else
+  {
+    uint32_t i = 0u;
+    // Try to find button
+    for(; i < NumberOf(scale_btn); i++)
+    {
+      if(ptr == &scale_btn[i])
+      {
+        // Set unpressed state for all buttons
+        UnpressButtons();
+        // Set pressed state for selected one
+        scale_btn[i].SetPressed(true);
+        // Save scale to control
+        scale = scale_val[i];
+        break;
+      }
+    }
+    // If previous cycle isn't found button
+    if(i == NumberOf(scale_btn))
+    {
+      // Check axis data windows
+      for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
+      {
+        if(ptr == &dw[i])
+        {
+          // Set border to red for all windows
+          for(uint32_t j = 0u; j < GrblComm::AXIS_CNT; j++)
+          {
+            dw[j].SetSeleced(false);
+          }
+          // Then set border to green for selected one
+          dw[i].SetSeleced(true);
+          // Save axis to control
+          axis = (GrblComm::Axis_t)i;
+          // Break the cycle
+          break;
+        }
+        else if(ptr == &zero_btn[i])
+        {
+          grbl_comm.ZeroAxis((GrblComm::Axis_t)i);
+          break;
+        }
+      }
+    }
+  }
+
   // Always good
   return Result::RESULT_OK;
 }

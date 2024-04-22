@@ -187,7 +187,7 @@ enum Color
   COLOR_MEDIUMGREEN     = 0x00008000, //   0, 128,   0
   COLOR_LIGHTGREEN      = 0x0000C000, //   0, 192,   0
   COLOR_GREEN           = 0x0000FF00, //   0, 255,   0
-  
+
   COLOR_VERYDARKBLUE    = 0x00200000, //  32,   0,   0
   COLOR_DARKBLUE        = 0x00400000, //  64,   0,   0
   COLOR_MEDIUMBLUE      = 0x00800000, // 128,   0,   0

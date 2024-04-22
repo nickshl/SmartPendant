@@ -334,9 +334,9 @@ const char* const GrblComm::GetStatusName(status_t status)
 }
 
 // *****************************************************************************
-// ***   Public: GetAxisAbsolutePosition function   ****************************
+// ***   Public: GetAxisMachinePosition function   *****************************
 // *****************************************************************************
-int32_t GrblComm::GetAxisAbsolutePosition(uint8_t axis)
+int32_t GrblComm::GetAxisMachinePosition(uint8_t axis)
 {
   // Return value - zero by default. Non existent axis always 0.
   int32_t value = 0;
@@ -376,7 +376,28 @@ int32_t GrblComm::GetAxisPosition(uint8_t axis)
 }
 
 // *****************************************************************************
-// ***   Public: GetProbePosition function   ************************************
+// ***   Public: GetProbeMachinePosition function   ****************************
+// *****************************************************************************
+int32_t GrblComm::GetProbeMachinePosition(uint8_t axis)
+{
+  // Return value - zero by default. Non existent axis always 0.
+  int32_t value = 0;
+  // Check parameter
+  if(axis < AXIS_CNT)
+  {
+    // Lock mutex before copying data
+    mutex.Lock();
+    // Copy value
+    value = (int32_t)(grbl_probe_position[axis] * 1000);
+    // Release mutex after data is copied
+    mutex.Release();
+  }
+  // Return result
+  return value;
+}
+
+// *****************************************************************************
+// ***   Public: GetProbePosition function   ***********************************
 // *****************************************************************************
 int32_t GrblComm::GetProbePosition(uint8_t axis)
 {
@@ -388,7 +409,7 @@ int32_t GrblComm::GetProbePosition(uint8_t axis)
     // Lock mutex before copying data
     mutex.Lock();
     // Copy value
-    value = (int32_t)(grbl_probe_position[axis] * 1000);
+    value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * 1000);
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -412,7 +433,10 @@ GrblComm::status_t GrblComm::GetCmdResult(uint32_t id)
   else
   {
     // If requested ID less than we already sent - status is lost
-    if(id < send_id) status = Status_Next_Cmd_Executed;
+    if(id < send_id)
+    {
+      status = Status_Next_Cmd_Executed;
+    }
   }
 
   return status;
@@ -730,9 +754,86 @@ Result GrblComm::SetAxis(uint8_t axis, int32_t position_um)
 }
 
 // *****************************************************************************
+// ***   Public: SetAbsoluteMode   *********************************************
+// *****************************************************************************
+Result GrblComm::SetAbsoluteMode()
+{
+  // Command ID
+  uint32_t id = 0u;
+  // Command buffer
+  char cmd[16u] = {0};
+  // Create command
+  snprintf(cmd, NumberOf(cmd), "G90\r\n");
+  // Send command
+  return SendCmd(cmd, id);
+}
+
+// *****************************************************************************
+// ***   Public: SetIncrementalMode   ******************************************
+// *****************************************************************************
+Result GrblComm::SetIncrementalMode()
+{
+  // Command ID
+  uint32_t id = 0u;
+  // Command buffer
+  char cmd[16u] = {0};
+  // Create command
+  snprintf(cmd, NumberOf(cmd), "G91\r\n");
+  // Send command
+  return SendCmd(cmd, id);
+}
+
+// *****************************************************************************
+// ***   Public: MoveAxis   ****************************************************
+// *****************************************************************************
+Result GrblComm::MoveAxis(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x100, uint32_t &id)
+{
+  Result result = Result::ERR_BAD_PARAMETER;
+
+  if(axis < AXIS_CNT)
+  {
+    // Move possible only in Idle state
+    if(IsInControl() && (grbl_state == IDLE))
+    {
+      TaskQueueMsg msg;
+
+      // Set ID for command
+      msg.id = GetNextId();
+
+      // Find sign: sigh should be handled separately, because it will be lost
+      // for movements less than 1 mm.
+      bool is_negative = distance_um < 0;
+      // Remove sign from number
+      distance_um = abs(distance_um);
+      // Create move command(zero speed mean rapid)
+      if(speed_mm_min_x100)
+      {
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G1%s%s%lu.%03luF%lu.%02lu\r\n", axis_str[axis], is_negative ? "-" : "", distance_um / 1000, distance_um % 1000, speed_mm_min_x100 / 100, speed_mm_min_x100 % 100);
+      }
+      else
+      {
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G0%s%s%lu.%03lu\r\n", axis_str[axis], is_negative ? "-" : "", distance_um / 1000, distance_um % 1000);
+      }
+
+      // Send message
+      result = SendTaskMessage(&msg);
+      // Save ID
+      id = msg.id;
+    }
+    else
+    {
+      result = Result::ERR_CANNOT_EXECUTE;
+    }
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
 // ***   Public: ProbeAxisTowardWorkpiece   ************************************
 // *****************************************************************************
-Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position_um, uint32_t &id)
+Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position_um, uint32_t speed_mm_min, uint32_t &id)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -752,7 +853,47 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position_um, uin
       // Remove sign from number
       position_um = abs(position_um);
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G38.2%s%s%lu.%03luF100\r\n", axis_str[axis], is_negative ? "-" : "", position_um / 1000, position_um % 1000); // G38.2{Axis}{Position}
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G38.2%s%s%lu.%03luF%lu\r\n", axis_str[axis], is_negative ? "-" : "", position_um / 1000, position_um % 1000, speed_mm_min); // G38.2{Axis}{Position}
+
+      // Send message
+      result = SendTaskMessage(&msg);
+      // Save ID
+      id = msg.id;
+    }
+    else
+    {
+      result = Result::ERR_CANNOT_EXECUTE;
+    }
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Public: ProbeAxisAwayFromWorkpiece   **********************************
+// *****************************************************************************
+Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position_um, uint32_t speed_mm_min, uint32_t &id)
+{
+  Result result = Result::ERR_BAD_PARAMETER;
+
+  if(axis < AXIS_CNT)
+  {
+    // Reset axis possible only in Idle state
+    if(IsInControl() && (grbl_state == IDLE))
+    {
+      TaskQueueMsg msg;
+
+      // Set ID for command
+      msg.id = GetNextId();
+
+      // Find sign: sigh should be handled separately, because it will be lost
+      // for movements less than 1 mm.
+      bool is_negative = position_um < 0;
+      // Remove sign from number
+      position_um = abs(position_um);
+      // Create Set Axis command
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G38.4%s%s%lu.%03luF%lu\r\n", axis_str[axis], is_negative ? "-" : "", position_um / 1000, position_um % 1000, speed_mm_min); // G38.4{Axis}{Position}
 
       // Send message
       result = SendTaskMessage(&msg);

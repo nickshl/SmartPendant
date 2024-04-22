@@ -25,12 +25,14 @@
 // *****************************************************************************
 void Tabs::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t n)
 {
-  // This is an active object
-  SetActive(true);
   // Set list params
   list.SetParams(x, y, w, h);
+  // Set list as active
+  list.SetActive(true);
   // Set list for itself
   SetList(list);
+  // This is an active object
+  SetActive(true);
 
   // X and Y start coordinates of object is zero because of new list
   x_start = 0;

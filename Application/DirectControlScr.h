@@ -91,10 +91,17 @@ class DirectControlScr : public IScreen
     // Data windows to show DRO
     DataWindow dw[GrblComm::AXIS_CNT];
     // Buttons to set 0 or position
-    UiButton set_btn[GrblComm::AXIS_CNT];
+    UiButton zero_btn[GrblComm::AXIS_CNT];
 
     // Buttons to choose scale
-    UiButton scale_btn[3u];
+    UiButton scale_btn[4u];
+    // Scale options(string)
+    const char scale_str[NumberOf(scale_btn)][12u] = {"0.001 mm", "0.005 mm", "0.01 mm", "0.1 mm"};
+    // Scale options(value)
+    const uint32_t scale_val[NumberOf(scale_btn)] = {1, 5, 10, 100};
+
+    // Set buttons
+    UiButton set_btn;
 
     // Soft Buttons
     UiButton left_btn;
@@ -111,6 +118,11 @@ class DirectControlScr : public IScreen
     InputDrv::CallbackListEntry enc_cble;
     // Button callback entry
     InputDrv::CallbackListEntry btn_cble;
+
+    // *************************************************************************
+    // ***   Private: UnpressButtons function   ********************************
+    // *************************************************************************
+    void UnpressButtons();
 
     // *************************************************************************
     // ***   Private: ProcessEncoderCallback function   ************************

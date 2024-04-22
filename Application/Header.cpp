@@ -297,21 +297,17 @@ Result Header::ProcessUiCallback(Header* obj_ptr, void* ptr)
       }
     }
 
-    // If selected tab changed
-    if(ths.selected_page != prev_sel_page)
+    // Hide box if it shown
+    if(ths.box.IsShow())
     {
-      // Hide box if it shown
-      if(ths.box.IsShow())
-      {
-        ths.Hide();
-      }
-      // Update caption
-      ths.Show(ths.GetZ());
-      // Call callback
-      if(ths.callback_task != nullptr)
-      {
-        ths.callback_task->Callback(ths.callback_func, ths.callback_param, obj_ptr);
-      }
+      ths.Hide();
+    }
+    // Update caption
+    ths.Show(ths.GetZ());
+    // If selected tab changed - call callback
+    if((ths.selected_page != prev_sel_page) && (ths.callback_task != nullptr))
+    {
+      ths.callback_task->Callback(ths.callback_func, ths.callback_param, obj_ptr);
     }
 
     // Set ok result

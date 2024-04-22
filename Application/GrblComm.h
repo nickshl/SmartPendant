@@ -354,14 +354,19 @@ class GrblComm : public AppTask
     const char* const GetCurrentStatusName() {return GetStatusName(grbl_status);}
 
     // *************************************************************************
-    // ***   Public: GetAxisAbsolutePosition function   ************************
+    // ***   Public: GetAxisMachinePosition function   *************************
     // *************************************************************************
-    int32_t GetAxisAbsolutePosition(uint8_t axis);
+    int32_t GetAxisMachinePosition(uint8_t axis);
 
     // *************************************************************************
     // ***   Public: GetAxisPosition function   ********************************
     // *************************************************************************
     int32_t GetAxisPosition(uint8_t axis);
+
+    // *************************************************************************
+    // ***   Public: GetProbeMachinePosition function   ************************
+    // *************************************************************************
+    int32_t GetProbeMachinePosition(uint8_t axis);
 
     // *************************************************************************
     // ***   Public: GetProbePosition function   *******************************
@@ -529,9 +534,29 @@ class GrblComm : public AppTask
     Result SetAxis(uint8_t axis, int32_t position_um);
 
     // *************************************************************************
+    // ***   Public: SetAbsoluteMode   *****************************************
+    // *************************************************************************
+    Result SetAbsoluteMode();
+
+    // *************************************************************************
+    // ***   Public: SetIncrementalMode   **************************************
+    // *************************************************************************
+    Result SetIncrementalMode();
+
+    // *************************************************************************
+    // ***   Public: MoveAxis   ************************************************
+    // *************************************************************************
+    Result MoveAxis(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x100, uint32_t &id);
+
+    // *************************************************************************
     // ***   Public: ProbeAxisTowardWorkpiece   ********************************
     // *************************************************************************
-    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position_um, uint32_t &id);
+    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position_um, uint32_t speed_mm_min, uint32_t &id);
+
+    // *************************************************************************
+    // ***   Public: ProbeAxisAwayFromWorkpiece   ******************************
+    // *************************************************************************
+    Result ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position_um, uint32_t speed_mm_min, uint32_t &id);
 
     // *************************************************************************
     // ***   Public: SetToolLengthOffset   *************************************
@@ -555,18 +580,10 @@ class GrblComm : public AppTask
     // Pointer to UART class
     StHalUart* uart = nullptr;
 
-    // TODO: REVOVE AT ALL! BAD IDEA TO USE TX LINE SICE IT DOENS'T ALLOW SEND
-    //       OVERRIDE, HOLD, STOP AND OTHER COMMANDS WHEN NOT IN CONTROL !!!
-    // TODO: Move to StHalGpio class?
-    // USART TX pin to control MPG mode on grblHAL
-    GPIO_TypeDef* tx_gpio = UART_TX_GPIO_Port;
-    uint32_t tx_pin = UART_TX_Pin;
-    uint32_t tx_alt = GPIO_AF7_USART1;
-
     // Buffer for transmit data
-    uint8_t tx_buf[128];
+    uint8_t tx_buf[256u];
     // Buffer for receive data
-    uint8_t rx_buf[256];
+    uint8_t rx_buf[512u];
 
     // Counter for received characters
     uint16_t rx_char_cnt = 0u;

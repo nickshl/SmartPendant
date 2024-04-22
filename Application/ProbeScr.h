@@ -29,6 +29,7 @@
 #include "DataWindow.h"
 #include "GrblComm.h"
 #include "InputDrv.h"
+#include "Tabs.h"
 
 // *****************************************************************************
 // ***   Local const variables   ***********************************************
@@ -40,7 +41,9 @@
 #define BG_Z (100)
 
 // *****************************************************************************
-// ***   ProbeScr Class   **********************************************
+// *****************************************************************************
+// ***   ProbeScr Class   ******************************************************
+// *****************************************************************************
 // *****************************************************************************
 class ProbeScr : public IScreen
 {
@@ -49,6 +52,84 @@ class ProbeScr : public IScreen
     // ***   Get Instance   ****************************************************
     // *************************************************************************
     static ProbeScr& GetInstance();
+
+    // *************************************************************************
+    // ***   Setup function   **************************************************
+    // *************************************************************************
+    virtual Result Setup(int32_t y, int32_t height);
+
+    // *************************************************************************
+    // ***   Public: Show   ****************************************************
+    // *************************************************************************
+    virtual Result Show();
+
+    // *************************************************************************
+    // ***   Public: Hide   ****************************************************
+    // *************************************************************************
+    virtual Result Hide();
+
+    // *************************************************************************
+    // ***   Public: TimerExpired   ********************************************
+    // *************************************************************************
+    virtual Result TimerExpired(uint32_t interval);
+
+    // *************************************************************************
+    // ***   Public: ProcessCallback   *****************************************
+    // *************************************************************************
+    virtual Result ProcessCallback(const void* ptr);
+
+  private:
+    static const uint8_t BORDER_W = 4u;
+
+    // Pages
+    Tabs tabs;
+
+    // Pointers to screens
+    IScreen* tab[16u] = {0};
+    // Screen counter
+    uint32_t tabs_cnt = 0u;
+    // Current screen index
+    uint32_t tab_idx = 0u;
+
+    // Soft Button
+    UiButton right_btn;
+
+    // Display driver instance
+    DisplayDrv& display_drv = DisplayDrv::GetInstance();
+    // GRBL Communication Interface instance
+    GrblComm& grbl_comm = GrblComm::GetInstance();
+
+    // Button callback entry
+    InputDrv::CallbackListEntry btn_cble;
+
+    // *************************************************************************
+    // ***   Private: ProcessButtonCallback function   *************************
+    // *************************************************************************
+    static Result ProcessButtonCallback(ProbeScr* obj_ptr, void* ptr);
+
+    // *************************************************************************
+    // ***   Private: ChangeTab function   *************************************
+    // *************************************************************************
+    void ChangeTab(uint8_t tabn);
+
+    // *************************************************************************
+    // ***   Private constructor   *********************************************
+    // *************************************************************************
+    ProbeScr() {};
+};
+
+// *****************************************************************************
+// *****************************************************************************
+// ***   ToolOffsetTab Class   *************************************************
+// *****************************************************************************
+// *****************************************************************************
+class ToolOffsetTab : public IScreen
+{
+  public:
+    // *************************************************************************
+    // ***   Get Instance   ****************************************************
+    // *************************************************************************
+    static ToolOffsetTab& GetInstance();
 
     // *************************************************************************
     // ***   Setup function   **************************************************
@@ -121,38 +202,133 @@ class ProbeScr : public IScreen
     // Buttons to reset changed values to current
     UiButton get_base_btn;
 
-    // Soft Button
-    UiButton right_btn;
+    // Display driver instance
+    DisplayDrv& display_drv = DisplayDrv::GetInstance();
+    // GRBL Communication Interface instance
+    GrblComm& grbl_comm = GrblComm::GetInstance();
+
+    // *************************************************************************
+    // ***   Private constructor   *********************************************
+    // *************************************************************************
+    ToolOffsetTab() {};
+};
+
+// *****************************************************************************
+// *****************************************************************************
+// ***   CenterFinderTab Class   ***********************************************
+// *****************************************************************************
+// *****************************************************************************
+class CenterFinderTab : public IScreen
+{
+  public:
+    // *************************************************************************
+    // ***   Get Instance   ****************************************************
+    // *************************************************************************
+    static CenterFinderTab& GetInstance();
+
+    // *************************************************************************
+    // ***   Setup function   **************************************************
+    // *************************************************************************
+    virtual Result Setup(int32_t y, int32_t height);
+
+    // *************************************************************************
+    // ***   Public: Show   ****************************************************
+    // *************************************************************************
+    virtual Result Show();
+
+    // *************************************************************************
+    // ***   Public: Hide   ****************************************************
+    // *************************************************************************
+    virtual Result Hide();
+
+    // *************************************************************************
+    // ***   Public: TimerExpired   ********************************************
+    // *************************************************************************
+    virtual Result TimerExpired(uint32_t interval);
+
+    // *************************************************************************
+    // ***   Public: ProcessCallback   *****************************************
+    // *************************************************************************
+    virtual Result ProcessCallback(const void* ptr);
+
+  private:
+    static const uint8_t BORDER_W = 4u;
+
+    // Enum to track state
+    typedef enum
+    {
+      PROBE_START,
+      PROBE_FAST_X_MIN,
+      PROBE_FAST_X_MIN_RET,
+      PROBE_X_MIN,
+      PROBE_X_MIN_RET,
+      PROBE_FAST_X_MAX,
+      PROBE_FAST_X_MAX_RET,
+      PROBE_X_MAX,
+      PROBE_X_MAX_RET,
+      PROBE_FAST_Y_MIN,
+      PROBE_FAST_Y_MIN_RET,
+      PROBE_Y_MIN,
+      PROBE_Y_MIN_RET,
+      PROBE_FAST_Y_MAX,
+      PROBE_FAST_Y_MAX_RET,
+      PROBE_Y_MAX,
+      PROBE_Y_MAX_RET,
+      PROBE_MOVE_CENTER,
+      PROBE_CNT
+    } state_t;
+
+    // Enum to track state
+    typedef enum
+    {
+      PROBE_LINE_START,
+      PROBE_LINE_FAST,
+      PROBE_LINE_FAST_RET,
+      PROBE_LINE_SLOW,
+      PROBE_LINE_SLOW_RET,
+      PROBE_LINE_CNT
+    } probe_state_t;
+
+    // Current state
+    state_t state = PROBE_CNT;
+
+    // X & Y positions
+    int32_t x_min_pos = 0u;
+    int32_t y_min_pos = 0u;
+    int32_t x_safe_pos = 0u;
+    int32_t y_safe_pos = 0u;
+
+    // Current selected axis
+    // Scale to move axis
+    GrblComm::Axis_t axis = GrblComm::AXIS_CNT;
+    // ID to track send message
+    uint32_t cmd_id = 0u;
+
+    // Current GRBL state to detect changes
+    GrblComm::state_t grbl_state = GrblComm::UNKNOWN;
+
+    // Data windows to show real position
+    DataWindow dw_real[GrblComm::AXIS_CNT];
+    // String for caption
+    String dw_real_name[NumberOf(dw_real)];
+
+    // Buttons to start movement
+    UiButton find_center_btn;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // GRBL Communication Interface instance
     GrblComm& grbl_comm = GrblComm::GetInstance();
 
-    // Encoder callback entry
-    InputDrv::CallbackListEntry enc_cble;
-    // Button callback entry
-    InputDrv::CallbackListEntry btn_cble;
-
     // *************************************************************************
-    // ***   Private: ProcessEncoderCallback function   ************************
+    // ***   ProbeLineSequence function   **************************************
     // *************************************************************************
-    static Result ProcessEncoderCallback(ProbeScr* obj_ptr, void* ptr);
-
-    // *************************************************************************
-    // ***   Private: ProcessButtonCallback function   *************************
-    // *************************************************************************
-    static Result ProcessButtonCallback(ProbeScr* obj_ptr, void* ptr);
-
-    // *************************************************************************
-    // ***   Private: Update function   ****************************************
-    // *************************************************************************
-    void UpdateObjects();
+    Result ProbeLineSequence(probe_state_t& state, uint8_t axis, int32_t dir, int32_t& safe_pos, int32_t& measured_pos);
 
     // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    ProbeScr() {};
+    CenterFinderTab() {};
 };
 
 #endif
