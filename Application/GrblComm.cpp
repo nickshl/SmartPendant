@@ -93,6 +93,15 @@ Result GrblComm::TimerExpired()
     }
   }
 
+  // If SmarpPendant is in control and request_settings flag is set
+  if(IsInControl() && (request_settings))
+  {
+    // Request settings from the controller
+    RequestControllerSettings();
+    // And clear the request flag
+    request_settings = false;
+  }
+
   // Request status if previous one received and more than 100 ms passed since last request
   if(IsInControl() && status_received && (RtosTick::GetTimeMs() - status_tx_timestamp > 100u) && (uart->IsTxComplete()))
   {
@@ -503,6 +512,19 @@ Result GrblComm::SendRealTimeCmd(uint8_t cmd)
 }
 
 // *****************************************************************************
+// ***   Public: RequestControllerSettings   ***********************************
+// *****************************************************************************
+Result GrblComm::RequestControllerSettings()
+{
+  // Command ID
+  uint32_t id = 0u;
+  // Command buffer
+  static const char cmd[] = {"$$\r\n"};
+  // Send command
+  return SendCmd(cmd, id);
+}
+
+// *****************************************************************************
 // ***   Public: RequestOffsets   **********************************************
 // *****************************************************************************
 Result GrblComm::RequestOffsets()
@@ -510,9 +532,7 @@ Result GrblComm::RequestOffsets()
   // Command ID
   uint32_t id = 0u;
   // Command buffer
-  char cmd[16u] = {0};
-  // Create command
-  snprintf(cmd, NumberOf(cmd), "$#\r\n");
+  static const char cmd[] = {"$#\r\n"};
   // Send command
   return SendCmd(cmd, id);
 }
@@ -761,9 +781,7 @@ Result GrblComm::SetAbsoluteMode()
   // Command ID
   uint32_t id = 0u;
   // Command buffer
-  char cmd[16u] = {0};
-  // Create command
-  snprintf(cmd, NumberOf(cmd), "G90\r\n");
+  static const char cmd[] = {"G90\r\n"};
   // Send command
   return SendCmd(cmd, id);
 }
@@ -776,9 +794,33 @@ Result GrblComm::SetIncrementalMode()
   // Command ID
   uint32_t id = 0u;
   // Command buffer
-  char cmd[16u] = {0};
-  // Create command
-  snprintf(cmd, NumberOf(cmd), "G91\r\n");
+  static const char cmd[] = {"G91\r\n"};
+  // Send command
+  return SendCmd(cmd, id);
+}
+
+// *****************************************************************************
+// ***   Public: SetLatheRadiusMode   ******************************************
+// *****************************************************************************
+Result GrblComm::SetLatheRadiusMode()
+{
+  // Command ID
+  uint32_t id = 0u;
+  // Command buffer
+  static const char cmd[] = {"G8\r\n"};
+  // Send command
+  return SendCmd(cmd, id);
+}
+
+// *****************************************************************************
+// ***   Public: SetLatheDiameterMode   ****************************************
+// *****************************************************************************
+Result GrblComm::SetLatheDiameterMode()
+{
+  // Command ID
+  uint32_t id = 0u;
+  // Command buffer
+  static const char cmd[] = {"G7\r\n"};
   // Send command
   return SendCmd(cmd, id);
 }
@@ -1003,7 +1045,13 @@ bool GrblComm::ParseState(char *data)
   // If state found and changed
   if((state < STATE_CNT) && ((grbl_state != state) || (grbl_substate != substate)))
   {
-    // Save it and set changed flag
+    // If previous state was UNKNOWN, set flag to request controller settings
+    if(grbl_state == UNKNOWN)
+    {
+      request_settings = true;
+    }
+
+    // Save new state and set changed flag
     grbl_state = (state_t)state;
     grbl_substate = substate;
     changed = true;
@@ -1156,6 +1204,48 @@ void GrblComm::ParseData(void)
     return;
   }
 
+  // Parse settings
+  if(line[0] == '$')
+  {
+    char *s = strchr(line, '=');
+    // If  '=' sign found
+    if(s)
+    {
+      // Replace '=' with null-terminator
+      *s++ = '\0';
+
+      // Find settings number
+      uint32_t setting_num = atoi(&line[1]);
+
+      // Find setting and store it
+      switch(setting_num)
+      {
+        // *********************************************************************
+        case 13:
+          if(measurement_system != atoi(s))
+          {
+            measurement_system = atoi(s);
+            settings_changed = true;
+          }
+          break;
+
+        // *********************************************************************
+        case 32:
+          if(mode_of_operation != atoi(s))
+          {
+            mode_of_operation = atoi(s);
+            settings_changed = true;
+          }
+          break;
+
+        // *********************************************************************
+        default:
+          break;
+      }
+    }
+  }
+
+  // Parse status
   if(line[0] == '<')
   {
     // Set status received flag

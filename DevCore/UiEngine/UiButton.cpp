@@ -126,10 +126,14 @@ void UiButton::SetScale(uint8_t scale)
 // *****************************************************************************
 void UiButton::Enable()
 {
-  string.SetColor(color);
-  SetActive(true);
-  // Invalidate area
-  InvalidateObjArea();
+  // Enable button only if it disabled
+  if(IsActive() == false)
+  {
+    string.SetColor(color);
+    SetActive(true);
+    // Invalidate area
+    InvalidateObjArea();
+  }
 }
 
 // *****************************************************************************
@@ -137,10 +141,14 @@ void UiButton::Enable()
 // *****************************************************************************
 void UiButton::Disable()
 {
-  SetActive(false);
-  string.SetColor(COLOR_GREY);
-  // Invalidate area
-  InvalidateObjArea();
+  // Disable button only if it enabled
+  if(IsActive())
+  {
+    SetActive(false);
+    string.SetColor(COLOR_GREY);
+    // Invalidate area
+    InvalidateObjArea();
+  }
 }
 
 // *****************************************************************************

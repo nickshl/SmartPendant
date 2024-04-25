@@ -62,7 +62,7 @@ UiMsgBox::UiMsgBox(const char* msg_in, const char* hdr_in,
 
     // Find MsgBox width in pixels
     W = msg_fnt->GetCharW() * width;
-  
+
     // Split buffer to strings
     while(count < MAX_MSGBOX_LINES)
     {

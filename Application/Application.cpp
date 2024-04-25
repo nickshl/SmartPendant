@@ -34,6 +34,9 @@ Application& Application::GetInstance(void)
 // *****************************************************************************
 Result Application::Setup()
 {
+  // Read data from chip to memory
+  NVM::GetInstance().ReadData();
+
   // Set display inversion if needed
   display_drv.InvertDisplay(NVM::GetInstance().GetDisplayInvert());
   // Set display rotation
@@ -49,7 +52,7 @@ Result Application::Setup()
   status_str.Show(1001);
 
   // Release control by default at startup
-  GrblComm::GetInstance().ReleaseControl();
+  grbl_comm.ReleaseControl();
   // MPG button
   mpg_btn.SetParams("MPG", display_drv.GetScreenW() - Font_12x16::GetInstance().GetCharW() * 6 - 1, status_box.GetStartY(), Font_12x16::GetInstance().GetCharW() * 6, status_box.GetHeight(), true);
   mpg_btn.SetCallback(this);
@@ -59,6 +62,7 @@ Result Application::Setup()
   // Pages for screens(first call to set parameters)
   header.SetParams(0, 0, display_drv.GetScreenW(), 40, Header::MAX_PAGES);
   // Screens & Captions
+  scr_cnt = 0u;
   header.SetText(scr_cnt, "MPG", Font_12x16::GetInstance());
   header.SetImage(scr_cnt, MPG);
   scr[scr_cnt++] = &DirectControlScr::GetInstance();
@@ -105,26 +109,42 @@ Result Application::Setup()
 Result Application::TimerExpired()
 {
   // Update state & status
-  state_str.SetString(GrblComm::GetInstance().GetCurrentStateName());
-  status_str.SetString(GrblComm::GetInstance().GetCurrentStatusName());
+  state_str.SetString(grbl_comm.GetCurrentStateName());
+  status_str.SetString(grbl_comm.GetCurrentStatusName());
 
   // If button pressed - we requested control
   if(mpg_btn.GetPressed())
   {
     // If we gain control - change color to green, if not - change color to red
-    mpg_btn.SetColor(GrblComm::GetInstance().GetMpgMode() ? COLOR_GREEN : COLOR_RED);
+    mpg_btn.SetColor(grbl_comm.GetMpgMode() ? COLOR_GREEN : COLOR_RED);
   }
   else // If button unpressed - we released control
   {
     // If we don't have control - change color to white, if still have it - change color to red
-    mpg_btn.SetColor(GrblComm::GetInstance().GetMpgMode() ? COLOR_RED : COLOR_WHITE);
+    mpg_btn.SetColor(grbl_comm.GetMpgMode() ? COLOR_RED : COLOR_WHITE);
   }
 
-  // Process timer
+  // If controller settings changed, we have to setup screens again to proper
+  // handling of Metric/Imperial or Mill/Lathe change
+  if(grbl_comm.IsSettingsChanged())
+  {
+    // Hide screen
+    scr[scr_idx]->Hide();
+    // Setup all screens to apply new settings
+    for(uint32_t i = 0u; i < scr_cnt; i++)
+    {
+      scr[i]->Setup(40, display_drv.GetScreenH() - 40 - status_box.GetHeight());
+    }
+    // Show screen
+    scr[scr_idx]->Show();
+  }
+
+  // Call timer callback for current screen
   scr[scr_idx]->TimerExpired(TASK_TIMER_PERIOD_MS);
 
   // Update Display
   display_drv.UpdateDisplay();
+
   // Return ok - we don't check semaphore give error, because we don't need to.
   return Result::RESULT_OK;
 }
@@ -159,14 +179,14 @@ Result Application::ProcessCallback(const void* ptr)
   // Check MPG button
   if(ptr == &mpg_btn)
   {
-    if(GrblComm::GetInstance().GetMpgModeRequest() == true)
+    if(grbl_comm.GetMpgModeRequest() == true)
     {
-      GrblComm::GetInstance().ReleaseControl();
+      grbl_comm.ReleaseControl();
       mpg_btn.SetPressed(false);
     }
     else
     {
-      GrblComm::GetInstance().GainControl();
+      grbl_comm.GainControl();
       mpg_btn.SetPressed(true);
     }
   }

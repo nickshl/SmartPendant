@@ -92,6 +92,10 @@ class DirectControlScr : public IScreen
     DataWindow dw[GrblComm::AXIS_CNT];
     // Buttons to set 0 or position
     UiButton zero_btn[GrblComm::AXIS_CNT];
+    // Buttons to change Radius/Diameter in Lathe Mode
+    UiButton x_mode_btn;
+    // String for X axis mode(Radius/Diameter)
+    String x_mode_str;
 
     // Buttons to choose scale
     UiButton scale_btn[4u];

@@ -116,14 +116,6 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       if(val >= GrblComm::CTRL_TX_CNT) val = 0u; // Check overflow
       ths.nvm.SetCtrlTx(val);                    // Store new value
     }
-    else if((uint32_t)ptr == MODE)
-    {
-      ths.nvm.SetMode(!ths.nvm.GetMode());
-    }
-    else if((uint32_t)ptr == UNITS)
-    {
-      ths.nvm.SetUnits(!ths.nvm.GetUnits());
-    }
     else if((uint32_t)ptr == SCREEN_INVERT)
     {
       ths.nvm.SetDisplayInvert(!ths.nvm.GetDisplayInvert());
@@ -151,7 +143,5 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
 void SettingsScr::UpdateStrings(void)
 {
   menu.CreateString(menu_items[TX_CONTROL], "MPG request", (nvm.GetCtrlTx() == GrblComm::CTRL_GPIO_PIN) ? "dedicated pin" : (nvm.GetCtrlTx() == GrblComm::CTRL_SW_COMMAND) ? "sw command": "full control");
-  menu.CreateString(menu_items[MODE], "Mode", nvm.GetMode() ? "lathe" : "mill");
-  menu.CreateString(menu_items[UNITS], "Units", nvm.GetUnits() ? "metric" : "imperial");
   menu.CreateString(menu_items[SCREEN_INVERT], "Display Inversion", nvm.GetDisplayInvert() ? "inverted" : "normal");
 }

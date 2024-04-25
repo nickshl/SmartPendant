@@ -284,7 +284,7 @@ void String::DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y)
     int16_t start = y_start - start_y;
     // Find line in symbol
     int16_t line = (row - x_start);
-    
+
     if(line >= 0)
     {
       // Get symbol

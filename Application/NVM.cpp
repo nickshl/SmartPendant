@@ -39,6 +39,17 @@ Result NVM::Init(Eeprom24& in_eep)
   // Save EEP pointer
   eep = &in_eep;
 
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   ReadData function   ***************************************************
+// *****************************************************************************
+Result NVM::ReadData()
+{
+  Result result = Result::RESULT_OK;
+
   // Read all NVM content
   result = eep->Read(0u, (uint8_t*)&data, sizeof(data));
 
@@ -66,23 +77,6 @@ Result NVM::SetCtrlTx(uint8_t tx_ctrl)
 }
 
 // *****************************************************************************
-// ***   SetMode function   **************************************************
-// *****************************************************************************
-Result NVM::SetMode(uint8_t mode)
-{
-  Result result = Result::RESULT_OK;
-
-  // Save data
-  data.mode = mode;
-
-  // Write data into EEPROM
-  result = eep->Write((uint8_t*)&data.mode - (uint8_t*)&data, (uint8_t*)&data.mode, sizeof(data.mode));
-
-  // Return result
-  return result;
-}
-
-// *****************************************************************************
 // ***   SetDisplayInvert function   *******************************************
 // *****************************************************************************
 Result NVM::SetDisplayInvert(bool invert_display)
@@ -99,19 +93,3 @@ Result NVM::SetDisplayInvert(bool invert_display)
   return result;
 }
 
-// *****************************************************************************
-// ***   SetUnits function   ***************************************************
-// *****************************************************************************
-Result NVM::SetUnits(bool units)
-{
-  Result result = Result::RESULT_OK;
-
-  // Save data
-  data.is_metric = units;
-
-  // Write data into EEPROM
-  result = eep->Write((uint8_t*)&data.is_metric - (uint8_t*)&data, (uint8_t*)&data.is_metric, sizeof(data.is_metric));
-
-  // Return result
-  return result;
-}

@@ -114,6 +114,8 @@ class Application : public AppTask
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // Input driver instance
     InputDrv& input_drv = InputDrv::GetInstance();
+    // GRBL Communication Interface instance
+    GrblComm& grbl_comm = GrblComm::GetInstance();
     // NVM instance
     NVM& nvm = NVM::GetInstance();
 

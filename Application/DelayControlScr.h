@@ -104,6 +104,9 @@ class DelayControlScr : public IScreen
     // Buttons to choose scale
     UiButton scale_btn[3u];
 
+    // String for X axis mode(Radius/Diameter)
+    String x_mode_str;
+
     // Soft Buttons
     UiButton left_btn;
     UiButton right_btn;

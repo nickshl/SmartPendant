@@ -27,6 +27,9 @@
 
 #include "NVM.h"
 
+// *****************************************************************************
+// ***   Debug defines   *******************************************************
+// *****************************************************************************
 //#define SEND_DATA_TO_USB
 
 // *****************************************************************************
@@ -264,6 +267,27 @@ class GrblComm : public AppTask
     } status_t;
 
     // *************************************************************************
+    // ***   Mode of Operation Enum   ******************************************
+    // *************************************************************************
+    typedef enum : uint8_t
+    {
+      MODE_OF_OPERATION_MILL = 0u,
+      MODE_OF_OPERATION_LASER,
+      MODE_OF_OPERATION_LATHE,
+      MODE_OF_OPERATION_CNT
+    } mode_of_operation_t;
+
+    // *************************************************************************
+    // ***   Measurement system   **********************************************
+    // *************************************************************************
+    typedef enum : uint8_t
+    {
+      MEASUREMENT_SYSTEM_METRIC = 0u,
+      MEASUREMENT_SYSTEM_IMPERIAL,
+      MEASUREMENT_SYSTEM_CNT
+    } measurement_system_t;
+
+    // *************************************************************************
     // ***   Public: Get Instance   ********************************************
     // *************************************************************************
     static GrblComm& GetInstance(void);
@@ -354,6 +378,26 @@ class GrblComm : public AppTask
     const char* const GetCurrentStatusName() {return GetStatusName(grbl_status);}
 
     // *************************************************************************
+    // ***   Public: IsSettingsChanged function   ******************************
+    // *************************************************************************
+    bool IsSettingsChanged() {bool result = settings_changed; settings_changed = false; return result;}
+
+    // *************************************************************************
+    // ***   Public: GetMeasurementSystem function   ***************************
+    // *************************************************************************
+    uint8_t GetMeasurementSystem() {return measurement_system;}
+
+    // *************************************************************************
+    // ***   Public: GetReportUnits function   *********************************
+    // *************************************************************************
+    const char* GetReportUnits() {return ((measurement_system == MEASUREMENT_SYSTEM_METRIC) ? "mm" : "inch");}
+
+    // *************************************************************************
+    // ***   Public: GetModeOfOperation function   *****************************
+    // *************************************************************************
+    uint8_t GetModeOfOperation() {return mode_of_operation;}
+
+    // *************************************************************************
     // ***   Public: GetAxisMachinePosition function   *************************
     // *************************************************************************
     int32_t GetAxisMachinePosition(uint8_t axis);
@@ -397,6 +441,11 @@ class GrblComm : public AppTask
     // ***   Public: GetCoolantMist function   *********************************
     // *************************************************************************
     bool GetCoolantMist() {return coolant_mist;}
+
+    // *************************************************************************
+    // ***   Public: IsLatheDiameterMode function   ****************************
+    // *************************************************************************
+    bool IsLatheDiameterMode() {return grbl_xModeDiameter;}
 
     // *************************************************************************
     // ***   Public: IsRespondPending function   *******************************
@@ -499,6 +548,11 @@ class GrblComm : public AppTask
     inline Result CoolantMistToggle() {return SendRealTimeCmd(CMD_OVERRIDE_COOLANT_MIST_TOGGLE);}
 
     // *************************************************************************
+    // ***   Public: RequestControllerSettings   *******************************
+    // *************************************************************************
+    Result RequestControllerSettings();
+
+    // *************************************************************************
     // ***   Public: RequestOffsets   ******************************************
     // *************************************************************************
     Result RequestOffsets();
@@ -542,6 +596,16 @@ class GrblComm : public AppTask
     // ***   Public: SetIncrementalMode   **************************************
     // *************************************************************************
     Result SetIncrementalMode();
+
+    // *************************************************************************
+    // ***   Public: SetLatheRadiusMode   **************************************
+    // *************************************************************************
+    Result SetLatheRadiusMode();
+
+    // *************************************************************************
+    // ***   Public: SetLatheDiameterMode   ************************************
+    // *************************************************************************
+    Result SetLatheDiameterMode();
 
     // *************************************************************************
     // ***   Public: MoveAxis   ************************************************
@@ -661,6 +725,15 @@ class GrblComm : public AppTask
     bool coolant_flood;
     bool coolant_mist;
 
+    // Flag to request settings
+    bool request_settings = true;
+    // Flag to show that settings changed
+    bool settings_changed = false;
+
+    // Settings
+    uint8_t measurement_system = MEASUREMENT_SYSTEM_METRIC;
+    uint8_t mode_of_operation = MODE_OF_OPERATION_MILL;
+
     // Task queue message struct
     struct TaskQueueMsg
     {
@@ -724,16 +797,6 @@ class GrblComm : public AppTask
      "Flow Control Syntax Error", "Flow Control Stack Overflow", "Flow Control Out Of Memory",
      "Next Cmd Executed", "Cmd Not Executed Yet", "Comm Error", "Unhandled", "StatusCnt"
     };
-
-    // *************************************************************************
-    // ***   Private: Callback   ***********************************************
-    // *************************************************************************
-    static void Callback(void* ptr, void* param_ptr, uint32_t param);
-
-    // *************************************************************************
-    // ***   Private: Callback handler function   ******************************
-    // *************************************************************************
-    void CallbackHandler(void* param_ptr);
 
     // *************************************************************************
     // ***   Private: ParseState function   ************************************

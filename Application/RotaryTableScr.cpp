@@ -87,9 +87,8 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   radius_dw.SetUnits("mm", DataWindow::RIGHT);
   radius_dw.SetCallback(AppTask::GetCurrent());
   radius_dw.SetActive(true);
-  // Speed caption
-  radius_name.SetParams("RADIUS", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
-  radius_name.Move(radius_dw.GetStartX() + BORDER_W*2, radius_dw.GetStartY() + BORDER_W*2);
+  // Radius caption
+  radius_name.SetParams("RADIUS", radius_dw.GetStartX() + BORDER_W*2, radius_dw.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // Z axis position
   z_axis_dw.SetParams(BORDER_W, radius_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 13u, 3u);
@@ -99,9 +98,8 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   z_axis_dw.SetUnits("mm", DataWindow::RIGHT);
   z_axis_dw.SetCallback(AppTask::GetCurrent());
   z_axis_dw.SetActive(true);
-  // Speed caption
-  z_axis_name.SetParams(grbl_comm.GetAxisName(GrblComm::AXIS_Z), 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
-  z_axis_name.Move(z_axis_dw.GetStartX() + BORDER_W*2, z_axis_dw.GetStartY() + BORDER_W*2);
+  // Z axis caption
+  z_axis_name.SetParams(grbl_comm.GetAxisName(GrblComm::AXIS_Z), z_axis_dw.GetStartX() + BORDER_W*2, z_axis_dw.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // Arc length position
   arc_dw.SetParams(BORDER_W, z_axis_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 13u, 3u);
@@ -111,9 +109,8 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   arc_dw.SetUnits("mm", DataWindow::RIGHT);
   arc_dw.SetCallback(AppTask::GetCurrent());
   arc_dw.SetActive(true);
-  // Speed caption
-  arc_name.SetParams("ARC LENGTH", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
-  arc_name.Move(arc_dw.GetStartX() + BORDER_W*2, arc_dw.GetStartY() + BORDER_W*2);
+  // Arc caption
+  arc_name.SetParams("ARC LENGTH", arc_dw.GetStartX() + BORDER_W*2, arc_dw.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // X & Y real position
   for(uint32_t i = 0u; i < NumberOf(center_dw); i++)
@@ -289,7 +286,7 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
   if(z_val != 0)
   {
     // Execute Jog
-    result = grbl_comm.Jog(GrblComm::AXIS_Z, z_val, speed);
+    result = grbl_comm.Jog(GrblComm::AXIS_Z, z_val, speed, false);
     // Clear value
     z_val = 0;
   }

@@ -73,6 +73,12 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
   // Set scale 0.01 mm
   scale = 10u;
 
+  // X button for Lathe mode to change Radius/Diameter
+  x_mode_btn.SetParams("", BORDER_W, dw[GrblComm::AXIS_X].GetStartY(), dw[GrblComm::AXIS_X].GetStartX() - BORDER_W * 2, dw[GrblComm::AXIS_X].GetHeight(), true);
+  x_mode_btn.SetCallback(AppTask::GetCurrent());
+  // X axis mode string
+  x_mode_str.SetParams("", dw[GrblComm::AXIS_X].GetStartX() + BORDER_W*2, dw[GrblComm::AXIS_X].GetStartY() + BORDER_W*2, COLOR_WHITE, Font_8x12::GetInstance());
+
   // Left soft button
   set_btn.SetParams("Set axis position", BORDER_W, height - (Font_8x12::GetInstance().GetCharH() * 5) - BORDER_W, display_drv.GetScreenW() - BORDER_W * 2, Font_8x12::GetInstance().GetCharH() * 5, true);
   set_btn.SetCallback(AppTask::GetCurrent());
@@ -111,6 +117,13 @@ Result DirectControlScr::Show()
   for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
   {
     dw[i].SetSeleced(false);
+  }
+
+  // In Lathe mode show Radius/Diameter string on top of X window and button to change it
+  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE)
+  {
+    x_mode_str.Show(100 + 1);
+    x_mode_btn.Show(100 - 1);
   }
 
   // Set button
@@ -152,6 +165,11 @@ Result DirectControlScr::Hide()
     scale_btn[i].Hide();
   }
 
+  // Hide X button
+  x_mode_btn.Hide();
+  // Hide X mode string
+  x_mode_str.Hide();
+
   // Set button
   set_btn.Hide();
 
@@ -169,6 +187,12 @@ Result DirectControlScr::Hide()
 Result DirectControlScr::TimerExpired(uint32_t interval)
 {
   Result result = Result::RESULT_OK;
+
+  // In Lathe mode show Radius/Diameter string on top of X window
+  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE)
+  {
+    x_mode_str.SetString(grbl_comm.IsLatheDiameterMode() ? "Diameter" : "Radius");
+  }
 
   // Process jog if set button is unpressed
   if(set_btn.GetPressed() == false)
@@ -195,11 +219,6 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
       // If requested position changed
       if(jog_val[i] != 0)
       {
-        // In "lathe" mode we have to invert X axis
-        if((i == GrblComm::AXIS_X) && nvm.GetMode())
-        {
-          jog_val[i] = -jog_val[i];
-        }
         // Calculate distance - number of encoder clicks multiplied by click value
         int32_t distance_um = jog_val[i] * scale;
         // Speed in encoder clicks per second
@@ -210,6 +229,14 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
         speed *= scale;
         // Convert speed from um/sec to mm*100/min
         speed = speed * 60u / 10u;
+
+        // In Lathe mode we need some changes
+        if((i == GrblComm::AXIS_X) && (grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE))
+        {
+          // Invert X axis since clockwise rotation moves cutter to work piece(X decreased)
+          // and counterclockwise rotation moves cutter away from work piece(X increased)
+          distance_um = -distance_um;
+        }
 
         result = grbl_comm.Jog(i, distance_um, speed);
         // Clear value
@@ -229,11 +256,33 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
       jog_val[i] = 0;
     }
 
-    // If state changed from IDLE
-    if(grbl_comm.GetState() != GrblComm::IDLE)
+    // If SmartPendant loose control or state changed from IDLE
+    if((grbl_comm.IsInControl() == false) || (grbl_comm.GetState() != GrblComm::IDLE))
     {
       // Cancel axis value change
       ProcessCallback(&set_btn);
+    }
+  }
+
+  // If SmartPendant is in control and state is IDLE or JOG - enable buttons
+  if(grbl_comm.IsInControl() || ((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::JOG)))
+  {
+    set_btn.Enable();
+    x_mode_btn.Enable();
+    // Enable zero buttons for all axis
+    for(uint32_t i = 0u; i < NumberOf(zero_btn); i++)
+    {
+      zero_btn[i].Enable();
+    }
+  }
+  else
+  {
+    set_btn.Disable();
+    x_mode_btn.Disable();
+    // Enable zero buttons for all axis
+    for(uint32_t i = 0u; i < NumberOf(zero_btn); i++)
+    {
+      zero_btn[i].Disable();
     }
   }
 
@@ -299,6 +348,12 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
       // Cancel axis value change
       ProcessCallback(&set_btn);
     }
+  }
+  // Process X button
+  else if(ptr == &x_mode_btn)
+  {
+    // Invert mode
+    grbl_comm.IsLatheDiameterMode() ? grbl_comm.SetLatheRadiusMode() : grbl_comm.SetLatheDiameterMode();
   }
   // Process Set button
   else if(ptr == &set_btn)

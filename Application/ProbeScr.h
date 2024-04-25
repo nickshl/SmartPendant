@@ -258,49 +258,39 @@ class CenterFinderTab : public IScreen
     typedef enum
     {
       PROBE_START,
-      PROBE_FAST_X_MIN,
-      PROBE_FAST_X_MIN_RET,
       PROBE_X_MIN,
-      PROBE_X_MIN_RET,
-      PROBE_FAST_X_MAX,
-      PROBE_FAST_X_MAX_RET,
       PROBE_X_MAX,
-      PROBE_X_MAX_RET,
-      PROBE_FAST_Y_MIN,
-      PROBE_FAST_Y_MIN_RET,
       PROBE_Y_MIN,
-      PROBE_Y_MIN_RET,
-      PROBE_FAST_Y_MAX,
-      PROBE_FAST_Y_MAX_RET,
       PROBE_Y_MAX,
-      PROBE_Y_MAX_RET,
-      PROBE_MOVE_CENTER,
       PROBE_CNT
-    } state_t;
+    } probe_state_t;
 
     // Enum to track state
     typedef enum
     {
       PROBE_LINE_START,
       PROBE_LINE_FAST,
-      PROBE_LINE_FAST_RET,
+      PROBE_LINE_FAST_RETURN,
       PROBE_LINE_SLOW,
-      PROBE_LINE_SLOW_RET,
+      PROBE_LINE_RESULT_READY, // <- this state allow to replace safe_pos with calculated center for example
+      PROBE_LINE_SLOW_RETURN,
       PROBE_LINE_CNT
-    } probe_state_t;
+    } probe_line_state_t;
 
     // Current state
-    state_t state = PROBE_CNT;
+    probe_state_t state = PROBE_CNT;
+    probe_line_state_t line_state = PROBE_LINE_CNT;
 
     // X & Y positions
     int32_t x_min_pos = 0u;
     int32_t y_min_pos = 0u;
+    int32_t x_max_pos = 0u;
+    int32_t y_max_pos = 0u;
     int32_t x_safe_pos = 0u;
     int32_t y_safe_pos = 0u;
 
-    // Current selected axis
-    // Scale to move axis
-    GrblComm::Axis_t axis = GrblComm::AXIS_CNT;
+//    // Current selected axis
+//    GrblComm::Axis_t axis = GrblComm::AXIS_CNT;
     // ID to track send message
     uint32_t cmd_id = 0u;
 
@@ -323,7 +313,7 @@ class CenterFinderTab : public IScreen
     // *************************************************************************
     // ***   ProbeLineSequence function   **************************************
     // *************************************************************************
-    Result ProbeLineSequence(probe_state_t& state, uint8_t axis, int32_t dir, int32_t& safe_pos, int32_t& measured_pos);
+    Result ProbeLineSequence(probe_line_state_t& state, uint8_t axis, int32_t dir, int32_t& safe_pos, int32_t& measured_pos);
 
     // *************************************************************************
     // ***   Private constructor   *********************************************

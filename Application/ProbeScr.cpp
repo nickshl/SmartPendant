@@ -37,6 +37,8 @@ Result ProbeScr::Setup(int32_t y, int32_t height)
   // Tabs for screens(first call to set parameters)
   tabs.SetParams(0, y, display_drv.GetScreenW(), 40, Tabs::MAX_TABS);
   // Screens & Captions
+  tabs_cnt = 0u; // Clear tabs since Setup() can be called multiple times
+  // Fill tabs
   tabs.SetText(tabs_cnt, "Tool", "Offset", Font_10x18::GetInstance());
   tab[tabs_cnt++] = &ToolOffsetTab::GetInstance();
   tabs.SetText(tabs_cnt, "Center", "Finder", Font_10x18::GetInstance());
@@ -532,12 +534,14 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
   {
     // Clear state
     state = PROBE_CNT;
+    // Clear line state
+    line_state = PROBE_LINE_CNT;
     // Clear CMD ID
     cmd_id = 0u;
   }
 
   // If we send command and this command executed successfully
-  if(cmd_id && (grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK))
+  if((cmd_id && (grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK)) || (state == PROBE_START))
   {
     // Check if command done executing
     if(grbl_comm.GetState() == GrblComm::IDLE)
@@ -545,91 +549,91 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
       // Iterations
       if(state == PROBE_START)
       {
-        // We need absolute mode, otherwise we can screw up probe
-        grbl_comm.SetAbsoluteMode();
-        // Get current X position to return probe back after probing
-        x_safe_pos = grbl_comm.GetAxisPosition(GrblComm::AXIS_X);
-        // Try to probe X axis -1 meter at speed 200 mm/min
-        grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_X, grbl_comm.GetAxisPosition(GrblComm::AXIS_X) - 1000000, 200u, cmd_id);
-        // We start by measuring X min
-        state = PROBE_FAST_X_MIN;
-      }
-      else if(state == PROBE_FAST_X_MIN)
-      {
-        // Get probe X position
-        x_min_pos = grbl_comm.GetProbePosition(GrblComm::AXIS_X);
-        // Move away from workpiece until probe contact lost
-        grbl_comm.ProbeAxisAwayFromWorkpiece(GrblComm::AXIS_X, x_safe_pos, 200u, cmd_id);
-        // Return after X min probing
-        state = PROBE_FAST_X_MIN_RET;
-      }
-      if(state == PROBE_FAST_X_MIN_RET)
-      {
-        // Try to probe X axis at measured position - 1 mm at speed 50 mm/min
-        grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_X, x_min_pos - 1000, 50u, cmd_id);
-        // We start by measuring X min
+        // Restart line sequence
+        line_state = PROBE_LINE_START;
+        // Start probing sequence
+        ProbeLineSequence(line_state, GrblComm::AXIS_X, -1, x_safe_pos, x_min_pos);
+        // Change state to measure X min
         state = PROBE_X_MIN;
       }
       else if(state == PROBE_X_MIN)
       {
-        // Get probe X position
-        x_min_pos = grbl_comm.GetProbePosition(GrblComm::AXIS_X);
-        // Rapid move X axis to the point before probing
-        grbl_comm.MoveAxis(GrblComm::AXIS_X, x_safe_pos, 0u, cmd_id);
-        // Return after X min probing
-        state = PROBE_X_MIN_RET;
-      }
-      else if(state == PROBE_X_MIN_RET)
-      {
-        // Try to probe X axis +1 meter at speed 50 mm/min
-        grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_X, grbl_comm.GetAxisPosition(GrblComm::AXIS_X) + 1000000, 50u, cmd_id);
-        // Probe X max state
-        state = PROBE_X_MAX;
+        // If we done probing X min
+        if(line_state == PROBE_LINE_CNT)
+        {
+          // Restart line sequence
+          line_state = PROBE_LINE_START;
+          // Start probing sequence for X max
+          ProbeLineSequence(line_state, GrblComm::AXIS_X, +1, x_safe_pos, x_max_pos);
+          // Change state to measure X max
+          state = PROBE_X_MAX;
+        }
+        else
+        {
+          // Otherwise continue probing sequence for X min
+          ProbeLineSequence(line_state, GrblComm::AXIS_X, -1, x_safe_pos, x_min_pos);
+        }
       }
       else if(state == PROBE_X_MAX)
       {
-        // Calculate X center position: X min + half from X min and X max difference
-        x_safe_pos = x_min_pos + (grbl_comm.GetProbePosition(GrblComm::AXIS_X) - x_min_pos) / 2;
-        // Rapid move X axis to the center
-        grbl_comm.MoveAxis(GrblComm::AXIS_X, x_safe_pos, 0u, cmd_id);
-        // Return after X max probing
-        state = PROBE_X_MAX_RET;
-      }
-      else if(state == PROBE_X_MAX_RET)
-      {
-        // Get current Y position to return probe back after probing
-        y_safe_pos = grbl_comm.GetAxisPosition(GrblComm::AXIS_Y);
-        // Try to probe Y axis -1 meter at speed 50 mm/min
-        grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Y, grbl_comm.GetAxisPosition(GrblComm::AXIS_Y) - 1000000, 50u, cmd_id);
-        // Probe Y min state
-        state = PROBE_Y_MIN;
+        if(line_state == PROBE_LINE_CNT) // If we done probing X max
+        {
+          // Restart line sequence
+          line_state = PROBE_LINE_START;
+          // Start probing sequence for Y min
+          ProbeLineSequence(line_state, GrblComm::AXIS_Y, -1, y_safe_pos, y_min_pos);
+          // Change state to measure Y min
+          state = PROBE_Y_MIN;
+        }
+        else
+        {
+          // If result is ready, calculate center and store it as safe position
+          if(line_state == PROBE_LINE_RESULT_READY)
+          {
+            x_safe_pos = x_min_pos + (x_max_pos - x_min_pos) / 2;
+          }
+          // Otherwise continue probing sequence for X max
+          ProbeLineSequence(line_state, GrblComm::AXIS_X, +1, x_safe_pos, x_max_pos);
+        }
       }
       else if(state == PROBE_Y_MIN)
       {
-        // Get probe X position
-        y_min_pos = grbl_comm.GetProbePosition(GrblComm::AXIS_Y);
-        // Rapid move X axis to the point before probing
-        grbl_comm.MoveAxis(GrblComm::AXIS_Y, y_safe_pos, 0u, cmd_id);
-        // Return after Y min probing
-        state = PROBE_Y_MIN_RET;
-      }
-      else if(state == PROBE_Y_MIN_RET)
-      {
-        // Try to probe Y axis +1 meter at speed 50 mm/min
-        grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Y, grbl_comm.GetAxisPosition(GrblComm::AXIS_Y) + 1000000, 50u, cmd_id);
-        // Probe Y max state
-        state = PROBE_Y_MAX;
+        // If we done probing X max
+        if(line_state == PROBE_LINE_CNT)
+        {
+          // Restart line sequence
+          line_state = PROBE_LINE_START;
+          // Start probing sequence for Y max
+          ProbeLineSequence(line_state, GrblComm::AXIS_Y, +1, y_safe_pos, y_max_pos);
+          // Change state to measure Y max
+          state = PROBE_Y_MAX;
+        }
+        else
+        {
+          // Otherwise continue probing sequence for Y min
+          ProbeLineSequence(line_state, GrblComm::AXIS_Y, -1, y_safe_pos, y_min_pos);
+        }
       }
       else if(state == PROBE_Y_MAX)
       {
-        // Calculate Y center position: Y min + half from Y min and Y max difference
-        y_safe_pos = y_min_pos + (grbl_comm.GetProbePosition(GrblComm::AXIS_Y) - y_min_pos) / 2;
-        // Rapid move X axis to the center
-        grbl_comm.MoveAxis(GrblComm::AXIS_Y, y_safe_pos, 0u, cmd_id);
-        // We done probing
-        state = PROBE_CNT;
-        // Clear CMD ID
-        cmd_id = 0u;
+        // If we done probing X max
+        if(line_state == PROBE_LINE_CNT)
+        {
+          // Done probing
+          state = PROBE_CNT;
+          // Clear CMD ID
+          cmd_id = 0u;
+        }
+        else
+        {
+          // If result is ready, calculate center and store it as safe position
+          if(line_state == PROBE_LINE_RESULT_READY)
+          {
+            y_safe_pos = y_min_pos + (y_max_pos - y_min_pos) / 2;
+          }
+          // Otherwise continue probing sequence for Y max
+          ProbeLineSequence(line_state, GrblComm::AXIS_Y, +1, y_safe_pos, y_max_pos);
+        }
       }
       else
       {
@@ -669,6 +673,7 @@ Result CenterFinderTab::ProcessCallback(const void* ptr)
     {
       // Start probing
       state = PROBE_START;
+      line_state = PROBE_LINE_START;
     }
     else
     {
@@ -683,18 +688,20 @@ Result CenterFinderTab::ProcessCallback(const void* ptr)
 // *****************************************************************************
 // ***   ProbeLineSequence function   ******************************************
 // *****************************************************************************
-Result CenterFinderTab::ProbeLineSequence(probe_state_t& state, uint8_t axis, int32_t dir, int32_t& safe_pos, int32_t& measured_pos)
+Result CenterFinderTab::ProbeLineSequence(probe_line_state_t& state, uint8_t axis, int32_t dir, int32_t& safe_pos, int32_t& measured_pos)
 {
+  Result result = Result::RESULT_OK;
+
   // Iterations
   if(state == PROBE_LINE_START)
   {
-    // We need absolute mode, otherwise we can screw up probe
+    // Absolute mode necessary for probing, otherwise probe can be screwed up
     grbl_comm.SetAbsoluteMode();
     // Get current axis position to return probe back after probing
     safe_pos = grbl_comm.GetAxisPosition(axis);
-    // Try to probe axis +/- 1 meter at speed 200 mm/min
-    grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(GrblComm::AXIS_X) + (1000000 * dir), 200u, cmd_id);
-    // We start by measuring axis min
+    // Try to probe axis +/- 1 meter at speed 200 mm/min TODO: make speed adjustable via settings
+    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (1000000 * dir), 200u, cmd_id);
+    // Set next state
     state = PROBE_LINE_FAST;
   }
   else if(state == PROBE_LINE_FAST)
@@ -702,29 +709,37 @@ Result CenterFinderTab::ProbeLineSequence(probe_state_t& state, uint8_t axis, in
     // Get probe axis position
     measured_pos = grbl_comm.GetProbePosition(axis);
     // Move away from workpiece until probe contact lost
-    grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, 200u, cmd_id);
-    // Return after axis min probing
-    state = PROBE_LINE_FAST_RET;
+    result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, 200u, cmd_id);
+    // Set next state
+    state = PROBE_LINE_FAST_RETURN;
   }
-  if(state == PROBE_LINE_FAST_RET)
+  if(state == PROBE_LINE_FAST_RETURN)
   {
-    // Try to probe axis at measured position +/- 1 mm at speed 50 mm/min
-    grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (1000 * dir), 50u, cmd_id);
-    // We start by measuring axis min
+    // Try to probe axis at measured position +/- 1 mm at speed 50 mm/min TODO: make speed adjustable via settings
+    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (1000 * dir), 50u, cmd_id);
+    // Set next state
     state = PROBE_LINE_SLOW;
   }
   else if(state == PROBE_LINE_SLOW)
   {
     // Get probe axis position
     measured_pos = grbl_comm.GetProbePosition(axis);
-    // Rapid move axis to the point before probing
-    grbl_comm.MoveAxis(axis, safe_pos, 0u, cmd_id);
-    // Return after axis min probing
-    state = PROBE_LINE_SLOW_RET;
+    // Set result ready state
+    state = PROBE_LINE_RESULT_READY;
   }
-  else if(state == PROBE_LINE_SLOW_RET)
+  else if(state == PROBE_LINE_RESULT_READY)
   {
-    // Probe max state
+    // Rapid move axis to the point before probing
+    result = grbl_comm.MoveAxis(axis, safe_pos, 0u, cmd_id);
+    // Return after axis probing
+    state = PROBE_LINE_SLOW_RETURN;
+  }
+  else if(state == PROBE_LINE_SLOW_RETURN)
+  {
+    // Probe max state - done sequence
     state = PROBE_LINE_CNT;
   }
+
+  // Return result
+  return result;
 }

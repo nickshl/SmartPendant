@@ -25,6 +25,9 @@
 // *****************************************************************************
 void DataWindow::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t s, uint32_t ths)
 {
+  // Set data to -1 to update string later
+  data = -1;
+
   // X and Y start coordinates of object
   x_start = x;
   y_start = y;
@@ -132,13 +135,14 @@ void DataWindow::SetBorderWidth(uint16_t w)
 // *****************************************************************************
 void DataWindow::SetBorderColor(color_t cu, color_t cs)
 {
+  // Save colors
+  border_color_unselected = cu;
+  border_color_selected = cs;
+
   // Update object only if there is a change - prevent invalidation of region
   // that doesn't need it
-  if((cu != border_color_unselected) || (cs != border_color_selected))
+  if(box.GetColor() != (selected ? border_color_selected : border_color_unselected))
   {
-    // Save colors
-    border_color_unselected = cu;
-    border_color_selected = cs;
     // Set border color
     box.SetColor(selected ? border_color_selected : border_color_unselected);
     // Invalidate area
@@ -186,7 +190,7 @@ bool DataWindow::SetNumber(int32_t n)
 void DataWindow::UpdateStringPositions(void)
 {
   // Data string length: before decimal digits, '.' if we have decimal, after decimal digits
-  int32_t data_str_len = before_decimal + (after_decimal != 0u ? 1u : 0u) + after_decimal;
+  int32_t data_str_len = before_decimal + (after_decimal ? 1u : 0u) + after_decimal;
   // Move strings
   if(units_str_pos == LEFT)
   {

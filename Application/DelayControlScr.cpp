@@ -90,6 +90,9 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
   // Set corresponded button pressed
   scale_btn[1u].SetPressed(true);
 
+  // X axis mode string
+  x_mode_str.SetParams("", dw[GrblComm::AXIS_X].GetStartX() + BORDER_W*2, dw[GrblComm::AXIS_X].GetStartY() + BORDER_W*2, COLOR_WHITE, Font_8x12::GetInstance());
+
   // Left soft button
   left_btn.SetParams("Go!", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, display_drv.GetScreenW() / 2 - BORDER_W, Font_8x12::GetInstance().GetCharH() * 3, true);
   left_btn.SetCallback(AppTask::GetCurrent());
@@ -123,6 +126,9 @@ Result DelayControlScr::Show()
   // Speed window and name
   dw_speed.Show(100);
   speed_name.Show(100);
+
+  // Show X mode string(will be set blank if controllers is not in Lathe mode)
+  x_mode_str.Show(100 + 1);
 
   // Soft Buttons
   left_btn.Show(102);
@@ -164,6 +170,9 @@ Result DelayControlScr::Hide()
   dw_speed.Hide();
   speed_name.Hide();
 
+  // Hide X mode string
+  x_mode_str.Hide();
+
   // Soft Buttons
   left_btn.Hide();
   right_btn.Hide();
@@ -177,6 +186,16 @@ Result DelayControlScr::Hide()
 // *****************************************************************************
 Result DelayControlScr::TimerExpired(uint32_t interval)
 {
+  // In Lathe mode show Radius/Diameter string on top of X window
+  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE)
+  {
+    x_mode_str.SetString(grbl_comm.IsLatheDiameterMode() ? "Diameter" : "Radius");
+  }
+  else
+  {
+    x_mode_str.SetString("");
+  }
+
   // Get current state
   GrblComm::state_t new_state = GrblComm::GetInstance().GetState();
   // If state has changed

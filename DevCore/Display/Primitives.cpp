@@ -245,7 +245,7 @@ void Line::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
     const int32_t signY = y_start < y_end ? 1 : -1;
 
     int32_t error = deltaX - deltaY;
-    
+
     int32_t x = x_start - start_x;
     int32_t y = y_start;
 
@@ -400,7 +400,7 @@ void Circle::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
     int32_t delta = 1 - 2 * radius;
     int32_t error = 0;
     bool line_drawed = false;
-    
+
     while(y >= 0) 
     {
       if( (y0 + y == line) || (y0 - y == line) )
@@ -507,17 +507,17 @@ void Triangle::SetParams(int32_t x1, int32_t y1, int32_t x2, int32_t y2, int32_t
   height = y_end - y_start;
   // Lines for draw
   lines[0].x1 = x1;
-  lines[0].y1 = y1;      
+  lines[0].y1 = y1;
   lines[0].x2 = x2;
-  lines[0].y2 = y2;      
+  lines[0].y2 = y2;
   lines[1].x1 = x1;
-  lines[1].y1 = y1;      
+  lines[1].y1 = y1;
   lines[1].x2 = x3;
-  lines[1].y2 = y3;      
+  lines[1].y2 = y3;
   lines[2].x1 = x2;
-  lines[2].y1 = y2;      
+  lines[2].y1 = y2;
   lines[2].x2 = x3;
-  lines[2].y2 = y3;      
+  lines[2].y2 = y3;
   rotation = 0;
   // Invalidate area for new position/size
   InvalidateObjArea();
@@ -547,7 +547,7 @@ void Triangle::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x
         const int32_t signY = lines[i].y1 < lines[i].y2 ? 1 : -1;
 
         int32_t error = deltaX - deltaY;
-        
+
         int32_t x = lines[i].x1 - start_x;
         int32_t y = lines[i].y1;
 
