@@ -55,11 +55,11 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < NumberOf(center_dw); i++)
   {
     // Axis position
-    center_dw[i].SetParams(BORDER_W + (i ? center_dw[i - 1u].GetEndX() + 1: 0), center.GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * (1 + NumberOf(center_dw))) / NumberOf(center_dw),  window_height, 4u, 3u);
+    center_dw[i].SetParams(BORDER_W + (i ? center_dw[i - 1u].GetEndX() + 1 : 0), center.GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * (1 + NumberOf(center_dw))) / NumberOf(center_dw),  window_height, 7u, grbl_comm.GetUnitsPrecision());
     center_dw[i].SetBorder(BORDER_W, COLOR_RED);
     center_dw[i].SetDataFont(Font_8x12::GetInstance(), 2u);
     center_dw[i].SetNumber(grbl_comm.GetAxisPosition(i)); // Get current position at startup
-    center_dw[i].SetUnits("mm", DataWindow::BOTTOM_RIGHT);
+    center_dw[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::BOTTOM_RIGHT);
     center_dw[i].SetCallback(AppTask::GetCurrent());
     center_dw[i].SetActive(true);
     // Axis Name
@@ -71,42 +71,42 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   // Scale buttons
   for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
   {
-    scale_btn[i].SetParams((i == 0u) ? "0.001 mm" : ((i == 1u) ? "0.01 mm" : "0.1 mm"), i*(display_drv.GetScreenW() / 3) + BORDER_W, center_dw[NumberOf(center_dw) - 1u].GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 3 - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
+    scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], i*(display_drv.GetScreenW() / 3) + BORDER_W, center_dw[NumberOf(center_dw) - 1u].GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 3 - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent());
   }
-  // Set scale 0.01 mm
-  scale = 10;
+  // Set scale to the middle
+  scale = grbl_comm.IsMetric() ? scale_val_metric[1u] : scale_val_imperial[1u];
   // Set corresponded button pressed
   scale_btn[1u].SetPressed(true);
 
   // Speed position
-  radius_dw.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 13u, 3u);
+  radius_dw.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetUnitsPrecision());
   radius_dw.SetBorder(BORDER_W, COLOR_RED);
   radius_dw.SetDataFont(Font_8x12::GetInstance(), 2u);
   radius_dw.SetNumber(0);
-  radius_dw.SetUnits("mm", DataWindow::RIGHT);
+  radius_dw.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
   radius_dw.SetCallback(AppTask::GetCurrent());
   radius_dw.SetActive(true);
   // Radius caption
   radius_name.SetParams("RADIUS", radius_dw.GetStartX() + BORDER_W*2, radius_dw.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // Z axis position
-  z_axis_dw.SetParams(BORDER_W, radius_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 13u, 3u);
+  z_axis_dw.SetParams(BORDER_W, radius_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetUnitsPrecision());
   z_axis_dw.SetBorder(BORDER_W, COLOR_RED);
   z_axis_dw.SetDataFont(Font_8x12::GetInstance(), 2u);
   z_axis_dw.SetNumber(0);
-  z_axis_dw.SetUnits("mm", DataWindow::RIGHT);
+  z_axis_dw.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
   z_axis_dw.SetCallback(AppTask::GetCurrent());
   z_axis_dw.SetActive(true);
   // Z axis caption
   z_axis_name.SetParams(grbl_comm.GetAxisName(GrblComm::AXIS_Z), z_axis_dw.GetStartX() + BORDER_W*2, z_axis_dw.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // Arc length position
-  arc_dw.SetParams(BORDER_W, z_axis_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 13u, 3u);
+  arc_dw.SetParams(BORDER_W, z_axis_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetUnitsPrecision());
   arc_dw.SetBorder(BORDER_W, COLOR_RED);
   arc_dw.SetDataFont(Font_8x12::GetInstance(), 2u);
   arc_dw.SetNumber(0);
-  arc_dw.SetUnits("mm", DataWindow::RIGHT);
+  arc_dw.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
   arc_dw.SetCallback(AppTask::GetCurrent());
   arc_dw.SetActive(true);
   // Arc caption
@@ -115,11 +115,11 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   // X & Y real position
   for(uint32_t i = 0u; i < NumberOf(center_dw); i++)
   {
-    dw_real[i].SetParams(BORDER_W / 2 + (display_drv.GetScreenW() / 2) * i, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3 + BORDER_W / 2, (display_drv.GetScreenW() - BORDER_W*2) / 2, Font_8x12::GetInstance().GetCharH() * 3 - BORDER_W, 11u, 3u);
+    dw_real[i].SetParams(BORDER_W / 2 + (display_drv.GetScreenW() / 2) * i, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3 + BORDER_W / 2, (display_drv.GetScreenW() - BORDER_W*2) / 2, Font_8x12::GetInstance().GetCharH() * 3 - BORDER_W, 14u, grbl_comm.GetUnitsPrecision());
     dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real[i].SetDataFont(Font_8x12::GetInstance());
     dw_real[i].SetNumber(0);
-    dw_real[i].SetUnits("mm", DataWindow::RIGHT, Font_6x8::GetInstance());
+    dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
     // Axis Name
     dw_real_name[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_10x18::GetInstance());
     dw_real_name[i].Move(dw_real[i].GetStartX() + BORDER_W, dw_real[i].GetStartY() + (dw_real[i].GetHeight() - dw_real_name[i].GetHeight()) / 2);
@@ -356,21 +356,8 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
 // *****************************************************************************
 Result RotaryTableScr::ProcessCallback(const void* ptr)
 {
-  // Process scale buttons
-  if(ptr == &scale_btn[0])
-  {
-    scale = 1;
-  }
-  else if(ptr == &scale_btn[1])
-  {
-    scale = 10;
-  }
-  else if(ptr == &scale_btn[2])
-  {
-    scale = 100;
-  }
   // Process radius data window
-  else if(ptr == &radius_dw)
+  if(ptr == &radius_dw)
   {
     // Set focus to radius data window
     focus = FOCUS_RADIUS;
@@ -388,6 +375,15 @@ Result RotaryTableScr::ProcessCallback(const void* ptr)
   }
   else
   {
+    // Process scale buttons
+    for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
+    {
+      if(ptr == &scale_btn[i])
+      {
+        scale = grbl_comm.IsMetric() ? scale_val_metric[i] : scale_val_imperial[i];
+      }
+    }
+
     // Check axis data windows
     for(uint32_t i = 0u; i < NumberOf(center_dw); i++)
     {
@@ -545,9 +541,10 @@ void RotaryTableScr::UpdateObjects(void)
   }
 
   // Set pressed state for selected scale button and unpressed for unselected ones
-  scale_btn[0u].SetPressed(scale == 1);
-  scale_btn[1u].SetPressed(scale == 10);
-  scale_btn[2u].SetPressed(scale == 100);
+  for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
+  {
+    scale_btn[i].SetPressed(scale == (grbl_comm.IsMetric() ? scale_val_metric[i] : scale_val_imperial[i]));
+  }
 }
 
 // *****************************************************************************

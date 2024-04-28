@@ -1,3 +1,6 @@
+# Eclipse settings
+.settings
+
 # Prerequisites
 *.d
 

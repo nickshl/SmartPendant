@@ -360,7 +360,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetCurrentStateName function   ****************************
     // *************************************************************************
-    const char* const GetCurrentStateName() {return GetStateName(grbl_state);}
+    inline const char* const GetCurrentStateName() {return GetStateName(grbl_state);}
 
     // *************************************************************************
     // ***   Public: GetStatusCode function   **********************************
@@ -381,6 +381,26 @@ class GrblComm : public AppTask
     // ***   Public: IsSettingsChanged function   ******************************
     // *************************************************************************
     bool IsSettingsChanged() {bool result = settings_changed; settings_changed = false; return result;}
+
+    // *************************************************************************
+    // ***   Public: IsMetric function   ***************************************
+    // *************************************************************************
+    inline bool IsMetric() {return (measurement_system == MEASUREMENT_SYSTEM_METRIC);}
+
+    // *************************************************************************
+    // ***   Public: GetUnitsScaler function   *********************************
+    // *************************************************************************
+    inline int32_t GetUnitsScaler() {return (IsMetric() ? 1000 : 10000);} // 1 um for metric(base unit mm) / 1 tenths for imperial(base unit inch)
+
+    // *************************************************************************
+    // ***   Public: GetUnitsPrecision function   *********************************
+    // *************************************************************************
+    inline uint32_t GetUnitsPrecision() {return (IsMetric() ? 3u : 4u);} // 0.000 for metric / 0.0000 for imperial
+
+    // *************************************************************************
+    // ***   Public: ConvertMetricToUnits function   ***************************
+    // *************************************************************************
+    inline int32_t ConvertMetricToUnits(int32_t metric) {return (IsMetric() ? metric : metric * 100 / 254);}
 
     // *************************************************************************
     // ***   Public: GetMeasurementSystem function   ***************************
@@ -420,7 +440,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetToolLengthOffset function   ****************************
     // *************************************************************************
-    int32_t GetToolLengthOffset() {return (int32_t)(grbl_tool_length_offset[AXIS_Z] * 1000);}
+    int32_t GetToolLengthOffset() {return (int32_t)(grbl_tool_length_offset[AXIS_Z] * GetUnitsScaler());}
 
     // *************************************************************************
     // ***   Public: GetFeedOverride function   ********************************
@@ -486,6 +506,11 @@ class GrblComm : public AppTask
     // ***   Public: Stop   ****************************************************
     // *************************************************************************
     inline Result Stop() {return SendRealTimeCmd(CMD_STOP);}
+
+    // *************************************************************************
+    // ***   Public: Reset   ****************************************************
+    // *************************************************************************
+    inline Result Reset() {return SendRealTimeCmd(CMD_RESET);}
 
     // *************************************************************************
     // ***   Public: FeedReset   ***********************************************
@@ -560,22 +585,22 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: Jog   *****************************************************
     // *************************************************************************
-    Result Jog(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x100, bool is_absolute = false);
+    Result Jog(uint8_t axis, int32_t distance, uint32_t speed_x100, bool is_absolute);
 
     // *************************************************************************
     // ***   Public: JogInMachineCoodinates   **********************************
     // *************************************************************************
-    Result JogInMachineCoodinates(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x100);
+    Result JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t speed_x100);
 
     // *************************************************************************
     // ***   Public: JogMultiple   *********************************************
     // *************************************************************************
-    Result JogMultiple(int32_t distance_x_um, int32_t distance_y_um, int32_t distance_z_um, uint32_t speed_mm_min_x100, bool is_absolute = false);
+    Result JogMultiple(int32_t distance_x, int32_t distance_y, int32_t distance_z, uint32_t speed_x100, bool is_absolute);
 
     // *************************************************************************
     // ***   Public: JogArcXY   ************************************************
     // *************************************************************************
-    Result JogArcXYR(int32_t x_um, int32_t y_um, uint32_t r_um, uint32_t speed_mm_min_x100, bool direction, bool is_absolute = true);
+    Result JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t speed_x100, bool direction, bool is_absolute);
 
     // *************************************************************************
     // ***   Public: ZeroAxis   ************************************************
@@ -585,7 +610,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: SetAxis   *************************************************
     // *************************************************************************
-    Result SetAxis(uint8_t axis, int32_t position_um);
+    Result SetAxis(uint8_t axis, int32_t position);
 
     // *************************************************************************
     // ***   Public: SetAbsoluteMode   *****************************************
@@ -610,22 +635,22 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: MoveAxis   ************************************************
     // *************************************************************************
-    Result MoveAxis(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x100, uint32_t &id);
+    Result MoveAxis(uint8_t axis, int32_t distance, uint32_t speed_x100, uint32_t &id);
 
     // *************************************************************************
     // ***   Public: ProbeAxisTowardWorkpiece   ********************************
     // *************************************************************************
-    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position_um, uint32_t speed_mm_min, uint32_t &id);
+    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t speed, uint32_t &id);
 
     // *************************************************************************
     // ***   Public: ProbeAxisAwayFromWorkpiece   ******************************
     // *************************************************************************
-    Result ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position_um, uint32_t speed_mm_min, uint32_t &id);
+    Result ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t speed, uint32_t &id);
 
     // *************************************************************************
     // ***   Public: SetToolLengthOffset   *************************************
     // *************************************************************************
-    Result SetToolLengthOffset(int32_t offset_um);
+    Result SetToolLengthOffset(int32_t offset);
 
     // *************************************************************************
     // ***   Public: CancelToolLengthOffset   **********************************
@@ -797,6 +822,17 @@ class GrblComm : public AppTask
      "Flow Control Syntax Error", "Flow Control Stack Overflow", "Flow Control Out Of Memory",
      "Next Cmd Executed", "Cmd Not Executed Yet", "Comm Error", "Unhandled", "StatusCnt"
     };
+
+
+    // *************************************************************************
+    // ***   Private: GetMeasurementSystemGcode function   *********************
+    // *************************************************************************
+    const char* GetMeasurementSystemGcode() {return (IsMetric() ? "G21" : "G20");}
+
+    // *************************************************************************
+    // ***   Private: ValueToString function   *********************************
+    // *************************************************************************
+    char* ValueToString(int32_t val, int32_t scaler, char* buf, uint32_t buf_size);
 
     // *************************************************************************
     // ***   Private: ParseState function   ************************************

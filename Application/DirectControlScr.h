@@ -100,10 +100,11 @@ class DirectControlScr : public IScreen
     // Buttons to choose scale
     UiButton scale_btn[4u];
     // Scale options(string)
-    const char scale_str[NumberOf(scale_btn)][12u] = {"0.001 mm", "0.005 mm", "0.01 mm", "0.1 mm"};
+    const char scale_str_metric[NumberOf(scale_btn)][12u] = {"0.001 mm", "0.005 mm", "0.01 mm", "0.1 mm"};
+    const char scale_str_imperial[NumberOf(scale_btn)][12u] = {"0.0001", "0.0002", "0.0005", "0.005"};
     // Scale options(value)
-    const uint32_t scale_val[NumberOf(scale_btn)] = {1, 5, 10, 100};
-
+    const uint32_t scale_val_metric[NumberOf(scale_btn)] = {1, 5, 10, 100};
+    const uint32_t scale_val_imperial[NumberOf(scale_btn)] = {1, 2, 5, 50};
     // Set buttons
     UiButton set_btn;
 

@@ -154,6 +154,12 @@ class RotaryTableScr : public IScreen
 
     // Buttons to choose scale
     UiButton scale_btn[3u];
+    // Scale options(string)
+    const char scale_str_metric[NumberOf(scale_btn)][9u] = {"0.001 mm", "0.01 mm", "0.1 mm"};
+    const char scale_str_imperial[NumberOf(scale_btn)][12u] = {"0.0001 inch", "0.0005 inch", "0.005 inch"};
+    // Scale options(value)
+    const int32_t scale_val_metric[NumberOf(scale_btn)] = {1, 10, 100};
+    const int32_t scale_val_imperial[NumberOf(scale_btn)] = {1, 5, 50};
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();

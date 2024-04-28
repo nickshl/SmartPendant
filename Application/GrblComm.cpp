@@ -354,8 +354,8 @@ int32_t GrblComm::GetAxisMachinePosition(uint8_t axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
-    // Copy value
-    value = (int32_t)(grbl_position[axis] * 1000);
+    // Calculate value and convert it into fixed point(um for metric/tenths for imperial)
+    value = (int32_t)(grbl_position[axis] * GetUnitsScaler());
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -375,8 +375,8 @@ int32_t GrblComm::GetAxisPosition(uint8_t axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
-    // Copy value
-    value = (int32_t)((grbl_position[axis] - grbl_offset[axis]) * 1000);
+    // Calculate value and convert it into fixed point(um for metric/tenths for imperial)
+    value = (int32_t)((grbl_position[axis] - grbl_offset[axis]) * GetUnitsScaler());
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -397,7 +397,7 @@ int32_t GrblComm::GetProbeMachinePosition(uint8_t axis)
     // Lock mutex before copying data
     mutex.Lock();
     // Copy value
-    value = (int32_t)(grbl_probe_position[axis] * 1000);
+    value = (int32_t)(grbl_probe_position[axis] * GetUnitsScaler());
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -418,7 +418,7 @@ int32_t GrblComm::GetProbePosition(uint8_t axis)
     // Lock mutex before copying data
     mutex.Lock();
     // Copy value
-    value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * 1000);
+    value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * GetUnitsScaler());
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -540,7 +540,7 @@ Result GrblComm::RequestOffsets()
 // *****************************************************************************
 // ***   Public: Jog   *********************************************************
 // *****************************************************************************
-Result GrblComm::Jog(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x100, bool is_absolute)
+Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t speed_x100, bool is_absolute)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -553,13 +553,15 @@ Result GrblComm::Jog(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x1
 
       // Set ID for command
       msg.id = GetNextId();
-      // Find sign: sigh should be handled separately, because it will be lost
-      // for movements less than 1 mm.
-      bool is_negative = distance_um < 0;
-      // Remove sign from number
-      distance_um = abs(distance_um);
-      // Create Jog command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%lu.%03luF%lu.%02lu\r\n", is_absolute ? "G90" : "G91", axis_str[axis], is_negative ? "-" : "", distance_um / 1000, distance_um % 1000, speed_mm_min_x100 / 100, speed_mm_min_x100 % 100);
+
+      // Buffers for distance and speed strings
+      char distance_str[16u];
+      char speed_str[16u];
+      // Convert distance & speed values to strings
+      ValueToString(distance, GetUnitsScaler(), distance_str, NumberOf(distance_str));
+      ValueToString(speed_x100, 100, speed_str, NumberOf(speed_str));
+      // Create jog string
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%sF%s\r\n", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91", axis_str[axis], distance_str, speed_str);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -577,7 +579,7 @@ Result GrblComm::Jog(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x1
 // *****************************************************************************
 // ***   Public: JogInMachineCoodinates   **************************************
 // *****************************************************************************
-Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x100)
+Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t speed)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -590,13 +592,13 @@ Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance_um, uint3
 
       // Set ID for command
       msg.id = GetNextId();
-      // Find sign: sigh should be handled separately, because it will be lost
-      // for movements less than 1 mm.
-      bool is_negative = distance_um < 0;
-      // Remove sign from number
-      distance_um = abs(distance_um);
-      // Create Jog command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=G53G90%s%s%lu.%03luF%lu.%02lu\r\n", axis_str[axis], is_negative ? "-" : "", distance_um / 1000, distance_um % 1000, speed_mm_min_x100 / 100, speed_mm_min_x100 % 100);
+
+      // Buffer for distance string
+      char distance_str[16u];
+      // Convert distance value to string
+      ValueToString(distance, GetUnitsScaler(), distance_str, NumberOf(distance_str));
+      // Create jog string
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%sG53G90%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str, speed);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -614,7 +616,7 @@ Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance_um, uint3
 // *****************************************************************************
 // ***   Public: JogMultiple   *************************************************
 // *****************************************************************************
-Result GrblComm::JogMultiple(int32_t distance_x_um, int32_t distance_y_um, int32_t distance_z_um, uint32_t speed_mm_min_x100, bool is_absolute)
+Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t distance_z, uint32_t speed_x100, bool is_absolute)
 {
   Result result = Result::RESULT_OK;
 
@@ -625,21 +627,21 @@ Result GrblComm::JogMultiple(int32_t distance_x_um, int32_t distance_y_um, int32
 
     // Set ID for command
     msg.id = GetNextId();
-    // Find sign: sigh should be handled separately, because it will be lost
-    // for movements less than 1 mm.
-    bool is_negative_x = distance_x_um < 0;
-    bool is_negative_y = distance_y_um < 0;
-    bool is_negative_z = distance_z_um < 0;
-    // Remove sign from number
-    distance_x_um = abs(distance_x_um);
-    distance_y_um = abs(distance_y_um);
-    distance_z_um = abs(distance_z_um);
-    // Create Jog command
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%lu.%03lu%s%s%lu.%03lu%s%s%lu.%03luF%lu.%02lu\r\n", is_absolute ? "G90" : "G91",
-                                                axis_str[AXIS_X], is_negative_x ? "-" : "", distance_x_um / 1000, distance_x_um % 1000,
-                                                axis_str[AXIS_Y], is_negative_y ? "-" : "", distance_y_um / 1000, distance_y_um % 1000,
-                                                axis_str[AXIS_Z], is_negative_z ? "-" : "", distance_z_um / 1000, distance_z_um % 1000,
-                                                speed_mm_min_x100 / 100, speed_mm_min_x100 % 100);
+
+    // Buffer for distance string
+    char distance_x_str[16u];
+    char distance_y_str[16u];
+    char distance_z_str[16u];
+    char speed_str[16u];
+    // Convert distance value to string
+    ValueToString(distance_x, GetUnitsScaler(), distance_x_str, NumberOf(distance_x_str));
+    ValueToString(distance_y, GetUnitsScaler(), distance_y_str, NumberOf(distance_y_str));
+    ValueToString(distance_z, GetUnitsScaler(), distance_z_str, NumberOf(distance_z_str));
+    ValueToString(speed_x100, 100, speed_str, NumberOf(speed_str));
+    // Create jog string
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%s%s%s%s%sF%s\r\n", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91",
+                                                axis_str[AXIS_X], distance_x_str, axis_str[AXIS_Y], distance_y_str,
+                                                axis_str[AXIS_Z], distance_z_str, speed_str);
 
     // Send message
     result = SendTaskMessage(&msg);
@@ -656,40 +658,45 @@ Result GrblComm::JogMultiple(int32_t distance_x_um, int32_t distance_y_um, int32
 // *****************************************************************************
 // ***   Public: JogArcXYR   ***************************************************
 // *****************************************************************************
-Result GrblComm::JogArcXYR(int32_t x_um, int32_t y_um, uint32_t r_um, uint32_t speed_mm_min_x100, bool direction, bool is_absolute)
+Result GrblComm::JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t speed_x100, bool direction, bool is_absolute)
 {
   Result result = Result::RESULT_OK;
 
   static int32_t x_prev = 0u;
   static int32_t y_prev = 0u;
 
-  if((x_prev == x_um) && (y_prev == y_um))
+  if((x_prev == x) && (y_prev == y))
   {
-    x_prev = x_um;
-    y_prev = y_um;
+    x_prev = x;
+    y_prev = y;
   }
 
-  x_prev = x_um;
-  y_prev = y_um;
+  x_prev = x;
+  y_prev = y;
 
   // Jogging possible only in Idle or Jog states
   if(IsInControl() && ((grbl_state == IDLE) || (grbl_state == JOG) || (grbl_state == RUN)))
   {
     TaskQueueMsg msg;
-    // Find sign: sigh should be handled separately, because it will be lost
-    // for movements less than 1 mm.
-    bool is_negative_px = x_um < 0;
-    bool is_negative_py = y_um < 0;
-    // Remove sign from number
-    x_um = abs(x_um);
-    y_um = abs(y_um);
+
     // Set ID for command
     msg.id = GetNextId();
-    // TODO: Create Jog command
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G17%s%s%s%s%lu.%03lu%s%s%lu.%03luR%lu.%03luF%lu.%02lu\r\n", is_absolute ? "G90" : "G91", direction ? "G02" : "G03",
-                                                axis_str[AXIS_X], is_negative_px ? "-" : "", x_um / 1000, x_um % 1000,
-                                                axis_str[AXIS_Y], is_negative_py ? "-" : "", y_um / 1000, y_um % 1000,
-                                                r_um / 1000u, r_um % 1000u, speed_mm_min_x100 / 100u, speed_mm_min_x100 % 100u);
+
+    // Buffers for distance and speed strings
+    char x_str[16u];
+    char y_str[16u];
+    char r_str[16u];
+    char speed_str[16u];
+    // Convert distance & speed values to strings
+    ValueToString(x, GetUnitsScaler(), x_str, NumberOf(x_str));
+    ValueToString(y, GetUnitsScaler(), y_str, NumberOf(y_str));
+    ValueToString(r, GetUnitsScaler(), r_str, NumberOf(r_str));
+    ValueToString(speed_x100, 100, speed_str, NumberOf(speed_str));
+
+    // Create Jog command
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG17%s%s%s%s%s%sR%sF%s\r\n", GetMeasurementSystemGcode(),
+                                                is_absolute ? "G90" : "G91", direction ? "G02" : "G03",
+                                                axis_str[AXIS_X], x_str, axis_str[AXIS_Y], y_str, r_str, speed_str);
 
     // Send message
     result = SendTaskMessage(&msg);
@@ -738,7 +745,7 @@ Result GrblComm::ZeroAxis(uint8_t axis)
 // *****************************************************************************
 // ***   Public: SetAxis   *****************************************************
 // *****************************************************************************
-Result GrblComm::SetAxis(uint8_t axis, int32_t position_um)
+Result GrblComm::SetAxis(uint8_t axis, int32_t position)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -752,13 +759,12 @@ Result GrblComm::SetAxis(uint8_t axis, int32_t position_um)
       // Set ID for command
       msg.id = GetNextId();
 
-      // Find sign: sigh should be handled separately, because it will be lost
-      // for movements less than 1 mm.
-      bool is_negative = position_um < 0;
-      // Remove sign from number
-      position_um = abs(position_um);
+      // Buffer for distance string
+      char position_str[16u];
+      // Convert distance value to string
+      ValueToString(position, GetUnitsScaler(), position_str, NumberOf(position_str));
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90G10L20P0%s%s%lu.%03lu\r\n", axis_str[axis], is_negative ? "-" : "", position_um / 1000, position_um % 1000); // G90G10L20P0{Axis}{Position}
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG90G10L20P0%s%s\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -828,7 +834,7 @@ Result GrblComm::SetLatheDiameterMode()
 // *****************************************************************************
 // ***   Public: MoveAxis   ****************************************************
 // *****************************************************************************
-Result GrblComm::MoveAxis(uint8_t axis, int32_t distance_um, uint32_t speed_mm_min_x100, uint32_t &id)
+Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t speed_x100, uint32_t &id)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -842,19 +848,21 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance_um, uint32_t speed_mm_m
       // Set ID for command
       msg.id = GetNextId();
 
-      // Find sign: sigh should be handled separately, because it will be lost
-      // for movements less than 1 mm.
-      bool is_negative = distance_um < 0;
-      // Remove sign from number
-      distance_um = abs(distance_um);
+      // Buffers for distance and speed strings
+      char distance_str[16u];
+      char speed_str[16u];
+      // Convert distance & speed values to strings
+      ValueToString(distance, GetUnitsScaler(), distance_str, NumberOf(distance_str));
+      ValueToString(speed_x100, 100, speed_str, NumberOf(speed_str));
+
       // Create move command(zero speed mean rapid)
-      if(speed_mm_min_x100)
+      if(speed_x100)
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G1%s%s%lu.%03luF%lu.%02lu\r\n", axis_str[axis], is_negative ? "-" : "", distance_um / 1000, distance_um % 1000, speed_mm_min_x100 / 100, speed_mm_min_x100 % 100);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG1%s%sF%s\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str, speed_str);
       }
       else
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G0%s%s%lu.%03lu\r\n", axis_str[axis], is_negative ? "-" : "", distance_um / 1000, distance_um % 1000);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG0%s%s\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str);
       }
 
       // Send message
@@ -875,7 +883,7 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance_um, uint32_t speed_mm_m
 // *****************************************************************************
 // ***   Public: ProbeAxisTowardWorkpiece   ************************************
 // *****************************************************************************
-Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position_um, uint32_t speed_mm_min, uint32_t &id)
+Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t speed, uint32_t &id)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -889,13 +897,12 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position_um, uin
       // Set ID for command
       msg.id = GetNextId();
 
-      // Find sign: sigh should be handled separately, because it will be lost
-      // for movements less than 1 mm.
-      bool is_negative = position_um < 0;
-      // Remove sign from number
-      position_um = abs(position_um);
+      // Buffer for distance string
+      char position_str[16u];
+      // Convert distance value to string
+      ValueToString(position, GetUnitsScaler(), position_str, NumberOf(position_str));
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G38.2%s%s%lu.%03luF%lu\r\n", axis_str[axis], is_negative ? "-" : "", position_um / 1000, position_um % 1000, speed_mm_min); // G38.2{Axis}{Position}
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.2%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, speed);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -915,7 +922,7 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position_um, uin
 // *****************************************************************************
 // ***   Public: ProbeAxisAwayFromWorkpiece   **********************************
 // *****************************************************************************
-Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position_um, uint32_t speed_mm_min, uint32_t &id)
+Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t speed, uint32_t &id)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -929,13 +936,12 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position_um, u
       // Set ID for command
       msg.id = GetNextId();
 
-      // Find sign: sigh should be handled separately, because it will be lost
-      // for movements less than 1 mm.
-      bool is_negative = position_um < 0;
-      // Remove sign from number
-      position_um = abs(position_um);
+      // Buffer for distance string
+      char position_str[16u];
+      // Convert distance value to string
+      ValueToString(position, GetUnitsScaler(), position_str, NumberOf(position_str));
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G38.4%s%s%lu.%03luF%lu\r\n", axis_str[axis], is_negative ? "-" : "", position_um / 1000, position_um % 1000, speed_mm_min); // G38.4{Axis}{Position}
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.4%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, speed);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -955,7 +961,7 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position_um, u
 // *****************************************************************************
 // ***   Public: SetToolLengthOffset   *****************************************
 // *****************************************************************************
-Result GrblComm::SetToolLengthOffset(int32_t offset_um)
+Result GrblComm::SetToolLengthOffset(int32_t offset)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -965,13 +971,14 @@ Result GrblComm::SetToolLengthOffset(int32_t offset_um)
     TaskQueueMsg msg;
     // Set ID for command
     msg.id = GetNextId();
-    // Find sign: sigh should be handled separately, because it will be lost
-    // for movements less than 1 mm.
-    bool is_negative = offset_um < 0;
-    // Remove sign from number
-    offset_um = abs(offset_um);
+
+    // Buffer for distance string
+    char offset_str[16u];
+    // Convert distance value to string
+    ValueToString(offset, GetUnitsScaler(), offset_str, NumberOf(offset_str));
     // Create Set Axis command
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G43.1Z%s%lu.%03lu\r\n", is_negative ? "-" : "", offset_um / 1000, offset_um % 1000); // G43.1Z{Offset}
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG43.1Z%s\r\n", GetMeasurementSystemGcode(), offset_str);
+
     // Send message
     result = SendTaskMessage(&msg);
   }
@@ -1009,6 +1016,42 @@ Result GrblComm::CancelToolLengthOffset()
 
   // Return result
   return result;
+}
+
+// *****************************************************************************
+// ***   Private: ValueToString function   *************************************
+// *****************************************************************************
+char* GrblComm::ValueToString(int32_t val, int32_t scaler, char* buf, uint32_t buf_size)
+{
+  // Find sign: sigh should be handled separately, because it will be lost
+  // for values less than scaler.
+  bool is_negative = val < 0;
+  // Remove sign from number
+  val = abs(val);
+
+  // Check scaler and use appropriate format
+  if(scaler == 10000)
+  {
+    snprintf(buf, buf_size, "%s%lu.%04lu", is_negative ? "-" : "", val / scaler, val % scaler);
+  }
+  else if(scaler == 1000)
+  {
+    snprintf(buf, buf_size, "%s%lu.%03lu", is_negative ? "-" : "", val / scaler, val % scaler);
+  }
+  else if(scaler == 100)
+  {
+    snprintf(buf, buf_size, "%s%lu.%02lu", is_negative ? "-" : "", val / scaler, val % scaler);
+  }
+  else if(scaler == 10)
+  {
+    snprintf(buf, buf_size, "%s%lu.%01lu", is_negative ? "-" : "", val / scaler, val % scaler);
+  }
+  else
+  {
+    snprintf(buf, buf_size, "%s%lu", is_negative ? "-" : "", val);
+  }
+
+  return buf;
 }
 
 // *****************************************************************************

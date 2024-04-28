@@ -42,11 +42,11 @@ Result OverrideCtrlScr::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
   {
     // Real position
-    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, (window_height - BORDER_W) / 2, 4u, 3u);
+    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 7u, grbl_comm.GetUnitsPrecision());
     dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real[i].SetDataFont(Font_10x18::GetInstance());
     dw_real[i].SetNumber(0);
-    dw_real[i].SetUnits("mm", DataWindow::RIGHT, Font_6x8::GetInstance());
+    dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::BOTTOM_RIGHT, Font_6x8::GetInstance());
     // Axis Name
     dw_real_name[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_10x18::GetInstance());
     dw_real_name[i].Move(dw_real[i].GetStartX() + (dw_real[i].GetWidth() - dw_real_name[i].GetWidth()) / 2, dw_real[i].GetStartY() - BORDER_W - dw_real_name[i].GetHeight());

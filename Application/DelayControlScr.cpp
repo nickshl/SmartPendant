@@ -41,25 +41,25 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < NumberOf(dw); i++)
   {
     // Axis position
-    dw[i].SetParams(display_drv.GetScreenW() / 6, start_y + (window_height + BORDER_W*2) * i, (display_drv.GetScreenW() - BORDER_W*2) / 2,  window_height, 4u, 3u);
+    dw[i].SetParams(display_drv.GetScreenW() / 6, start_y + (window_height + BORDER_W*2) * i, (display_drv.GetScreenW() - BORDER_W*2) / 2, window_height, 7u, grbl_comm.GetUnitsPrecision());
     dw[i].SetBorder(BORDER_W, COLOR_RED);
     dw[i].SetDataFont(Font_8x12::GetInstance(), 2u);
     dw[i].SetNumber(grbl_comm.GetAxisPosition(i)); // Get current position at startup
-    dw[i].SetUnits("mm", DataWindow::RIGHT);
+    dw[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::BOTTOM_RIGHT);
     dw[i].SetCallback(AppTask::GetCurrent());
     dw[i].SetActive(true);
     // Real position
-    dw_real[i].SetParams(dw[i].GetEndX() + BORDER_W, dw[i].GetStartY(), display_drv.GetScreenW() - dw[i].GetEndX() - BORDER_W * 2, (window_height - BORDER_W) / 2, 4u, 3u);
+    dw_real[i].SetParams(dw[i].GetEndX() + BORDER_W, dw[i].GetStartY(), display_drv.GetScreenW() - dw[i].GetEndX() - BORDER_W * 2, (window_height - BORDER_W) / 2, 7u, grbl_comm.GetUnitsPrecision());
     dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real[i].SetDataFont(Font_8x12::GetInstance());
     dw_real[i].SetNumber(0);
-    dw_real[i].SetUnits("mm", DataWindow::RIGHT, Font_6x8::GetInstance());
+    dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
     // Position difference
-    dw_diff[i].SetParams(dw_real[i].GetStartX(), dw[i].GetEndY() - dw_real[i].GetHeight(), dw_real[i].GetWidth(), dw_real[i].GetHeight(), 4u, 3u);
+    dw_diff[i].SetParams(dw_real[i].GetStartX(), dw[i].GetEndY() - dw_real[i].GetHeight(), dw_real[i].GetWidth(), dw_real[i].GetHeight(), 7u, grbl_comm.GetUnitsPrecision());
     dw_diff[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_diff[i].SetDataFont(Font_8x12::GetInstance());
     dw_diff[i].SetNumber(0);
-    dw_diff[i].SetUnits("mm", DataWindow::RIGHT, Font_6x8::GetInstance());
+    dw_diff[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
     // Axis Name
     axis_names[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
     axis_names[i].SetScale(2u);
@@ -68,7 +68,7 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
   // Scale buttons
   for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
   {
-    scale_btn[i].SetParams((i == 0u) ? "0.001 mm" : ((i == 1u) ? "0.01 mm" : "0.1 mm"), i*(display_drv.GetScreenW() / 3) + BORDER_W, dw[NumberOf(dw) - 1u].GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 3 - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
+    scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], i*(display_drv.GetScreenW() / 3) + BORDER_W, dw[NumberOf(dw) - 1u].GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 3 - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent());
   }
 
@@ -77,7 +77,7 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
   dw_speed.SetBorder(BORDER_W, COLOR_RED);
   dw_speed.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_speed.SetNumber(300);
-  dw_speed.SetUnits("mm/min", DataWindow::BOTTOM);
+  dw_speed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::BOTTOM_RIGHT);
   dw_speed.SetCallback(AppTask::GetCurrent());
   dw_speed.SetActive(true);
   // Speed caption

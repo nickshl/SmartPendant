@@ -23,7 +23,7 @@
 // *****************************************************************************
 // ***   SetParams   ***********************************************************
 // *****************************************************************************
-void DataWindow::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t s, uint32_t ths)
+void DataWindow::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t len, uint32_t ths)
 {
   // Set data to -1 to update string later
   data = -1;
@@ -39,7 +39,7 @@ void DataWindow::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t 
   height = h;
 
   // Save decimal
-  before_decimal = s;
+  before_decimal = len - ths;
   after_decimal = ths;
   // Set default multiplier
   decimal_multiplier = 1u;

@@ -237,11 +237,11 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   uint32_t window_height = Font_8x12::GetInstance().GetCharH() * 5u;
 
   // Tool offset position
-  dw_tool.SetParams(BORDER_W, start_y + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 4u, 3u);
+  dw_tool.SetParams(BORDER_W, start_y + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetUnitsPrecision());
   dw_tool.SetBorder(BORDER_W, COLOR_BLUE);
   dw_tool.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_tool.SetNumber(grbl_comm.GetToolLengthOffset()); // Get current position at startup
-  dw_tool.SetUnits("mm", DataWindow::RIGHT);
+  dw_tool.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
   dw_tool.SetCallback(AppTask::GetCurrent());
   dw_tool.SetActive(false);
   // Measure offset button
@@ -252,11 +252,11 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   name_base.SetParams("BASE POSITION", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
   name_base.Move((display_drv.GetScreenW()  / 2) - (name_base.GetWidth() / 2), get_offset_btn.GetEndY() + BORDER_W * 2u);
   // Tool offset position
-  dw_base.SetParams(BORDER_W, name_base.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 4u, 3u);
+  dw_base.SetParams(BORDER_W, name_base.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetUnitsPrecision());
   dw_base.SetBorder(BORDER_W, COLOR_MAGENTA);
   dw_base.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_base.SetNumber(0); // Get current position at startup
-  dw_base.SetUnits("mm", DataWindow::RIGHT);
+  dw_base.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
   dw_base.SetCallback(AppTask::GetCurrent());
   dw_base.SetActive(false);
   // Measure offset button
@@ -267,11 +267,11 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
   {
     // Real position
-    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, get_base_btn.GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, (window_height - BORDER_W) / 2, 4u, 3u);
+    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, get_base_btn.GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, (window_height - BORDER_W) / 2, 7u, grbl_comm.GetUnitsPrecision());
     dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real[i].SetDataFont(Font_8x12::GetInstance());
     dw_real[i].SetNumber(0);
-    dw_real[i].SetUnits("mm", DataWindow::RIGHT, Font_6x8::GetInstance());
+    dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
     // Axis Name
     dw_real_name[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
     dw_real_name[i].Move(dw_real[i].GetStartX() + BORDER_W, dw_real[i].GetStartY() + BORDER_W);
@@ -383,7 +383,7 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
       if(result.IsGood())
       {
         // Move Z axis to the point before probing at speed 500 mm/min
-        grbl_comm.JogInMachineCoodinates(GrblComm::AXIS_Z, z_position, 50000u);
+        grbl_comm.JogInMachineCoodinates(GrblComm::AXIS_Z, z_position, grbl_comm.ConvertMetricToUnits(500u));
         // Clear cmd if
         cmd_id = 0u;
         // Clear state
@@ -411,7 +411,7 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
       // Get current Z position in machine coordinates to return Z axis back after probing
       z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
       // Try to probe Z axis -1 meter at speed 100 mm/min
-      grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - 1000000, 100u, cmd_id);
+      grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
     }
     else if(ptr == &get_base_btn)
     {
@@ -419,7 +419,7 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
       // Get current Z position in machine coordinates to return Z axis back after probing
       z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
       // Try to probe Z axis -1 meter at speed 100 mm/min
-      grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - 1000000, 100u, cmd_id);
+      grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
     }
     else
     {
@@ -452,18 +452,16 @@ CenterFinderTab& CenterFinderTab::GetInstance()
 Result CenterFinderTab::Setup(int32_t y, int32_t height)
 {
   int32_t start_y = y + BORDER_W;
-  // Data window height
-  uint32_t window_height = Font_8x12::GetInstance().GetCharH() * 5u;
 
   // Fill all windows
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
   {
     // Real position
-    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, (window_height - BORDER_W) / 2, 4u, 3u);
+    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 7u, grbl_comm.GetUnitsPrecision());
     dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real[i].SetDataFont(Font_10x18::GetInstance());
     dw_real[i].SetNumber(0);
-    dw_real[i].SetUnits("mm", DataWindow::RIGHT, Font_6x8::GetInstance());
+    dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::BOTTOM_RIGHT, Font_6x8::GetInstance());
     // Axis Name
     dw_real_name[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_10x18::GetInstance());
     dw_real_name[i].Move(dw_real[i].GetStartX() + (dw_real[i].GetWidth() - dw_real_name[i].GetWidth()) / 2, dw_real[i].GetStartY() - BORDER_W - dw_real_name[i].GetHeight());
@@ -700,7 +698,7 @@ Result CenterFinderTab::ProbeLineSequence(probe_line_state_t& state, uint8_t axi
     // Get current axis position to return probe back after probing
     safe_pos = grbl_comm.GetAxisPosition(axis);
     // Try to probe axis +/- 1 meter at speed 200 mm/min TODO: make speed adjustable via settings
-    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (1000000 * dir), 200u, cmd_id);
+    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (grbl_comm.ConvertMetricToUnits(1000000) * dir), grbl_comm.ConvertMetricToUnits(200u), cmd_id);
     // Set next state
     state = PROBE_LINE_FAST;
   }
@@ -708,15 +706,15 @@ Result CenterFinderTab::ProbeLineSequence(probe_line_state_t& state, uint8_t axi
   {
     // Get probe axis position
     measured_pos = grbl_comm.GetProbePosition(axis);
-    // Move away from workpiece until probe contact lost
-    result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, 200u, cmd_id);
+    // Move away from workpiece at speed 200 mm/min until probe contact lost(but not more than safe pisition)
+    result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, grbl_comm.ConvertMetricToUnits(200u), cmd_id);
     // Set next state
     state = PROBE_LINE_FAST_RETURN;
   }
   if(state == PROBE_LINE_FAST_RETURN)
   {
     // Try to probe axis at measured position +/- 1 mm at speed 50 mm/min TODO: make speed adjustable via settings
-    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (1000 * dir), 50u, cmd_id);
+    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * dir), grbl_comm.ConvertMetricToUnits(50u), cmd_id);
     // Set next state
     state = PROBE_LINE_SLOW;
   }
