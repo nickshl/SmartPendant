@@ -110,8 +110,8 @@ class OverrideCtrlScr : public IScreen
     UiButton mist_btn;
 
     // Soft Buttons
-    UiButton left_btn;
-    UiButton right_btn;
+    UiButton& left_btn;
+    UiButton& right_btn;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
@@ -120,8 +120,6 @@ class OverrideCtrlScr : public IScreen
 
     // Encoder callback entry
     InputDrv::CallbackListEntry enc_cble;
-    // Button callback entry
-    InputDrv::CallbackListEntry btn_cble;
 
     // *************************************************************************
     // ***   Private: ProcessEncoderCallback function   ************************
@@ -129,14 +127,9 @@ class OverrideCtrlScr : public IScreen
     static Result ProcessEncoderCallback(OverrideCtrlScr* obj_ptr, void* ptr);
 
     // *************************************************************************
-    // ***   Private: ProcessButtonCallback function   *************************
-    // *************************************************************************
-    static Result ProcessButtonCallback(OverrideCtrlScr* obj_ptr, void* ptr);
-
-    // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    OverrideCtrlScr() {};
+    OverrideCtrlScr();
 };
 
 #endif

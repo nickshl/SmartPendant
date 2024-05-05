@@ -138,8 +138,8 @@ Result Menu::Show(uint32_t z)
     box.SetParams(ptr[cur_pos].str.GetStartX(), ptr[cur_pos].str.GetStartY(), list.GetWidth(), ptr[cur_pos].str.GetHeight(), COLOR_BLUE, true);
 
     // Soft Buttons
-    left_btn.Show(102);
-    right_btn.Show(102);
+    left_btn.Show(z);
+    right_btn.Show(z);
 
     // Set encoder callback handler
     InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);

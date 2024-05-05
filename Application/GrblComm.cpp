@@ -77,7 +77,7 @@ Result GrblComm::TimerExpired()
   }
 
   // If SW command used to gain control, MPG control requested and MPG isn't in control
-  if((NVM::GetInstance().GetCtrlTx() == CTRL_SW_COMMAND) && mpg_mode_request && !IsInControl())
+  if(((NVM::GetInstance().GetCtrlTx() == CTRL_SW_COMMAND) || (NVM::GetInstance().GetCtrlTx() == CTRL_PIN_AND_SW_CMD)) && mpg_mode_request && !IsInControl())
   {
     // If mpg state received(not in control) or if last status was received a while ago
     if(grbl_received.mpg || (RtosTick::GetTimeMs() - status_rx_timestamp > 300u))
@@ -237,6 +237,19 @@ void GrblComm::GainControl()
       status_rx_timestamp = RtosTick::GetTimeMs();
     }
   }
+  else if(NVM::GetInstance().GetCtrlTx() == CTRL_PIN_AND_SW_CMD)
+  {
+    // Open drain
+    HAL_GPIO_WritePin(MPG_EN_GPIO_Port, MPG_EN_Pin, GPIO_PIN_RESET);
+    // Send toggle command only if control wasn't requested before
+    if(!mpg_mode_request)
+    {
+      SendRealTimeCmd(CMD_MPG_MODE_TOGGLE);
+      // Set timestamp when status was received to track if we will get status
+      // in response to CMD_MPG_MODE_TOGGLE command
+      status_rx_timestamp = RtosTick::GetTimeMs();
+    }
+  }
   else
   {
     ; // Do nothing - MISRA rule
@@ -261,6 +274,18 @@ void GrblComm::ReleaseControl()
   }
   else if(NVM::GetInstance().GetCtrlTx() == CTRL_SW_COMMAND)
   {
+    // Send toggle command only if control requested before and was granted
+    if(mpg_mode_request && GetMpgMode())
+    {
+      SendRealTimeCmd(CMD_MPG_MODE_TOGGLE);
+    }
+    // Set flag to indicate we want to give up control
+    mpg_mode_request = false;
+  }
+  else if(NVM::GetInstance().GetCtrlTx() == CTRL_PIN_AND_SW_CMD)
+  {
+    // Close drain
+    HAL_GPIO_WritePin(MPG_EN_GPIO_Port, MPG_EN_Pin, GPIO_PIN_SET);
     // Send toggle command only if control requested before and was granted
     if(mpg_mode_request && GetMpgMode())
     {
@@ -558,8 +583,8 @@ Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t speed_x100, bool i
       char distance_str[16u];
       char speed_str[16u];
       // Convert distance & speed values to strings
-      ValueToString(distance, GetUnitsScaler(), distance_str, NumberOf(distance_str));
-      ValueToString(speed_x100, 100, speed_str, NumberOf(speed_str));
+      ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
+      ValueToString(speed_str, NumberOf(speed_str), speed_x100, 100);
       // Create jog string
       snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%sF%s\r\n", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91", axis_str[axis], distance_str, speed_str);
 
@@ -596,7 +621,7 @@ Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t
       // Buffer for distance string
       char distance_str[16u];
       // Convert distance value to string
-      ValueToString(distance, GetUnitsScaler(), distance_str, NumberOf(distance_str));
+      ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
       // Create jog string
       snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%sG53G90%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str, speed);
 
@@ -634,10 +659,10 @@ Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t dis
     char distance_z_str[16u];
     char speed_str[16u];
     // Convert distance value to string
-    ValueToString(distance_x, GetUnitsScaler(), distance_x_str, NumberOf(distance_x_str));
-    ValueToString(distance_y, GetUnitsScaler(), distance_y_str, NumberOf(distance_y_str));
-    ValueToString(distance_z, GetUnitsScaler(), distance_z_str, NumberOf(distance_z_str));
-    ValueToString(speed_x100, 100, speed_str, NumberOf(speed_str));
+    ValueToString(distance_x_str, NumberOf(distance_x_str), distance_x, GetUnitsScaler());
+    ValueToString(distance_y_str, NumberOf(distance_y_str), distance_y, GetUnitsScaler());
+    ValueToString(distance_z_str, NumberOf(distance_z_str), distance_z, GetUnitsScaler());
+    ValueToString(speed_str, NumberOf(speed_str), speed_x100, 100);
     // Create jog string
     snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%s%s%s%s%sF%s\r\n", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91",
                                                 axis_str[AXIS_X], distance_x_str, axis_str[AXIS_Y], distance_y_str,
@@ -688,10 +713,10 @@ Result GrblComm::JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t speed_x100
     char r_str[16u];
     char speed_str[16u];
     // Convert distance & speed values to strings
-    ValueToString(x, GetUnitsScaler(), x_str, NumberOf(x_str));
-    ValueToString(y, GetUnitsScaler(), y_str, NumberOf(y_str));
-    ValueToString(r, GetUnitsScaler(), r_str, NumberOf(r_str));
-    ValueToString(speed_x100, 100, speed_str, NumberOf(speed_str));
+    ValueToString(x_str, NumberOf(x_str), x, GetUnitsScaler());
+    ValueToString(y_str, NumberOf(y_str), y, GetUnitsScaler());
+    ValueToString(r_str, NumberOf(r_str), r, GetUnitsScaler());
+    ValueToString(speed_str, NumberOf(speed_str), speed_x100, 100);
 
     // Create Jog command
     snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG17%s%s%s%s%s%sR%sF%s\r\n", GetMeasurementSystemGcode(),
@@ -762,7 +787,7 @@ Result GrblComm::SetAxis(uint8_t axis, int32_t position)
       // Buffer for distance string
       char position_str[16u];
       // Convert distance value to string
-      ValueToString(position, GetUnitsScaler(), position_str, NumberOf(position_str));
+      ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
       // Create Set Axis command
       snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG90G10L20P0%s%s\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str);
 
@@ -852,8 +877,8 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t speed_x100, u
       char distance_str[16u];
       char speed_str[16u];
       // Convert distance & speed values to strings
-      ValueToString(distance, GetUnitsScaler(), distance_str, NumberOf(distance_str));
-      ValueToString(speed_x100, 100, speed_str, NumberOf(speed_str));
+      ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
+      ValueToString(speed_str, NumberOf(speed_str), speed_x100, 100);
 
       // Create move command(zero speed mean rapid)
       if(speed_x100)
@@ -900,7 +925,7 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
       // Buffer for distance string
       char position_str[16u];
       // Convert distance value to string
-      ValueToString(position, GetUnitsScaler(), position_str, NumberOf(position_str));
+      ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
       // Create Set Axis command
       snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.2%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, speed);
 
@@ -939,7 +964,7 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint
       // Buffer for distance string
       char position_str[16u];
       // Convert distance value to string
-      ValueToString(position, GetUnitsScaler(), position_str, NumberOf(position_str));
+      ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
       // Create Set Axis command
       snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.4%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, speed);
 
@@ -975,7 +1000,7 @@ Result GrblComm::SetToolLengthOffset(int32_t offset)
     // Buffer for distance string
     char offset_str[16u];
     // Convert distance value to string
-    ValueToString(offset, GetUnitsScaler(), offset_str, NumberOf(offset_str));
+    ValueToString(offset_str, NumberOf(offset_str), offset, GetUnitsScaler());
     // Create Set Axis command
     snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG43.1Z%s\r\n", GetMeasurementSystemGcode(), offset_str);
 
@@ -1021,7 +1046,7 @@ Result GrblComm::CancelToolLengthOffset()
 // *****************************************************************************
 // ***   Private: ValueToString function   *************************************
 // *****************************************************************************
-char* GrblComm::ValueToString(int32_t val, int32_t scaler, char* buf, uint32_t buf_size)
+char* GrblComm::ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t scaler)
 {
   // Find sign: sigh should be handled separately, because it will be lost
   // for values less than scaler.

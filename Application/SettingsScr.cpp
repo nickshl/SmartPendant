@@ -142,6 +142,6 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
 // *****************************************************************************
 void SettingsScr::UpdateStrings(void)
 {
-  menu.CreateString(menu_items[TX_CONTROL], "MPG request", (nvm.GetCtrlTx() == GrblComm::CTRL_GPIO_PIN) ? "dedicated pin" : (nvm.GetCtrlTx() == GrblComm::CTRL_SW_COMMAND) ? "sw command": "full control");
+  menu.CreateString(menu_items[TX_CONTROL], "MPG request", (nvm.GetCtrlTx() == GrblComm::CTRL_GPIO_PIN) ? "dedicated pin" : (nvm.GetCtrlTx() == GrblComm::CTRL_SW_COMMAND) ? "sw command" : (nvm.GetCtrlTx() == GrblComm::CTRL_PIN_AND_SW_CMD) ? "pin & sw cmd": "full control");
   menu.CreateString(menu_items[SCREEN_INVERT], "Display Inversion", nvm.GetDisplayInvert() ? "inverted" : "normal");
 }

@@ -20,6 +20,8 @@
 // *****************************************************************************
 #include "DirectControlScr.h"
 
+#include "Application.h"
+
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
 // *****************************************************************************
@@ -80,13 +82,6 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
   set_btn.SetParams("Set axis position", BORDER_W, height - (Font_8x12::GetInstance().GetCharH() * 5) - BORDER_W, display_drv.GetScreenW() - BORDER_W * 2, Font_8x12::GetInstance().GetCharH() * 5, true);
   set_btn.SetCallback(AppTask::GetCurrent());
 
-  // Left soft button
-  left_btn.SetParams("Run", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, display_drv.GetScreenW() / 2 - BORDER_W, Font_8x12::GetInstance().GetCharH() * 3, true);
-  left_btn.SetCallback(AppTask::GetCurrent());
-  // Right soft button
-  right_btn.SetParams("Stop", display_drv.GetScreenW() - left_btn.GetWidth(), left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
-  right_btn.SetCallback(AppTask::GetCurrent());
-
   // All good
   return Result::RESULT_OK;
 }
@@ -132,8 +127,6 @@ Result DirectControlScr::Show()
 
   // Set encoder callback handler
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
-  // Set callback handler for left and right buttons
-  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
 
   // All good
   return Result::RESULT_OK;
@@ -146,8 +139,6 @@ Result DirectControlScr::Hide()
 {
   // Delete encoder callback handler
   InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
-  // Delete buttons callback handler
-  InputDrv::GetInstance().DeleteButtonsCallbackHandler(btn_cble);
 
   // Axis data
   for(uint32_t i = 0u; i < NumberOf(dw); i++)
@@ -194,25 +185,9 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
   // Process jog if set button is unpressed
   if(set_btn.GetPressed() == false)
   {
-    // Update left button text
-    if(grbl_comm.GetState() == GrblComm::RUN)
-    {
-      left_btn.SetString("Hold");
-    }
-    else
-    {
-      left_btn.SetString("Run");
-    }
-
-    // Update right button text
-    if((grbl_comm.GetState() == GrblComm::ALARM) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
-    {
-      right_btn.SetString("Reset");
-    }
-    else
-    {
-      right_btn.SetString("Stop");
-    }
+    // Update left & right button text
+    Application::GetInstance().UpdateLeftButtonText();
+    Application::GetInstance().UpdateRightButtonText();
 
     // Update numbers with current position
     for(uint32_t i = 0u; i < NumberOf(dw); i++)
@@ -314,54 +289,28 @@ void DirectControlScr::UnpressButtons(void)
 // *****************************************************************************
 Result DirectControlScr::ProcessCallback(const void* ptr)
 {
-  // Process Run button. Since we can call this handler after press of physical
-  // button, we have to check if Run button is active.
-  if(ptr == &left_btn)
+  Result result = Result::RESULT_OK;
+
+  // Process Left & Right buttons
+  if((ptr == &left_btn) || (ptr == &right_btn))
   {
-    // Process Run/Hold if set button is unpressed
-    if(set_btn.GetPressed() == false)
-    {
-      // If we already run program
-      if(grbl_comm.GetState() != GrblComm::RUN)
-      {
-        grbl_comm.Run(); // Send Run command for continue
-      }
-      else
-      {
-        grbl_comm.Hold(); // Send Hold command for pause
-      }
-    }
-    else
+    // Process if Set button is pressed
+    if(set_btn.GetPressed())
     {
       // Set axis value
-      for(uint32_t i = 0u; i < NumberOf(dw); i++)
+      if(ptr == &left_btn)
       {
-        grbl_comm.SetAxis(i, dw[i].GetNumber());
+        for(uint32_t i = 0u; i < NumberOf(dw); i++)
+        {
+          grbl_comm.SetAxis(i, dw[i].GetNumber());
+        }
       }
       // Exit from set mode
       ProcessCallback(&set_btn);
     }
-  }
-  // Process Reset button
-  else if(ptr == &right_btn)
-  {
-    // Process Stop if set button is unpressed
-    if(set_btn.GetPressed() == false)
-    {
-      // Update right button text
-      if((grbl_comm.GetState() == GrblComm::ALARM) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
-      {
-        grbl_comm.Reset(); // Send Run command for continue
-      }
-      else
-      {
-        grbl_comm.Stop(); // Send Stop command
-      }
-    }
     else
     {
-      // Cancel axis value change
-      ProcessCallback(&set_btn);
+      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
     }
   }
   // Process X button
@@ -384,6 +333,7 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
       for(uint32_t i = 0u; i < NumberOf(dw); i++)
       {
         dw[i].SetBorderColor(COLOR_YELLOW);
+        zero_btn[i].SetString("Set");
       }
     }
     else
@@ -395,6 +345,7 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
       for(uint32_t i = 0u; i < NumberOf(dw); i++)
       {
         dw[i].SetBorderColor(COLOR_RED);
+        zero_btn[i].SetString("<0>");
       }
     }
   }
@@ -437,15 +388,23 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
         }
         else if(ptr == &zero_btn[i])
         {
-          grbl_comm.ZeroAxis((GrblComm::Axis_t)i);
+          // Process zero if set button is unpressed
+          if(set_btn.GetPressed() == false)
+          {
+            grbl_comm.ZeroAxis((GrblComm::Axis_t)i);
+          }
+          else
+          {
+            grbl_comm.SetAxis(i, dw[i].GetNumber());
+          }
           break;
         }
       }
     }
   }
 
-  // Always good
-  return Result::RESULT_OK;
+  // Return result
+  return result;
 }
 
 // *************************************************************************
@@ -478,52 +437,8 @@ Result DirectControlScr::ProcessEncoderCallback(DirectControlScr* obj_ptr, void*
   return result;
 }
 
-// *****************************************************************************
-// ***   Private: ProcessButtonCallback function   *****************************
-// *****************************************************************************
-Result DirectControlScr::ProcessButtonCallback(DirectControlScr* obj_ptr, void* ptr)
-{
-  Result result = Result::ERR_NULL_PTR;
-
-  // Check pointer
-  if(obj_ptr != nullptr)
-  {
-    // Cast pointer to "this". Since we can't use non-static members as callback,
-    // we have to provide pinter to object.
-    DirectControlScr& ths = *obj_ptr;
-    // Get pressed button
-    InputDrv::ButtonCallbackData btn = *((InputDrv::ButtonCallbackData*)ptr);
-
-    // UI Button pointer
-    UiButton *ui_btn = nullptr;
-
-    // Find button pointer
-    if(btn.btn == InputDrv::BTN_LEFT)       ui_btn = &ths.left_btn;
-    else if(btn.btn == InputDrv::BTN_RIGHT) ui_btn = &ths.right_btn;
-    else; // Do nothing - MISRA rule
-
-    // If button object found
-    if(ui_btn != nullptr)
-    {
-      // If button pressed
-      if(btn.state == true)
-      {
-        // Press button on the screen
-        ui_btn->SetPressed(true);
-      }
-      else // Released
-      {
-        // Release button on the screen
-        ui_btn->SetPressed(false);
-        // And call callback
-        ths.ProcessCallback(ui_btn);
-      }
-    }
-
-    // Set ok result
-    result = Result::RESULT_OK;
-  }
-
-  // Return result
-  return result;
-}
+// *************************************************************************
+// ***   Private constructor   *********************************************
+// *************************************************************************
+DirectControlScr::DirectControlScr() : left_btn(Application::GetInstance().GetLeftButton()),
+                                       right_btn(Application::GetInstance().GetRightButton()) {};

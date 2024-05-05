@@ -97,11 +97,12 @@ class ProgrammSender : public IScreen
     char text[2048u];
     TextBox text_box;
 
-    // Soft Buttons
-    UiButton left_btn;
-    UiButton right_btn;
     // Buttons to open file
     UiButton open_btn;
+
+    // Soft Buttons
+    UiButton& left_btn;
+    UiButton& right_btn;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
@@ -113,8 +114,6 @@ class ProgrammSender : public IScreen
 
     // Encoder callback entry
     InputDrv::CallbackListEntry enc_cble;
-    // Button callback entry
-    InputDrv::CallbackListEntry btn_cble;
 
     // *************************************************************************
     // ***   Private: ProcessMenuOkCallback function   *************************
@@ -132,14 +131,9 @@ class ProgrammSender : public IScreen
     static Result ProcessEncoderCallback(ProgrammSender* obj_ptr, void* ptr);
 
     // *************************************************************************
-    // ***   Private: ProcessButtonCallback function   *************************
-    // *************************************************************************
-    static Result ProcessButtonCallback(ProgrammSender* obj_ptr, void* ptr);
-
-    // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    ProgrammSender() {};
+    ProgrammSender();
 };
 
 #endif

@@ -63,9 +63,9 @@ class InputDrv : public AppTask
     // *************************************************************************
     // ***   Enum with all buttons   *******************************************
     // *************************************************************************
-    typedef enum 
+    typedef enum : uint8_t
     {
-      BTN_LEFT = 0,   // Face Left button
+      BTN_LEFT = 0u,  // Face Left button
       BTN_RIGHT,      // Face Right button
       BTN_LEFT_UP,    // Side Left Up button
       BTN_LEFT_DOWN,  // Side Left Down button
@@ -76,8 +76,9 @@ class InputDrv : public AppTask
     } ButtonType;
 
     // ***   Enum with masks for all buttons   *********************************
-    typedef enum
+    typedef enum : uint8_t
     {
+      BTNM_EMPTY = 0u,
       BTNM_LEFT =       (1u << BTN_LEFT),       // Face Left button
       BTNM_RIGHT =      (1u << BTN_RIGHT),      // Face Right button
       BTNM_LEFT_UP =    (1u << BTN_LEFT_UP),    // Side Left Up button

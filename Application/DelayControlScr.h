@@ -111,8 +111,8 @@ class DelayControlScr : public IScreen
     String x_mode_str;
 
     // Soft Buttons
-    UiButton left_btn;
-    UiButton right_btn;
+    UiButton& left_btn;
+    UiButton& right_btn;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
@@ -121,18 +121,11 @@ class DelayControlScr : public IScreen
 
     // Encoder callback entry
     InputDrv::CallbackListEntry enc_cble;
-    // Button callback entry
-    InputDrv::CallbackListEntry btn_cble;
 
     // *************************************************************************
     // ***   Private: ProcessEncoderCallback function   ************************
     // *************************************************************************
     static Result ProcessEncoderCallback(DelayControlScr* obj_ptr, void* ptr);
-
-    // *************************************************************************
-    // ***   Private: ProcessButtonCallback function   *************************
-    // *************************************************************************
-    static Result ProcessButtonCallback(DelayControlScr* obj_ptr, void* ptr);
 
     // *************************************************************************
     // ***   Private: Update function   ****************************************
@@ -142,7 +135,7 @@ class DelayControlScr : public IScreen
     // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    DelayControlScr() {};
+    DelayControlScr();
 };
 
 #endif

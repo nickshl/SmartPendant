@@ -76,7 +76,7 @@ class DirectControlScr : public IScreen
     virtual Result ProcessCallback(const void* ptr);
 
   private:
-    static const uint8_t BORDER_W = 4u;
+    static constexpr uint8_t BORDER_W = 4u;
 
     // Jogging values
     int32_t jog_val[GrblComm::AXIS_CNT] = {0};
@@ -109,8 +109,8 @@ class DirectControlScr : public IScreen
     UiButton set_btn;
 
     // Soft Buttons
-    UiButton left_btn;
-    UiButton right_btn;
+    UiButton& left_btn;
+    UiButton& right_btn;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
@@ -121,8 +121,6 @@ class DirectControlScr : public IScreen
 
     // Encoder callback entry
     InputDrv::CallbackListEntry enc_cble;
-    // Button callback entry
-    InputDrv::CallbackListEntry btn_cble;
 
     // *************************************************************************
     // ***   Private: UnpressButtons function   ********************************
@@ -135,14 +133,9 @@ class DirectControlScr : public IScreen
     static Result ProcessEncoderCallback(DirectControlScr* obj_ptr, void* ptr);
 
     // *************************************************************************
-    // ***   Private: ProcessButtonCallback function   *************************
-    // *************************************************************************
-    static Result ProcessButtonCallback(DirectControlScr* obj_ptr, void* ptr);
-
-    // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    DirectControlScr() {};
+    DirectControlScr();
 };
 
 #endif

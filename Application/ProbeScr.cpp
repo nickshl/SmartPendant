@@ -20,6 +20,8 @@
 // *****************************************************************************
 #include "ProbeScr.h"
 
+#include "Application.h"
+
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
 // *****************************************************************************
@@ -57,10 +59,6 @@ Result ProbeScr::Setup(int32_t y, int32_t height)
   // Set index
   tab_idx = 0u;
 
-  // Stop button
-  right_btn.SetParams("Stop", display_drv.GetScreenW() - display_drv.GetScreenW() / 2 + BORDER_W, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, display_drv.GetScreenW() / 2 - BORDER_W, Font_8x12::GetInstance().GetCharH() * 3, true);
-  right_btn.SetCallback(AppTask::GetCurrent());
-
   // All good
   return Result::RESULT_OK;
 }
@@ -77,7 +75,7 @@ Result ProbeScr::Show()
   right_btn.Show(102);
 
   // Set callback handler for left and right buttons
-  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT | InputDrv::BTNM_LEFT_DOWN | InputDrv::BTNM_RIGHT_DOWN, btn_cble);
+  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT_DOWN | InputDrv::BTNM_RIGHT_DOWN, btn_cble);
 
   // Show screen
   tab[tab_idx]->Show();
@@ -114,6 +112,9 @@ Result ProbeScr::TimerExpired(uint32_t interval)
 {
   Result result = Result::RESULT_OK;
 
+  // Update right button text
+  Application::GetInstance().UpdateRightButtonText();
+
   // Process timer
   tab[tab_idx]->TimerExpired(interval);
 
@@ -126,9 +127,11 @@ Result ProbeScr::TimerExpired(uint32_t interval)
 // *****************************************************************************
 Result ProbeScr::ProcessCallback(const void* ptr)
 {
+  Result result = Result::RESULT_OK;
+
   if(ptr == &right_btn)
   {
-    grbl_comm.Stop(); // Send Stop command
+    result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
   }
   else if(ptr == &tabs) // Change tab when another tab selected
   {
@@ -136,11 +139,11 @@ Result ProbeScr::ProcessCallback(const void* ptr)
   }
   else
   {
-    tab[tab_idx]->ProcessCallback(ptr);
+    result = tab[tab_idx]->ProcessCallback(ptr);
   }
 
-  // Always good
-  return Result::RESULT_OK;
+  // Return result
+  return result;
 }
 
 // *****************************************************************************
@@ -159,23 +162,7 @@ Result ProbeScr::ProcessButtonCallback(ProbeScr* obj_ptr, void* ptr)
     // Get pressed button
     InputDrv::ButtonCallbackData btn = *((InputDrv::ButtonCallbackData*)ptr);
 
-    // Right button - Send Stop command to GRBL
-    if(btn.btn == InputDrv::BTN_RIGHT)
-    {
-      // If button pressed
-      if(btn.state == true)
-      {
-        // Press "Reset" button on the screen
-        ths.right_btn.SetPressed(true);
-      }
-      else // Released
-      {
-        // Release "Reset" button on the screen
-        ths.right_btn.SetPressed(false);
-        // And call callback
-        ths.ProcessCallback(&ths.right_btn);
-      }
-    }
+    // Buttons to switch tabs
     if(btn.btn == InputDrv::BTN_LEFT_DOWN)
     {
       if(ths.tab_idx > 0u) ths.ChangeTab(ths.tab_idx - 1u);
@@ -211,6 +198,11 @@ void ProbeScr::ChangeTab(uint8_t tabn)
   // Show new screen
   tab[tab_idx]->Show();
 }
+
+// *************************************************************************
+// ***   Private constructor   *********************************************
+// *************************************************************************
+ProbeScr::ProbeScr() : right_btn(Application::GetInstance().GetRightButton()) {};
 
 // *****************************************************************************
 // *****************************************************************************
@@ -471,6 +463,12 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   find_center_btn.SetParams("FIND CENTER", BORDER_W, dw_real[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
   find_center_btn.SetCallback(AppTask::GetCurrent());
 
+  // For diameter data
+  for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
+  {
+    diameter_str[i].SetParams("", BORDER_W, find_center_btn.GetEndY() + BORDER_W + Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
+  }
+
   // All good
   return Result::RESULT_OK;
 }
@@ -485,6 +483,12 @@ Result CenterFinderTab::Show()
   {
     dw_real[i].Show(100);
     dw_real_name[i].Show(100);
+  }
+
+  // For diameter data
+  for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
+  {
+    diameter_str[i].Show(100);
   }
 
   // Find Center button
@@ -507,6 +511,12 @@ Result CenterFinderTab::Hide()
   {
     dw_real[i].Hide();
     dw_real_name[i].Hide();
+  }
+
+  // For diameter data
+  for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
+  {
+    diameter_str[i].Hide();
   }
 
   // Find Center button
@@ -547,6 +557,11 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
       // Iterations
       if(state == PROBE_START)
       {
+        // For diameter data
+        for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
+        {
+          diameter_str[i].SetString("");
+        }
         // Restart line sequence
         line_state = PROBE_LINE_START;
         // Start probing sequence
@@ -589,6 +604,10 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
           if(line_state == PROBE_LINE_RESULT_READY)
           {
             x_safe_pos = x_min_pos + (x_max_pos - x_min_pos) / 2;
+            x_diameter = x_max_pos - x_min_pos + grbl_comm.ConvertMetricToUnits(2000); // TODO: ball diameter 2 mm, make it adjustable!
+            // Update X diameter string
+            char tmp_x[13u] = {0};
+            diameter_str[0u].SetString(diameter_str_buf[0u], NumberOf(diameter_str_buf[0u]), "Dx: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_x, NumberOf(tmp_x), x_diameter), grbl_comm.GetReportUnits());
           }
           // Otherwise continue probing sequence for X max
           ProbeLineSequence(line_state, GrblComm::AXIS_X, +1, x_safe_pos, x_max_pos);
@@ -628,6 +647,14 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
           if(line_state == PROBE_LINE_RESULT_READY)
           {
             y_safe_pos = y_min_pos + (y_max_pos - y_min_pos) / 2;
+            y_diameter = y_max_pos - y_min_pos + grbl_comm.ConvertMetricToUnits(2000); // TODO: ball diameter 2 mm, make it adjustable!
+            diameter_diviation = x_diameter - y_diameter;
+            // Update Y diameter string
+            char tmp_y[13u] = {0};
+            diameter_str[1u].SetString(diameter_str_buf[1u], NumberOf(diameter_str_buf[1u]), "Dy: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_y, NumberOf(tmp_y), y_diameter), grbl_comm.GetReportUnits());
+            // Update X diameter string
+            char tmp_d[13u] = {0};
+            diameter_str[2u].SetString(diameter_str_buf[2u], NumberOf(diameter_str_buf[2u]), "Dd: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_d, NumberOf(tmp_d), diameter_diviation), grbl_comm.GetReportUnits());
           }
           // Otherwise continue probing sequence for Y max
           ProbeLineSequence(line_state, GrblComm::AXIS_Y, +1, y_safe_pos, y_max_pos);

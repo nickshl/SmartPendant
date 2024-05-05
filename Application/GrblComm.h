@@ -43,9 +43,10 @@ class GrblComm : public AppTask
     // *************************************************************************
     typedef enum : uint8_t
     {
-      CTRL_GPIO_PIN = 0u, // Dedicated pin(open drain) is used for MPG control toggle
-      CTRL_SW_COMMAND,    // CMD_MPG_MODE_TOGGLE(0x8B) is used for MPG control toggle
-      CTRL_FULL,          // Full control if MPG connected to primary UART
+      CTRL_GPIO_PIN = 0u,  // Dedicated pin(open drain) is used for MPG control toggle
+      CTRL_SW_COMMAND,     // CMD_MPG_MODE_TOGGLE(0x8B) is used for MPG control toggle
+      CTRL_PIN_AND_SW_CMD, // Both dedicated pin and CMD_MPG_MODE_TOGGLE(0x8B) is used for MPG control toggle(for LED indication)
+      CTRL_FULL,           // Full control if MPG connected to primary UART
       CTRL_TX_CNT
     } ctrl_tx_t;
 
@@ -411,6 +412,11 @@ class GrblComm : public AppTask
     // ***   Public: GetReportUnits function   *********************************
     // *************************************************************************
     const char* GetReportUnits() {return ((measurement_system == MEASUREMENT_SYSTEM_METRIC) ? "mm" : "inch");}
+
+    // *************************************************************************
+    // ***   Public: ValueToStringInCurrentUnits function   ********************
+    // *************************************************************************
+    char* ValueToStringInCurrentUnits(char* buf, uint32_t buf_size, int32_t val) {return ValueToString(buf, buf_size, val, GetUnitsScaler());}
 
     // *************************************************************************
     // ***   Public: GetModeOfOperation function   *****************************
@@ -832,7 +838,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Private: ValueToString function   *********************************
     // *************************************************************************
-    char* ValueToString(int32_t val, int32_t scaler, char* buf, uint32_t buf_size);
+    char* ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t scaler);
 
     // *************************************************************************
     // ***   Private: ParseState function   ************************************

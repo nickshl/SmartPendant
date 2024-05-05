@@ -20,13 +20,15 @@
 // *****************************************************************************
 #include "OverrideCtrlScr.h"
 
+#include "Application.h"
+
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
 // *****************************************************************************
 OverrideCtrlScr& OverrideCtrlScr::GetInstance()
 {
-  static OverrideCtrlScr directcontrolscr;
-  return directcontrolscr;
+  static OverrideCtrlScr overridectrlscr;
+  return overridectrlscr;
 }
 
 // *****************************************************************************
@@ -80,7 +82,6 @@ Result OverrideCtrlScr::Setup(int32_t y, int32_t height)
   speed_reset_btn.SetParams("100%", speed_dw.GetEndX() + BORDER_W, speed_dw.GetStartY(), display_drv.GetScreenW() - speed_dw.GetEndX() - BORDER_W * 2, speed_dw.GetHeight(), true);
   speed_reset_btn.SetCallback(AppTask::GetCurrent());
 
-
   // Buttons for control flood coolant
   flood_btn.SetParams("FLOOD", BORDER_W, speed_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 2 - BORDER_W*2, speed_dw.GetHeight(), true);
   flood_btn.SetFont(Font_12x16::GetInstance());
@@ -89,13 +90,6 @@ Result OverrideCtrlScr::Setup(int32_t y, int32_t height)
   mist_btn.SetParams("MIST", display_drv.GetScreenW() / 2 + BORDER_W, speed_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 2 - BORDER_W*2, speed_dw.GetHeight(), true);
   mist_btn.SetFont(Font_12x16::GetInstance());
   mist_btn.SetCallback(AppTask::GetCurrent());
-
-  // Run button
-  left_btn.SetParams("Run", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, display_drv.GetScreenW() / 2 - BORDER_W, Font_8x12::GetInstance().GetCharH() * 3, true);
-  left_btn.SetCallback(AppTask::GetCurrent());
-  // Stop button
-  right_btn.SetParams("Stop", display_drv.GetScreenW() - left_btn.GetWidth(), left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
-  right_btn.SetCallback(AppTask::GetCurrent());
 
   // All good
   return Result::RESULT_OK;
@@ -134,8 +128,6 @@ Result OverrideCtrlScr::Show()
 
   // Set encoder callback handler
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
-  // Set callback handler for left and right buttons
-  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
 
   // All good
   return Result::RESULT_OK;
@@ -148,8 +140,6 @@ Result OverrideCtrlScr::Hide()
 {
   // Delete encoder callback handler
   InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
-  // Delete buttons callback handler
-  InputDrv::GetInstance().DeleteButtonsCallbackHandler(btn_cble);
 
   // Axis data
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
@@ -188,15 +178,9 @@ Result OverrideCtrlScr::TimerExpired(uint32_t interval)
 {
   Result result = Result::RESULT_OK;
 
-  // Update left button text
-  if(grbl_comm.GetState() == GrblComm::RUN)
-  {
-    left_btn.SetString("Hold");
-  }
-  else
-  {
-    left_btn.SetString("Run");
-  }
+  // Update left & right button text
+  Application::GetInstance().UpdateLeftButtonText();
+  Application::GetInstance().UpdateRightButtonText();
 
   // Update numbers with current position and position difference
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
@@ -285,27 +269,9 @@ Result OverrideCtrlScr::TimerExpired(uint32_t interval)
 // *****************************************************************************
 Result OverrideCtrlScr::ProcessCallback(const void* ptr)
 {
-  // Process Run button. Since we can call this handler after press of physical
-  // button, we have to check if Run button is active.
-  if(ptr == &left_btn)
-  {
-    // If we already run program
-    if(grbl_comm.GetState() != GrblComm::RUN)
-    {
-      grbl_comm.Run(); // Send Run command for continue
-    }
-    else
-    {
-      grbl_comm.Hold(); // Send Hold command for pause
-    }
-  }
-  // Process Reset button
-  else if(ptr == &right_btn)
-  {
-    // Send Stop command
-    grbl_comm.Stop();
-  }
-  else if(ptr == &feed_dw)
+  Result result = Result::RESULT_OK;
+
+  if(ptr == &feed_dw)
   {
     speed_dw.SetSeleced(false);
     feed_dw.SetSeleced(true);
@@ -333,10 +299,11 @@ Result OverrideCtrlScr::ProcessCallback(const void* ptr)
   }
   else
   {
-    ; // Do nothing
+    result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
   }
-  // Always good
-  return Result::RESULT_OK;
+
+  // Return result
+  return result;
 }
 
 // *************************************************************************
@@ -375,52 +342,8 @@ Result OverrideCtrlScr::ProcessEncoderCallback(OverrideCtrlScr* obj_ptr, void* p
   return result;
 }
 
-// *****************************************************************************
-// ***   Private: ProcessButtonCallback function   *****************************
-// *****************************************************************************
-Result OverrideCtrlScr::ProcessButtonCallback(OverrideCtrlScr* obj_ptr, void* ptr)
-{
-  Result result = Result::ERR_NULL_PTR;
-
-  // Check pointer
-  if(obj_ptr != nullptr)
-  {
-    // Cast pointer to "this". Since we can't use non-static members as callback,
-    // we have to provide pinter to object.
-    OverrideCtrlScr& ths = *obj_ptr;
-    // Get pressed button
-    InputDrv::ButtonCallbackData btn = *((InputDrv::ButtonCallbackData*)ptr);
-
-    // UI Button pointer
-    UiButton *ui_btn = nullptr;
-
-    // Find button pointer
-    if(btn.btn == InputDrv::BTN_LEFT)       ui_btn = &ths.left_btn;
-    else if(btn.btn == InputDrv::BTN_RIGHT) ui_btn = &ths.right_btn;
-    else; // Do nothing - MISRA rule
-
-    // If button object found
-    if(ui_btn != nullptr)
-    {
-      // If button pressed
-      if(btn.state == true)
-      {
-        // Press button on the screen
-        ui_btn->SetPressed(true);
-      }
-      else // Released
-      {
-        // Release button on the screen
-        ui_btn->SetPressed(false);
-        // And call callback
-        ths.ProcessCallback(ui_btn);
-      }
-    }
-
-    // Set ok result
-    result = Result::RESULT_OK;
-  }
-
-  // Return result
-  return result;
-}
+// *************************************************************************
+// ***   Private constructor   *********************************************
+// *************************************************************************
+OverrideCtrlScr::OverrideCtrlScr() : left_btn(Application::GetInstance().GetLeftButton()),
+                                     right_btn(Application::GetInstance().GetRightButton()) {};

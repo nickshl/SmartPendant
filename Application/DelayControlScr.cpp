@@ -20,6 +20,8 @@
 // *****************************************************************************
 #include "DelayControlScr.h"
 
+#include "Application.h"
+
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
 // *****************************************************************************
@@ -93,13 +95,6 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
   // X axis mode string
   x_mode_str.SetParams("", dw[GrblComm::AXIS_X].GetStartX() + BORDER_W*2, dw[GrblComm::AXIS_X].GetStartY() + BORDER_W*2, COLOR_WHITE, Font_8x12::GetInstance());
 
-  // Left soft button
-  left_btn.SetParams("Go!", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, display_drv.GetScreenW() / 2 - BORDER_W, Font_8x12::GetInstance().GetCharH() * 3, true);
-  left_btn.SetCallback(AppTask::GetCurrent());
-  // Right soft button
-  right_btn.SetParams("Reset", display_drv.GetScreenW() - left_btn.GetWidth(), left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
-  right_btn.SetCallback(AppTask::GetCurrent());
-
   // All good
   return Result::RESULT_OK;
 }
@@ -136,8 +131,6 @@ Result DelayControlScr::Show()
 
   // Set encoder callback handler
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
-  // Set callback handler for left and right buttons
-  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
 
   // All good
   return Result::RESULT_OK;
@@ -150,8 +143,6 @@ Result DelayControlScr::Hide()
 {
   // Delete encoder callback handler
   InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
-  // Delete buttons callback handler
-  InputDrv::GetInstance().DeleteButtonsCallbackHandler(btn_cble);
 
   // Axis data
   for(uint32_t i = 0u; i < NumberOf(dw); i++)
@@ -219,14 +210,17 @@ Result DelayControlScr::TimerExpired(uint32_t interval)
     grbl_state = new_state;
   }
 
-  // Update right button text
-  if(grbl_comm.GetState() == GrblComm::JOG)
+  // Update soft buttons text
+  if(grbl_comm.GetState() == GrblComm::IDLE)
   {
-    right_btn.SetString("Stop");
+    left_btn.SetString("Go!");
+    right_btn.SetString("Current");
   }
   else
   {
-    right_btn.SetString("Reset");
+    // Update left & right button text
+    Application::GetInstance().UpdateLeftButtonText();
+    Application::GetInstance().UpdateRightButtonText();
   }
 
   // Flag to detect change in data
@@ -256,6 +250,8 @@ Result DelayControlScr::TimerExpired(uint32_t interval)
 // *****************************************************************************
 Result DelayControlScr::ProcessCallback(const void* ptr)
 {
+  Result result = Result::RESULT_OK;
+
   // Process scale buttons
   if(ptr == &scale_btn[0])
   {
@@ -272,7 +268,14 @@ Result DelayControlScr::ProcessCallback(const void* ptr)
   // Process GO button
   else if(ptr == &left_btn)
   {
-    grbl_comm.JogMultiple(dw[GrblComm::AXIS_X].GetNumber(), dw[GrblComm::AXIS_Y].GetNumber(), dw[GrblComm::AXIS_Z].GetNumber(), dw_speed.GetNumber() * 100u, true);
+    if(grbl_comm.GetState() == GrblComm::IDLE)
+    {
+      grbl_comm.JogMultiple(dw[GrblComm::AXIS_X].GetNumber(), dw[GrblComm::AXIS_Y].GetNumber(), dw[GrblComm::AXIS_Z].GetNumber(), dw_speed.GetNumber() * 100u, true);
+    }
+    else
+    {
+      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
+    }
   }
   // Process Reset button
   else if(ptr == &right_btn)
@@ -288,7 +291,7 @@ Result DelayControlScr::ProcessCallback(const void* ptr)
     }
     else // otherwise
     {
-      grbl_comm.Stop(); // Send Stop command
+      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
     }
   }
   // Process speed data window
@@ -315,8 +318,8 @@ Result DelayControlScr::ProcessCallback(const void* ptr)
   // Update objects on a screen
   UpdateObjects();
 
-  // Always good
-  return Result::RESULT_OK;
+  // Return result
+  return result;
 }
 
 // *************************************************************************
@@ -362,59 +365,6 @@ Result DelayControlScr::ProcessEncoderCallback(DelayControlScr* obj_ptr, void* p
 }
 
 // *****************************************************************************
-// ***   Private: ProcessButtonCallback function   *****************************
-// *****************************************************************************
-Result DelayControlScr::ProcessButtonCallback(DelayControlScr* obj_ptr, void* ptr)
-{
-  Result result = Result::ERR_NULL_PTR;
-
-  // Check pointer
-  if(obj_ptr != nullptr)
-  {
-    // Cast pointer to "this". Since we can't use non-static members as callback,
-    // we have to provide pinter to object.
-    DelayControlScr& ths = *obj_ptr;
-    // Get pressed button
-    InputDrv::ButtonCallbackData btn = *((InputDrv::ButtonCallbackData*)ptr);
-
-    // UI Button pointer
-    UiButton *ui_btn = nullptr;
-
-    // Find button pointer
-    if(btn.btn == InputDrv::BTN_LEFT)       ui_btn = &ths.left_btn;
-    else if(btn.btn == InputDrv::BTN_RIGHT) ui_btn = &ths.right_btn;
-    else; // Do nothing - MISRA rule
-
-    // If button object found
-    if(ui_btn != nullptr)
-    {
-      // If button pressed
-      if(btn.state == true)
-      {
-        // Press button on the screen
-        ui_btn->SetPressed(true);
-      }
-      else // Released
-      {
-        // Release button on the screen
-        ui_btn->SetPressed(false);
-        // And call callback
-        ths.ProcessCallback(ui_btn);
-      }
-    }
-
-    // Update objects on a screen
-    ths.UpdateObjects();
-
-    // Set ok result
-    result = Result::RESULT_OK;
-  }
-
-  // Return result
-  return result;
-}
-
-// *****************************************************************************
 // ***   Private: Update function   ********************************************
 // *****************************************************************************
 void DelayControlScr::UpdateObjects(void)
@@ -436,3 +386,9 @@ void DelayControlScr::UpdateObjects(void)
   scale_btn[1u].SetPressed(scale == 10);
   scale_btn[2u].SetPressed(scale == 100);
 }
+
+// *************************************************************************
+// ***   Private constructor   *********************************************
+// *************************************************************************
+DelayControlScr::DelayControlScr() : left_btn(Application::GetInstance().GetLeftButton()),
+                                     right_btn(Application::GetInstance().GetRightButton()) {};

@@ -20,6 +20,8 @@
 // *****************************************************************************
 #include "ProgrammSender.h"
 
+#include "Application.h"
+
 #include "fatfs.h"
 
 // *****************************************************************************
@@ -36,16 +38,6 @@ ProgrammSender& ProgrammSender::GetInstance()
 // *****************************************************************************
 Result ProgrammSender::Setup(int32_t y, int32_t height)
 {
-  // Run button
-  left_btn.SetParams("Run", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, (display_drv.GetScreenW()- BORDER_W * 2) / 3, Font_8x12::GetInstance().GetCharH() * 3, true);
-  left_btn.SetCallback(AppTask::GetCurrent());
-  // Stop button
-  open_btn.SetParams("Open", left_btn.GetEndX() + BORDER_W + 1, left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
-  open_btn.SetCallback(AppTask::GetCurrent());
-  // Stop button
-  right_btn.SetParams("Stop", display_drv.GetScreenW() - left_btn.GetWidth(), left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
-  right_btn.SetCallback(AppTask::GetCurrent());
-
   // Fill menu_items
   for(uint32_t i = 0u; i < NumberOf(menu_items); i++)
   {
@@ -70,17 +62,26 @@ Result ProgrammSender::Show()
 {
   // Set encoder callback handler(before menu show since menu will handle it also)
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
-  // Set callback handler for left and right buttons
-  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
+
+  // Run button
+  left_btn.SetParams("Run", left_btn.GetStartX(), left_btn.GetStartY(), (display_drv.GetScreenW()- BORDER_W * 2) / 3, left_btn.GetHeight(), true);
+  left_btn.SetCallback(AppTask::GetCurrent());
+  // Stop button
+  right_btn.SetParams("Stop", right_btn.GetEndX() - left_btn.GetWidth() + 1, right_btn.GetStartY(), left_btn.GetWidth(), right_btn.GetHeight(), true);
+  right_btn.SetCallback(AppTask::GetCurrent());
+  // Open button
+  open_btn.SetParams("Open", left_btn.GetEndX() + BORDER_W + 1, left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
+  open_btn.SetCallback(AppTask::GetCurrent());
 
   // Show text box
   text_box.Show(100);
+  // Open button
+  open_btn.Show(102);
+
   // Run button
   left_btn.Show(102);
   // Stop button
   right_btn.Show(102);
-  // Open button
-  open_btn.Show(102);
 
   // All good
   return Result::RESULT_OK;
@@ -93,8 +94,6 @@ Result ProgrammSender::Hide()
 {
   // Delete encoder callback handler
   InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
-  // Delete buttons callback handler
-  InputDrv::GetInstance().DeleteButtonsCallbackHandler(btn_cble);
 
   // Hide menu
   menu.Hide();
@@ -107,6 +106,9 @@ Result ProgrammSender::Hide()
   // Open button
   open_btn.Hide();
 
+  // Reinit Soft Buttons to change their size back
+  Application::GetInstance().InitSoftButtons();
+
   // All good
   return Result::RESULT_OK;
 }
@@ -116,15 +118,9 @@ Result ProgrammSender::Hide()
 // *****************************************************************************
 Result ProgrammSender::TimerExpired(uint32_t interval)
 {
-  // Update left button text
-  if(grbl_comm.GetState() == GrblComm::RUN)
-  {
-    left_btn.SetString("Hold");
-  }
-  else
-  {
-    left_btn.SetString("Run");
-  }
+  // Update left & right button text
+  Application::GetInstance().UpdateLeftButtonText();
+  Application::GetInstance().UpdateRightButtonText();
 
   if(run)
   {
@@ -275,25 +271,23 @@ Result ProgrammSender::ProcessMenuCancelCallback(ProgrammSender* obj_ptr, void* 
 // *****************************************************************************
 Result ProgrammSender::ProcessCallback(const void* ptr)
 {
+  Result result = Result::RESULT_OK;
+
   // Process Run button. Since we can call this handler after press of physical
   // button, we have to check if Run button is active.
   if(ptr == &left_btn)
   {
-    // Disable buttons while program is running
-    open_btn.Disable();
     // If we already run program
-    if(run && grbl_comm.GetState() == GrblComm::RUN)
+    if(run)
     {
-      grbl_comm.Hold(); // Send Hold command for pause
-    }
-    else if(run)
-    {
-      grbl_comm.Run(); // Send Run command for continue
+      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
     }
     else
     {
       // Set run flag to start program streaming
       run = true;
+      // Disable buttons while program is running
+      open_btn.Disable();
     }
   }
   // Process Reset button
@@ -301,10 +295,10 @@ Result ProgrammSender::ProcessCallback(const void* ptr)
   {
     // Enable buttons back
     open_btn.Enable();
-    // Send Stop command
-    grbl_comm.Stop();
     // clear run flag
     run = false;
+    // For Application to handle it(Stop/Reset)
+    result = Result::ERR_UNHANDLED_REQUEST;
   }
   // Process Reset button
   else if((ptr == &open_btn) && (open_btn.IsActive()))
@@ -376,10 +370,11 @@ Result ProgrammSender::ProcessCallback(const void* ptr)
   }
   else
   {
+    ; // Do nothing - MISRA rule
   }
 
-  // Always good
-  return Result::RESULT_OK;
+  // Return result
+  return result;
 }
 
 // *************************************************************************
@@ -405,52 +400,8 @@ Result ProgrammSender::ProcessEncoderCallback(ProgrammSender* obj_ptr, void* ptr
   return result;
 }
 
-// *****************************************************************************
-// ***   Private: ProcessButtonCallback function   *****************************
-// *****************************************************************************
-Result ProgrammSender::ProcessButtonCallback(ProgrammSender* obj_ptr, void* ptr)
-{
-  Result result = Result::ERR_NULL_PTR;
-
-  // Check pointer
-  if(obj_ptr != nullptr)
-  {
-    // Cast pointer to "this". Since we can't use non-static members as callback,
-    // we have to provide pinter to object.
-    ProgrammSender& ths = *obj_ptr;
-    // Get pressed button
-    InputDrv::ButtonCallbackData btn = *((InputDrv::ButtonCallbackData*)ptr);
-
-    // UI Button pointer
-    UiButton *ui_btn = nullptr;
-
-    // Find button pointer
-    if(btn.btn == InputDrv::BTN_LEFT)       ui_btn = &ths.left_btn;
-    else if(btn.btn == InputDrv::BTN_RIGHT) ui_btn = &ths.right_btn;
-    else; // Do nothing - MISRA rule
-
-    // If button object found
-    if(ui_btn != nullptr)
-    {
-      // If button pressed
-      if(btn.state == true)
-      {
-        // Press button on the screen
-        ui_btn->SetPressed(true);
-      }
-      else // Released
-      {
-        // Release button on the screen
-        ui_btn->SetPressed(false);
-        // And call callback
-        ths.ProcessCallback(ui_btn);
-      }
-    }
-
-    // Set ok result
-    result = Result::RESULT_OK;
-  }
-
-  // Return result
-  return result;
-}
+// *************************************************************************
+// ***   Private constructor   *********************************************
+// *************************************************************************
+ProgrammSender::ProgrammSender() : left_btn(Application::GetInstance().GetLeftButton()),
+                                   right_btn(Application::GetInstance().GetRightButton()) {};

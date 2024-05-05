@@ -21,7 +21,7 @@
 #include "Application.h"
 
 // *****************************************************************************
-// ***   Get Instance   ********************************************************
+// ***   Public: Get Instance   ************************************************
 // *****************************************************************************
 Application& Application::GetInstance(void)
 {
@@ -30,7 +30,7 @@ Application& Application::GetInstance(void)
 }
 
 // *****************************************************************************
-// ***   Application Setup   ***************************************************
+// ***   Public: Application Setup   *******************************************
 // *****************************************************************************
 Result Application::Setup()
 {
@@ -58,6 +58,9 @@ Result Application::Setup()
   mpg_btn.SetCallback(this);
   mpg_btn.SetPressed(false);
   mpg_btn.Show(1000);
+
+  // Set Soft Buttons parameters
+  InitSoftButtons();
 
   // Pages for screens(first call to set parameters)
   header.SetParams(0, 0, display_drv.GetScreenW(), 40, Header::MAX_PAGES);
@@ -97,14 +100,14 @@ Result Application::Setup()
   scr[scr_idx]->Show();
 
   // Set callback handler for left and right buttons
-  input_drv.AddButtonsCallbackHandler(this, reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_USR, btn_cble);
+  input_drv.AddButtonsCallbackHandler(this, reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_USR | InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
 
   // All good
   return Result::RESULT_OK;
 }
 
 // *****************************************************************************
-// ***   TimerExpired function   ***********************************************
+// ***   Public: TimerExpired function   ***************************************
 // *****************************************************************************
 Result Application::TimerExpired()
 {
@@ -150,7 +153,7 @@ Result Application::TimerExpired()
 }
 
 // *****************************************************************************
-// ***   ProcessMessage function   *********************************************
+// ***   Public: ProcessMessage function   *************************************
 // *****************************************************************************
 Result Application::ProcessMessage()
 {
@@ -172,10 +175,12 @@ Result Application::ProcessMessage()
 }
 
 // *****************************************************************************
-// ***   ProcessCallback function   ********************************************
+// ***   Public: ProcessCallback function   ************************************
 // *****************************************************************************
 Result Application::ProcessCallback(const void* ptr)
 {
+  Result result = Result::RESULT_OK;
+
   // Check MPG button
   if(ptr == &mpg_btn)
   {
@@ -194,13 +199,88 @@ Result Application::ProcessCallback(const void* ptr)
   {
     ChangeScreen(header.GetSelectedPage());
   }
-  else // Process screen callback if needed
+  else // Process screen callback if it is something else
   {
-    scr[scr_idx]->ProcessCallback(ptr);
+    result = scr[scr_idx]->ProcessCallback(ptr);
+  }
+
+  // If request wasn't handled by screen
+  if(result == Result::ERR_UNHANDLED_REQUEST)
+  {
+    if(ptr == &left_btn)
+    {
+      // If we already run program
+      if(grbl_comm.GetState() != GrblComm::RUN)
+      {
+        grbl_comm.Run(); // Send Run command for continue
+      }
+      else
+      {
+        grbl_comm.Hold(); // Send Hold command for pause
+      }
+    }
+    else if(ptr == &right_btn)
+    {
+      // Update right button text
+      if((grbl_comm.GetState() == GrblComm::ALARM) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
+      {
+        grbl_comm.Reset(); // Send Reset command
+      }
+      else
+      {
+        grbl_comm.Stop(); // Send Stop command
+      }
+    }
+    else; //Do nothing - MISRA rule
   }
 
   // Always good
   return Result::RESULT_OK;
+}
+
+// *****************************************************************************
+// ***   Public: InitSoftButtons function   ************************************
+// *****************************************************************************
+void Application::InitSoftButtons()
+{
+  // Left soft button
+  left_btn.SetParams("", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, display_drv.GetScreenW() / 2 - BORDER_W, Font_8x12::GetInstance().GetCharH() * 3, true);
+  left_btn.SetCallback(AppTask::GetCurrent());
+  // Right soft button
+  right_btn.SetParams("", display_drv.GetScreenW() - left_btn.GetWidth(), left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
+  right_btn.SetCallback(AppTask::GetCurrent());
+}
+
+// *****************************************************************************
+// ***   Public: UpdateLeftButtonText function   *******************************
+// *****************************************************************************
+void Application::UpdateLeftButtonText()
+{
+  // Update left button text
+  if(grbl_comm.GetState() == GrblComm::RUN)
+  {
+    left_btn.SetString("Hold");
+  }
+  else
+  {
+    left_btn.SetString("Run");
+  }
+}
+
+// *****************************************************************************
+// ***   Public: UpdateRightButtonText function   ******************************
+// *****************************************************************************
+void Application::UpdateRightButtonText()
+{
+  // Update right button text
+  if((grbl_comm.GetState() == GrblComm::ALARM) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
+  {
+    right_btn.SetString("Reset");
+  }
+  else
+  {
+    right_btn.SetString("Stop");
+  }
 }
 
 // *****************************************************************************
@@ -218,6 +298,36 @@ Result Application::ProcessButtonCallback(Application* obj_ptr, void* ptr)
     Application& ths = *obj_ptr;
     // Get pressed button
     InputDrv::ButtonCallbackData btn = *((InputDrv::ButtonCallbackData*)ptr);
+
+    // *** Left/Right buttons **************************************************
+
+    // UI Button pointer
+    UiButton *ui_btn = nullptr;
+
+    // Find button pointer
+    if(btn.btn == InputDrv::BTN_LEFT)       ui_btn = &ths.left_btn;
+    else if(btn.btn == InputDrv::BTN_RIGHT) ui_btn = &ths.right_btn;
+    else; // Do nothing - MISRA rule
+
+    // If button object found, It on display and it active
+    if((ui_btn != nullptr) && ui_btn->IsShow() && ui_btn->IsActive())
+    {
+      // If button pressed
+      if(btn.state == true)
+      {
+        // Press button on the screen
+        ui_btn->SetPressed(true);
+      }
+      else // Released
+      {
+        // Release button on the screen
+        ui_btn->SetPressed(false);
+        // And call callback
+        ths.ProcessCallback(ui_btn);
+      }
+    }
+
+    // *** Other buttons *******************************************************
 
     // Act on press button only
     if(btn.state == true)

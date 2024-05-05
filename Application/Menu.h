@@ -25,7 +25,6 @@
 #include "DisplayDrv.h"
 #include "UiEngine.h"
 
-#include "IScreen.h"
 #include "InputDrv.h"
 
 // *****************************************************************************

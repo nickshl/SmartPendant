@@ -92,7 +92,7 @@ class ProbeScr : public IScreen
     uint32_t tab_idx = 0u;
 
     // Soft Button
-    UiButton right_btn;
+    UiButton& right_btn;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
@@ -115,7 +115,7 @@ class ProbeScr : public IScreen
     // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    ProbeScr() {};
+    ProbeScr();
 };
 
 // *****************************************************************************
@@ -288,6 +288,10 @@ class CenterFinderTab : public IScreen
     int32_t y_max_pos = 0u;
     int32_t x_safe_pos = 0u;
     int32_t y_safe_pos = 0u;
+    // X & Y diameters
+    int32_t x_diameter = 0u;
+    int32_t y_diameter = 0u;
+    int32_t diameter_diviation = 0u;
 
 //    // Current selected axis
 //    GrblComm::Axis_t axis = GrblComm::AXIS_CNT;
@@ -301,6 +305,10 @@ class CenterFinderTab : public IScreen
     DataWindow dw_real[GrblComm::AXIS_CNT];
     // String for caption
     String dw_real_name[NumberOf(dw_real)];
+
+    // String for caption
+    String diameter_str[3u];
+    char diameter_str_buf[NumberOf(diameter_str)][64] = {0};
 
     // Buttons to start movement
     UiButton find_center_btn;

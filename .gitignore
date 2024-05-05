@@ -1,5 +1,6 @@
 # Eclipse settings
 .settings
+.launch
 
 # Prerequisites
 *.d

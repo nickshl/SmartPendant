@@ -20,6 +20,8 @@
 // *****************************************************************************
 #include "NVM.h"
 
+#include "Crc32.h"
+
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
 // *****************************************************************************
@@ -53,43 +55,37 @@ Result NVM::ReadData()
   // Read all NVM content
   result = eep->Read(0u, (uint8_t*)&data, sizeof(data));
 
-  // TODO: CRC check and reset to defaults
+  if(result.IsGood())
+  {
+    // Calculate CRC32(without stored CRC)
+    uint32_t crc = Crc32((uint8_t*)&data, sizeof(data) - sizeof(data.crc));
+
+    // Check CRC
+    if(crc != data.crc)
+    {
+      // If it doesn't match - fill it with defaults values
+      Nvm_t defaults;
+      data = defaults;
+    }
+  }
 
   // Return result
   return result;
 }
 
 // *****************************************************************************
-// ***   SetCtrlTx function   **************************************************
+// ***   WriteData function   **************************************************
 // *****************************************************************************
-Result NVM::SetCtrlTx(uint8_t tx_ctrl)
+Result NVM::WriteData(void)
 {
   Result result = Result::RESULT_OK;
 
-  // Save data
-  data.tx_ctrl = tx_ctrl;
+  // Calculate CRC32(without stored CRC)
+  data.crc = Crc32((uint8_t*)&data, sizeof(data) - sizeof(data.crc));
 
-  // Write data into EEPROM
-  result = eep->Write((uint8_t*)&data.tx_ctrl - (uint8_t*)&data, (uint8_t*)&data.tx_ctrl, sizeof(data.tx_ctrl));
-
-  // Return result
-  return result;
-}
-
-// *****************************************************************************
-// ***   SetDisplayInvert function   *******************************************
-// *****************************************************************************
-Result NVM::SetDisplayInvert(bool invert_display)
-{
-  Result result = Result::RESULT_OK;
-
-  // Save data
-  data.invert_display = invert_display;
-
-  // Write data into EEPROM
-  result = eep->Write((uint8_t*)&data.invert_display - (uint8_t*)&data, (uint8_t*)&data.invert_display, sizeof(data.invert_display));
+  // Write all into EEPROM
+  result = eep->Write(0u, (uint8_t*)&data, sizeof(data));
 
   // Return result
   return result;
 }
-
