@@ -195,6 +195,112 @@ void Box::DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y)
 
 // *****************************************************************************
 // *****************************************************************************
+// ***   Shadow Box   **********************************************************
+// *****************************************************************************
+// *****************************************************************************
+
+#if defined(COLOR_24BIT) // Shadow box available only for 24 bit color
+
+// *****************************************************************************
+// ***   Constructor   *********************************************************
+// *****************************************************************************
+ShadowBox::ShadowBox(int32_t x, int32_t y, int32_t w, int32_t h)
+{
+  SetParams(x, y, w, h);
+}
+
+// *****************************************************************************
+// ***   SetParams   ***********************************************************
+// *****************************************************************************
+void ShadowBox::SetParams(int32_t x, int32_t y, int32_t w, int32_t h)
+{
+  // Lock object for changes
+  LockVisObject();
+  // Invalidate area for old position/size
+  InvalidateObjArea();
+  // Do changes
+  x_start = x;
+  y_start = y;
+  x_end = x + w - 1;
+  y_end = y + h - 1;
+  width = w;
+  height = h;
+  rotation = 0;
+  // Invalidate area for new position/size
+  InvalidateObjArea();
+  // Unlock object after changes
+  UnlockVisObject();
+}
+
+// *****************************************************************************
+// ***   Put line in buffer   **************************************************
+// *****************************************************************************
+void ShadowBox::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
+{
+  // Draw only if needed
+  if((line >= y_start) && (line <= y_end))
+  {
+    // Find start x position
+    int32_t start = x_start - start_x;
+    // Find start x position
+    int32_t end = x_end - start_x;
+    // Have sense draw only if end pointer in buffer
+    if(end > 0)
+    {
+      // Prevent write in memory before buffer
+      if(start < 0) start = 0;
+      // Prevent buffer overflow
+      if(end >= n) end = n - 1;
+      // Fill the line
+      for(int32_t i = start; i <= end; i++)
+      {
+        // Convert pointer to uint8_t to process color components individually
+        uint8_t* color = reinterpret_cast<uint8_t*>(&buf[i]);
+        // Process shadow
+        color[0u] /= 2;
+        color[1u] /= 2;
+        color[2u] /= 2;
+      }
+    }
+  }
+}
+
+// *****************************************************************************
+// ***   Put line in buffer   **************************************************
+// *****************************************************************************
+void ShadowBox::DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y)
+{
+  // Draw only if needed
+  if((row >= x_start) && (row <= x_end))
+  {
+    // Find start x position
+    int32_t start = y_start - start_y;
+    // Prevent write in memory before buffer
+    if(start < 0) start = 0;
+    // Find start x position
+    int32_t end = y_end - start_y;
+    // Prevent buffer overflow
+    if(end >= n) end = n - 1;
+    // Have sense draw only if end pointer in buffer
+    if(end > 0)
+    {
+      for(int32_t i = start; i <= end; i++)
+      {
+        // Convert pointer to uint8_t to process color components individually
+        uint8_t* color = reinterpret_cast<uint8_t*>(&buf[i]);
+        // Process shadow
+        color[0u] /= 2;
+        color[1u] /= 2;
+        color[2u] /= 2;
+      }
+    }
+  }
+}
+
+#endif
+
+// *****************************************************************************
+// *****************************************************************************
 // ***   Line   ****************************************************************
 // *****************************************************************************
 // *****************************************************************************

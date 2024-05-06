@@ -71,6 +71,8 @@ Result SettingsScr::Show()
 // *****************************************************************************
 Result SettingsScr::Hide()
 {
+  // Hide change box if it on the screen now
+  change_box.Hide();
   // Hide menu
   menu.Hide();
 

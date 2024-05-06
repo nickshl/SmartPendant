@@ -664,6 +664,11 @@ class GrblComm : public AppTask
     Result CancelToolLengthOffset();
 
     // *************************************************************************
+    // ***   Public: ValueToString function   **********************************
+    // *************************************************************************
+    char* ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t scaler);
+
+    // *************************************************************************
     // ***   Public: SetUartDrv function   *************************************
     // *************************************************************************
     void SetUartDrv(StHalUart& uart_in) {uart = &uart_in;}
@@ -834,11 +839,6 @@ class GrblComm : public AppTask
     // ***   Private: GetMeasurementSystemGcode function   *********************
     // *************************************************************************
     const char* GetMeasurementSystemGcode() {return (IsMetric() ? "G21" : "G20");}
-
-    // *************************************************************************
-    // ***   Private: ValueToString function   *********************************
-    // *************************************************************************
-    char* ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t scaler);
 
     // *************************************************************************
     // ***   Private: ParseState function   ************************************

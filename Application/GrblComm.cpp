@@ -1044,7 +1044,7 @@ Result GrblComm::CancelToolLengthOffset()
 }
 
 // *****************************************************************************
-// ***   Private: ValueToString function   *************************************
+// ***   Public: ValueToString function   **************************************
 // *****************************************************************************
 char* GrblComm::ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t scaler)
 {

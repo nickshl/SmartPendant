@@ -29,6 +29,7 @@
 #include "DataWindow.h"
 #include "GrblComm.h"
 #include "InputDrv.h"
+#include "ChangeValueBox.h"
 
 // *****************************************************************************
 // ***   Local const variables   ***********************************************
@@ -91,7 +92,7 @@ class DirectControlScr : public IScreen
     // Data windows to show DRO
     DataWindow dw[GrblComm::AXIS_CNT];
     // Buttons to set 0 or position
-    UiButton zero_btn[GrblComm::AXIS_CNT];
+    UiButton set_btn[GrblComm::AXIS_CNT];
     // Buttons to change Radius/Diameter in Lathe Mode
     UiButton x_mode_btn;
     // String for X axis mode(Radius/Diameter)
@@ -106,7 +107,10 @@ class DirectControlScr : public IScreen
     const uint32_t scale_val_metric[NumberOf(scale_btn)] = {1, 5, 10, 100};
     const uint32_t scale_val_imperial[NumberOf(scale_btn)] = {1, 2, 5, 50};
     // Set buttons
-    UiButton set_btn;
+    UiButton set_mode_btn;
+
+    // Object to change numerical parameters
+    ChangeValueBox change_box;
 
     // Soft Buttons
     UiButton& left_btn;
