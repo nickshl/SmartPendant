@@ -54,8 +54,10 @@ void UiButton::SetParams(const char* str_in, int32_t x, int32_t y, int32_t w, in
   // Set string params
   string.SetParams(str, x, y, color, Font_8x12::GetInstance());
   string.Move(x + (w - string.GetWidth()) / 2, y + (h - string.GetHeight()) / 2);
+  string.SetAlignment(MultiLineString::CENTER);
   // Set shadow string params
   string_shadow.SetParams(str, string.GetStartX() + 1, string.GetStartY() + 1, COLOR_WHITE, Font_8x12::GetInstance());
+  string_shadow.SetAlignment(MultiLineString::CENTER);
 }
 
 // *****************************************************************************
@@ -118,6 +120,18 @@ void UiButton::SetScale(uint8_t scale)
   string.Move(x_start + (width - string.GetWidth()) / 2, y_start + (height - string.GetHeight()) / 2);
   // Set shadow string font and move it
   string_shadow.SetScale(scale);
+  string_shadow.Move(string.GetStartX() + 1, string.GetStartY() + 1);
+}
+
+// *****************************************************************************
+// ***   Public: SetSpacing   **************************************************
+// *****************************************************************************
+void UiButton::SetSpacing(uint8_t spacing)
+{
+  string.SetSpacing(spacing);
+  string.Move(x_start + (width - string.GetWidth()) / 2, y_start + (height - string.GetHeight()) / 2);
+  // Set shadow string font and move it
+  string_shadow.SetSpacing(spacing);
   string_shadow.Move(string.GetStartX() + 1, string.GetStartY() + 1);
 }
 

@@ -73,6 +73,7 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   {
     scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], i*(display_drv.GetScreenW() / 3) + BORDER_W, center_dw[NumberOf(center_dw) - 1u].GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 3 - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent());
+    scale_btn[i].SetSpacing(3u);
   }
   // Set scale to the middle
   scale = grbl_comm.IsMetric() ? scale_val_metric[1u] : scale_val_imperial[1u];

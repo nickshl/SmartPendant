@@ -60,14 +60,18 @@ Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, 
     uint32_t scale_btn_w = (value_dw.GetWidth() - BORDER_W * (NumberOf(scale_btn) - 1u)) / NumberOf(scale_btn);
     // Create button text
     GrblComm::GetInstance().ValueToString(scale_str[i], sizeof(scale_str[i]), scale_val[i], Power(10, point_pos));
+    // Add units to the string
+    snprintf(scale_str[i] + strlen(scale_str[i]), sizeof(scale_str[i]) - strlen(scale_str[i]), "\n%s", units);
     // Set button parameters
     scale_btn[i].SetParams(scale_str[i], value_dw.GetStartX() + i * (scale_btn_w + BORDER_W), value_dw.GetEndY() + BORDER_W*2, scale_btn_w, Font_8x12::GetInstance().GetCharH() * 5, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this);
+    scale_btn[i].SetPressed(false);
+    scale_btn[i].SetSpacing(3u);
     scale_btn[i].SetList(list);
     scale_btn[i].Show(1u);
   }
 
-  // Set scale 0.01 mm
+  // Set scale
   scale = 10;
   // Set corresponded button pressed
   scale_btn[1u].SetPressed(true);

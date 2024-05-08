@@ -121,7 +121,7 @@ class ChangeValueBox
     // Scale options(value)
     const uint32_t scale_val[NumberOf(scale_btn)] = {1, 10, 100};
     // Scale options(string)
-    char scale_str[NumberOf(scale_btn)][9u] = {"", "", ""};
+    char scale_str[NumberOf(scale_btn)][16u] = {"", "", ""};
 
     // Soft Buttons
     UiButton left_btn;

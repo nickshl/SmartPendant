@@ -104,8 +104,8 @@ class DelayControlScr : public IScreen
     // Buttons to choose scale
     UiButton scale_btn[3u];
     // Scale options(string)
-    const char scale_str_metric[NumberOf(scale_btn)][9u] = {"0.001 mm", "0.01 mm", "0.1 mm"};
-    const char scale_str_imperial[NumberOf(scale_btn)][12u] = {"0.0001 inch", "0.001 inch", "0.01 inch"};
+    const char scale_str_metric[NumberOf(scale_btn)][9u] = {"0.001\nmm", "0.01\nmm", "0.1\nmm"};
+    const char scale_str_imperial[NumberOf(scale_btn)][12u] = {"0.0001\ninch", "0.001\ninch", "0.01\ninch"};
 
     // String for X axis mode(Radius/Diameter)
     String x_mode_str;

@@ -79,6 +79,9 @@ class DirectControlScr : public IScreen
   private:
     static constexpr uint8_t BORDER_W = 4u;
 
+    // String for caption
+    String version;
+
     // Jogging values
     int32_t jog_val[GrblComm::AXIS_CNT] = {0};
 
@@ -101,8 +104,8 @@ class DirectControlScr : public IScreen
     // Buttons to choose scale
     UiButton scale_btn[4u];
     // Scale options(string)
-    const char scale_str_metric[NumberOf(scale_btn)][12u] = {"0.001 mm", "0.005 mm", "0.01 mm", "0.1 mm"};
-    const char scale_str_imperial[NumberOf(scale_btn)][12u] = {"0.0001", "0.0002", "0.0005", "0.005"};
+    const char scale_str_metric[NumberOf(scale_btn)][12u] = {"0.001\nmm", "0.005\nmm", "0.01\nmm", "0.1\nmm"};
+    const char scale_str_imperial[NumberOf(scale_btn)][12u] = {"0.0001\ninch", "0.0002\ninch", "0.0005\ninch", "0.005\ninch"};
     // Scale options(value)
     const uint32_t scale_val_metric[NumberOf(scale_btn)] = {1, 5, 10, 100};
     const uint32_t scale_val_imperial[NumberOf(scale_btn)] = {1, 2, 5, 50};

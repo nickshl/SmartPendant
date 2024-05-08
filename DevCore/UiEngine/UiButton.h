@@ -99,6 +99,11 @@ class UiButton : public VisObject
     void SetScale(uint8_t scale);
 
     // *************************************************************************
+    // ***   Public: SetSpacing   **********************************************
+    // *************************************************************************
+    void SetSpacing(uint8_t s);
+
+    // *************************************************************************
     // ***   Enable   **********************************************************
     // *************************************************************************
     void Enable();
@@ -153,9 +158,9 @@ class UiButton : public VisObject
     // Flag to draw button pressed only when it touched
     bool draw_pressed = false;
     // String for button
-    String string;
+    MultiLineString string;
     // String for shadow
-    String string_shadow;
+    MultiLineString string_shadow;
 };
 
 #endif // UiButton_h

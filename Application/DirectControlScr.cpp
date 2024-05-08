@@ -22,6 +22,8 @@
 
 #include "Application.h"
 
+#include "Version.h"
+
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
 // *****************************************************************************
@@ -65,6 +67,7 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
     // Set scale button parameters
     scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], BORDER_W + i * (scale_btn_w + BORDER_W), dw[NumberOf(dw) - 1u].GetEndY() + BORDER_W*2, scale_btn_w, Font_8x12::GetInstance().GetCharH() * 5, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent());
+    scale_btn[i].SetSpacing(3u);
   }
 
   // Set corresponded button pressed
@@ -82,6 +85,9 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
   set_mode_btn.SetParams("Set axis position", BORDER_W, height - (Font_8x12::GetInstance().GetCharH() * 5) - BORDER_W, display_drv.GetScreenW() - BORDER_W * 2, Font_8x12::GetInstance().GetCharH() * 5, true);
   set_mode_btn.SetCallback(AppTask::GetCurrent());
 
+  // Version string
+  version.SetParams(VERSION, BORDER_W, scale_btn[0].GetEndY() + (set_mode_btn.GetStartY() - scale_btn[0].GetEndY() -  Font_8x12::GetInstance().GetCharH()) / 2, COLOR_WHITE, Font_8x12::GetInstance());
+
   // All good
   return Result::RESULT_OK;
 }
@@ -91,6 +97,9 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 Result DirectControlScr::Show()
 {
+  // Version string
+  version.Show(1);
+
   // Axis data
   for(uint32_t i = 0u; i < NumberOf(dw); i++)
   {
@@ -139,6 +148,9 @@ Result DirectControlScr::Hide()
 {
   // Delete encoder callback handler
   InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
+
+  // Version string
+  version.Hide();
 
   // In case if it shown, we should hide it
   change_box.Hide();
