@@ -1017,9 +1017,9 @@ Result GrblComm::SetToolLengthOffset(int32_t offset)
 }
 
 // *****************************************************************************
-// ***   Public: CancelToolLengthOffset   **************************************
+// ***   Public: ClearToolLengthOffset   ***************************************
 // *****************************************************************************
-Result GrblComm::CancelToolLengthOffset()
+Result GrblComm::ClearToolLengthOffset()
 {
   Result result = Result::ERR_BAD_PARAMETER;
 

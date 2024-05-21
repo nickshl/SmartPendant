@@ -197,9 +197,11 @@ class ToolOffsetTab : public IScreen
     // String for caption
     String dw_real_name[NumberOf(dw_real)];
 
-    // Buttons to start movement
+    // Buttons to measure offset
     UiButton get_offset_btn;
-    // Buttons to reset changed values to current
+    // Buttons to clear offset
+    UiButton clear_offset_btn;
+    // Buttons to measure base
     UiButton get_base_btn;
 
     // Display driver instance

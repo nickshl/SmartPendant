@@ -659,9 +659,9 @@ class GrblComm : public AppTask
     Result SetToolLengthOffset(int32_t offset);
 
     // *************************************************************************
-    // ***   Public: CancelToolLengthOffset   **********************************
+    // ***   Public: ClearToolLengthOffset   ***********************************
     // *************************************************************************
-    Result CancelToolLengthOffset();
+    Result ClearToolLengthOffset();
 
     // *************************************************************************
     // ***   Public: ValueToString function   **********************************

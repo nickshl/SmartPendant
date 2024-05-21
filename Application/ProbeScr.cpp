@@ -237,8 +237,11 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   dw_tool.SetCallback(AppTask::GetCurrent());
   dw_tool.SetActive(false);
   // Measure offset button
-  get_offset_btn.SetParams("MEASURE OFFSET", BORDER_W, dw_tool.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  get_offset_btn.SetParams("MEASURE OFFSET", BORDER_W, dw_tool.GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*3) / 2, Font_8x12::GetInstance().GetCharH() * 5, true);
   get_offset_btn.SetCallback(AppTask::GetCurrent());
+  // Clear offset button
+  clear_offset_btn.SetParams("CLEAR OFFSET", get_offset_btn.GetEndX() + BORDER_W, dw_tool.GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*3) / 2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  clear_offset_btn.SetCallback(AppTask::GetCurrent());
 
   // Tool offset Name
   name_base.SetParams("BASE POSITION", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
@@ -292,9 +295,11 @@ Result ToolOffsetTab::Show()
     dw_real_name[i].Show(100);
   }
 
-  // Go button
+  // Measure offset button
   get_offset_btn.Show(102);
-  // Reset button
+  // Clear offset button
+  clear_offset_btn.Show(102);
+  // Measure base button
   get_base_btn.Show(102);
 
   // Request offsets to show it
@@ -324,9 +329,11 @@ Result ToolOffsetTab::Hide()
     dw_real_name[i].Hide();
   }
 
-  // Go button
+  // Measure offset button
   get_offset_btn.Hide();
-  // Reset button
+  // Clear offset button
+  clear_offset_btn.Hide();
+  // Measure base button
   get_base_btn.Hide();
 
   // All good
@@ -362,7 +369,7 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
       else if(state == PROBE_TOOL) // If tried tool
       {
         // Calculate difference between base and tool
-        int32_t tool_diff = dw_base.GetNumber() - probe_pos;
+        int32_t tool_diff = probe_pos - dw_base.GetNumber();
         // Set tool offset
         result = grbl_comm.SetToolLengthOffset(tool_diff);
         // Request offsets to update it on the display
@@ -404,6 +411,13 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
       z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
       // Try to probe Z axis -1 meter at speed 100 mm/min
       grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
+    }
+    else if(ptr == &clear_offset_btn)
+    {
+      // Clear tool length offset
+      grbl_comm.ClearToolLengthOffset();
+      // Request offsets to show it
+      grbl_comm.RequestOffsets();
     }
     else if(ptr == &get_base_btn)
     {

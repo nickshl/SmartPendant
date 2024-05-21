@@ -2,6 +2,13 @@
 .settings
 .launch
 
+# Build folders
+Debug
+Release
+
+# Except Release hex
+!release/SmartPendant.hex
+
 # Prerequisites
 *.d
 
