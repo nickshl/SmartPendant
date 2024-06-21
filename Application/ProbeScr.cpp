@@ -199,9 +199,9 @@ void ProbeScr::ChangeTab(uint8_t tabn)
   tab[tab_idx]->Show();
 }
 
-// *************************************************************************
-// ***   Private constructor   *********************************************
-// *************************************************************************
+// *****************************************************************************
+// ***   Private constructor   *************************************************
+// *****************************************************************************
 ProbeScr::ProbeScr() : right_btn(Application::GetInstance().GetRightButton()) {};
 
 // *****************************************************************************
@@ -262,7 +262,7 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
   {
     // Real position
-    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, get_base_btn.GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, (window_height - BORDER_W) / 2, 7u, grbl_comm.GetUnitsPrecision());
+    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, y + height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 7u, grbl_comm.GetUnitsPrecision());
     dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real[i].SetDataFont(Font_8x12::GetInstance());
     dw_real[i].SetNumber(0);
@@ -404,9 +404,15 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
   if((grbl_comm.GetState() == GrblComm::IDLE) && (state == PROBE_CNT))
   {
     // Check buttons
-    if(ptr == &get_offset_btn)
+    if((ptr == &get_base_btn) || (ptr == &get_offset_btn))
     {
-      state = PROBE_TOOL;
+      // Set current state
+      if(ptr == &get_base_btn) state = PROBE_BASE;
+      else                     state = PROBE_TOOL;
+      // Clear tool length offset
+      grbl_comm.ClearToolLengthOffset();
+      // Request offsets to show it
+      grbl_comm.RequestOffsets();
       // Get current Z position in machine coordinates to return Z axis back after probing
       z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
       // Try to probe Z axis -1 meter at speed 100 mm/min
@@ -418,14 +424,6 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
       grbl_comm.ClearToolLengthOffset();
       // Request offsets to show it
       grbl_comm.RequestOffsets();
-    }
-    else if(ptr == &get_base_btn)
-    {
-      state = PROBE_BASE;
-      // Get current Z position in machine coordinates to return Z axis back after probing
-      z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
-      // Try to probe Z axis -1 meter at speed 100 mm/min
-      grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
     }
     else
     {
@@ -552,7 +550,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
   }
 
   // Error check - if state isn't IDLE or RUN, we should abort probing sequence
-  if((grbl_comm.GetState() != GrblComm::IDLE) && (grbl_comm.GetState() != GrblComm::RUN))
+  if((grbl_comm.GetState() != GrblComm::IDLE) && (grbl_comm.GetState() != GrblComm::RUN) && (grbl_comm.GetState() != GrblComm::HOLD))
   {
     // Clear state
     state = PROBE_CNT;

@@ -94,8 +94,13 @@ class ProgrammSender : public IScreen
     // Menu object
     Menu menu;
 
-    char text[2048u];
+    char* text = nullptr;
     TextBox text_box;
+
+    // Data windows to show real position
+    DataWindow dw_real[GrblComm::AXIS_CNT];
+    // String for caption
+    String dw_real_name[NumberOf(dw_real)];
 
     // Buttons to open file
     UiButton open_btn;

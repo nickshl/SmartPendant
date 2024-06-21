@@ -92,6 +92,16 @@ class Header : public VisObject
     Result Hide();
 
     // *************************************************************************
+    // ***   Public: Enable   **************************************************
+    // *************************************************************************
+    Result Enable();
+
+    // *************************************************************************
+    // ***   Public: Disable   *************************************************
+    // *************************************************************************
+    Result Disable();
+
+    // *************************************************************************
     // ***   Public: Put line in buffer   **************************************
     // *************************************************************************
     virtual void DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t y = 0);
@@ -132,6 +142,9 @@ class Header : public VisObject
     UiButton btn_right;
     // Box for cover screen
     Box box;
+
+    // Box to disable header
+    ShadowBox shadowbox;
 
     // Button callback entry
     InputDrv::CallbackListEntry btn_cble;

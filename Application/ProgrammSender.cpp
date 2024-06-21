@@ -34,7 +34,7 @@ ProgrammSender& ProgrammSender::GetInstance()
 }
 
 // *****************************************************************************
-// ***   ProgrammSender Setup   ***********************************************
+// ***   ProgrammSender Setup   ************************************************
 // *****************************************************************************
 Result ProgrammSender::Setup(int32_t y, int32_t height)
 {
@@ -47,9 +47,23 @@ Result ProgrammSender::Setup(int32_t y, int32_t height)
   // Set callback
   menu.SetCallback(AppTask::GetCurrent(), this, reinterpret_cast<CallbackPtr>(ProcessMenuOkCallback), reinterpret_cast<CallbackPtr>(ProcessMenuCancelCallback));
   // Setup menu
-  menu.Setup(menu_items, NumberOf(menu_items), 0, y, display_drv.GetScreenW(), height - left_btn.GetHeight() - BORDER_W);
+  menu.Setup(menu_items, NumberOf(menu_items), 0, y, display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2);
   // Setup text box
-  text_box.Setup(0, y, display_drv.GetScreenW(), height - left_btn.GetHeight() - BORDER_W);
+  text_box.Setup(0, y, display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2);
+
+  // Fill all windows
+  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  {
+    // Real position
+    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, y + height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 7u, grbl_comm.GetUnitsPrecision());
+    dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
+    dw_real[i].SetDataFont(Font_8x12::GetInstance());
+    dw_real[i].SetNumber(0);
+    dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
+    // Axis Name
+    dw_real_name[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
+    dw_real_name[i].Move(dw_real[i].GetStartX() + BORDER_W, dw_real[i].GetStartY() + BORDER_W);
+  }
 
   // All good
   return Result::RESULT_OK;
@@ -65,19 +79,24 @@ Result ProgrammSender::Show()
 
   // Run button
   left_btn.SetParams("Run", left_btn.GetStartX(), left_btn.GetStartY(), (display_drv.GetScreenW()- BORDER_W * 2) / 3, left_btn.GetHeight(), true);
-  left_btn.SetCallback(AppTask::GetCurrent());
   // Stop button
   right_btn.SetParams("Stop", right_btn.GetEndX() - left_btn.GetWidth() + 1, right_btn.GetStartY(), left_btn.GetWidth(), right_btn.GetHeight(), true);
-  right_btn.SetCallback(AppTask::GetCurrent());
   // Open button
   open_btn.SetParams("Open", left_btn.GetEndX() + BORDER_W + 1, left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
   open_btn.SetCallback(AppTask::GetCurrent());
 
   // Show text box
   text_box.Show(100);
+
+  // Axis data
+  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  {
+    dw_real[i].Show(100);
+    dw_real_name[i].Show(100);
+  }
+
   // Open button
   open_btn.Show(102);
-
   // Run button
   left_btn.Show(102);
   // Stop button
@@ -99,6 +118,12 @@ Result ProgrammSender::Hide()
   menu.Hide();
   // Hide text box
   text_box.Hide();
+  // Axis data
+  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  {
+    dw_real[i].Hide();
+    dw_real_name[i].Hide();
+  }
   // Go button
   left_btn.Hide();
   // Reset button
@@ -122,8 +147,23 @@ Result ProgrammSender::TimerExpired(uint32_t interval)
   Application::GetInstance().UpdateLeftButtonText();
   Application::GetInstance().UpdateRightButtonText();
 
+  // Update numbers with current position and position difference
+  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  {
+    dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
+  }
+
   if(run)
   {
+    if(grbl_comm.GetState() == GrblComm::HOLD)
+    {
+      Application::GetInstance().EnableScreenChange();
+    }
+    else
+    {
+      Application::GetInstance().DisableScreenChange();
+    }
+
     // If ID is zero - we didn't send any commands yet
     GrblComm::status_t result = (id != 0u) ? grbl_comm.GetCmdResult(id) : GrblComm::Status_OK;
     // If result of previous command is ok
@@ -142,8 +182,6 @@ Result ProgrammSender::TimerExpired(uint32_t interval)
         // Can't go further - end of program
         if(select == text_box.GetSelect())
         {
-          // Enable buttons back
-          open_btn.Enable();
           // Clear run flag
           run = false;
         }
@@ -155,14 +193,16 @@ Result ProgrammSender::TimerExpired(uint32_t interval)
     }
     else // In case of any error - stop executing program
     {
-      // Enable buttons back
-      open_btn.Enable();
       // Clear run flag
       run = false;
     }
   }
   else
   {
+    // Enable buttons back
+    open_btn.Enable();
+    // Enable screen change if program isn't running
+    Application::GetInstance().EnableScreenChange();
     // Process it
     if(enc_val != 0)
     {
@@ -191,39 +231,61 @@ Result ProgrammSender::ProcessMenuOkCallback(ProgrammSender* obj_ptr, void* ptr)
     // we have to provide pinter to object.
     ProgrammSender& ths = *obj_ptr;
 
+    // Hide the menu
+    ths.menu.Hide();
+
+    // If buffer was previously allocated
+    if(ths.text != nullptr)
+    {
+      // Hide text box before delete buffer
+      ths.text_box.Hide();
+      // Delete previously allocated buffer
+      delete [] ths.text;
+    }
+
     // Open file
     FRESULT fres = f_open(&SDFile, ths.menu_items[(uint32_t)ptr].text, FA_OPEN_EXISTING | FA_READ);
     // Write data to file
     if(fres == FR_OK)
     {
-      // Hide the menu
-      ths.menu.Hide();
-
-      // Read bytes
-      UINT wbytes = 0u;
-      // Read text
-      fres = f_read(&SDFile, ths.text, sizeof(ths.text), &wbytes);
-      // Check if we read all program and clear it
-      if(wbytes >= sizeof(ths.text))
+      // Get file size
+      uint32_t fsize = f_size(&SDFile) + 1u;
+      // Allocate memory for data
+      ths.text = new char[fsize];
+      // Check if allocation was successful
+      if(ths.text != nullptr)
       {
-        strncpy(ths.text, "; Program is too big!", sizeof(ths.text));
-        wbytes = strlen(ths.text);
+        // Read bytes
+        UINT wbytes = 0u;
+        // Read text
+        fres = f_read(&SDFile, ths.text, fsize, &wbytes);
+        // And null-terminator to it
+        ths.text[wbytes] = 0x00;
+        // Set text to text box
+        ths.text_box.SetText(ths.text);
       }
-      // And null-terminate it
-      ths.text[wbytes] = 0x00;
-      // Set text to text box
-      ths.text_box.SetText(ths.text);
-      // And show it
-      ths.text_box.Show(100);
-      // Run button
-      ths.left_btn.Show(102);
-      // Stop button
-      ths.right_btn.Show(102);
-      // Open button
-      ths.open_btn.Show(102);
+      else
+      {
+        // If memory allocation operation isn't successful set text
+        ths.text_box.SetText("; Program is too big!");
+      }
+    }
+    else
+    {
+      // If memory allocation operation isn't successful set text
+      ths.text_box.SetText("; Error open file!");
     }
     // Close file
     if(fres == FR_OK) fres = f_close(&SDFile);
+
+    // And show it
+    ths.text_box.Show(100);
+    // Left button
+    ths.left_btn.Show(102);
+    // Right button
+    ths.right_btn.Show(102);
+    // Open button
+    ths.open_btn.Show(102);
 
     // Set ok result
     result = Result::RESULT_OK;
@@ -284,18 +346,20 @@ Result ProgrammSender::ProcessCallback(const void* ptr)
     }
     else
     {
+      // Clear id to run program
+      id = 0u;
       // Set run flag to start program streaming
       run = true;
       // Disable buttons while program is running
       open_btn.Disable();
+      // Disable screen change if program is running
+      Application::GetInstance().DisableScreenChange();
     }
   }
   // Process Reset button
   else if(ptr == &right_btn)
   {
-    // Enable buttons back
-    open_btn.Enable();
-    // clear run flag
+    // Clear run flag
     run = false;
     // For Application to handle it(Stop/Reset)
     result = Result::ERR_UNHANDLED_REQUEST;

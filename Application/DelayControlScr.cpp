@@ -211,18 +211,9 @@ Result DelayControlScr::TimerExpired(uint32_t interval)
     grbl_state = new_state;
   }
 
-  // Update soft buttons text
-  if(grbl_comm.GetState() == GrblComm::IDLE)
-  {
-    left_btn.SetString("Go!");
-    right_btn.SetString("Current");
-  }
-  else
-  {
-    // Update left & right button text
-    Application::GetInstance().UpdateLeftButtonText();
-    Application::GetInstance().UpdateRightButtonText();
-  }
+  // Update left & right button text
+  Application::GetInstance().UpdateLeftButtonIdleText("Go!");
+  Application::GetInstance().UpdateRightButtonIdleText("Current");
 
   // Flag to detect change in data
   bool changed = false;

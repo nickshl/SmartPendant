@@ -106,9 +106,29 @@ class Application : public AppTask
     void UpdateLeftButtonText();
 
     // *************************************************************************
+    // ***   Public: UpdateLeftButtonIdleText function   ***********************
+    // *************************************************************************
+    void UpdateLeftButtonIdleText(const char* str = nullptr);
+
+    // *************************************************************************
     // ***   Public: UpdateRightButtonText function   **************************
     // *************************************************************************
     void UpdateRightButtonText();
+
+    // *************************************************************************
+    // ***   Public: UpdateRightButtonIdleText function   **********************
+    // *************************************************************************
+    void UpdateRightButtonIdleText(const char* str = nullptr);
+
+    // *************************************************************************
+    // ***   Public: EnableScreenChange function   *****************************
+    // *************************************************************************
+    void EnableScreenChange() {header.Enable();}
+
+    // *************************************************************************
+    // ***   Public: DisableScreenChange function   ****************************
+    // *************************************************************************
+    void DisableScreenChange() {header.Disable();}
 
   private:
     // Timer period

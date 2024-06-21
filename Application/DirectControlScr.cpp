@@ -81,8 +81,8 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
   // X axis mode string
   x_mode_str.SetParams("", dw[GrblComm::AXIS_X].GetStartX() + BORDER_W*2, dw[GrblComm::AXIS_X].GetStartY() + BORDER_W*2, COLOR_WHITE, Font_8x12::GetInstance());
 
-  // Left soft button
-  set_mode_btn.SetParams("Set axis position", BORDER_W, height - (Font_8x12::GetInstance().GetCharH() * 5) - BORDER_W, display_drv.GetScreenW() - BORDER_W * 2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  // Set axis position button
+  set_mode_btn.SetParams("Set axis position", BORDER_W, y + height - (Font_8x12::GetInstance().GetCharH() * 5) - BORDER_W, display_drv.GetScreenW() - BORDER_W * 2, Font_8x12::GetInstance().GetCharH() * 5, true);
   set_mode_btn.SetCallback(AppTask::GetCurrent());
 
   // Version string

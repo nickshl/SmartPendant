@@ -537,6 +537,21 @@ Result GrblComm::SendRealTimeCmd(uint8_t cmd)
 }
 
 // *****************************************************************************
+// ***   Public: Unlock   ******************************************************
+// *****************************************************************************
+Result GrblComm::Unlock()
+{
+  // Set Ok status to allow process unlock command
+  grbl_status = Status_OK;
+  // Command ID
+  uint32_t id = 0u;
+  // Command buffer
+  static const char cmd[] = {"$X\r\n"};
+  // Send command
+  return SendCmd(cmd, id);
+}
+
+// *****************************************************************************
 // ***   Public: RequestControllerSettings   ***********************************
 // *****************************************************************************
 Result GrblComm::RequestControllerSettings()

@@ -56,6 +56,10 @@ void Header::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t n)
   // Set box params
   box.SetParams(x_start, y_end + 1, width, display_drv.GetScreenH() - height, COLOR_DARKGREY, true);
 
+  // Shadow box for header
+  shadowbox.SetParams(x, y, w, h);
+  shadowbox.SetActive(true); // To cover active elements
+
   // Check input
   if(n > MAX_PAGES) n = MAX_PAGES;
   // Set pages count
@@ -188,6 +192,22 @@ Result Header::Hide()
 
   // Return result
   return result;
+}
+
+// *****************************************************************************
+// ***   Public: Enable   ******************************************************
+// *****************************************************************************
+Result Header::Enable()
+{
+  return shadowbox.Hide();
+}
+
+// *****************************************************************************
+// ***   Public: Disable   *****************************************************
+// *****************************************************************************
+Result Header::Disable()
+{
+  return shadowbox.Show(UINT32_MAX);
 }
 
 // *****************************************************************************
@@ -342,8 +362,8 @@ Result Header::ProcessButtonCallback(Header* obj_ptr, void* ptr)
     else if(btn.btn == InputDrv::BTN_RIGHT_UP) ui_btn = &ths.btn_right;
     else; // Do nothing - MISRA rule
 
-    // If button object found
-    if(ui_btn != nullptr)
+    // If button object found and header isn't disabled
+    if((ui_btn != nullptr) && (ths.shadowbox.IsShow() == false))
     {
       // If button pressed
       if(btn.state == true)

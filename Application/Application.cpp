@@ -91,7 +91,7 @@ Result Application::Setup()
   // Setup all screens
   for(uint32_t i = 0u; i < scr_cnt; i++)
   {
-    scr[i]->Setup(40, display_drv.GetScreenH() - 40 - status_box.GetHeight());
+    scr[i]->Setup(40, status_box.GetStartY() - 40);
   }
 
   // Set index
@@ -136,7 +136,7 @@ Result Application::TimerExpired()
     // Setup all screens to apply new settings
     for(uint32_t i = 0u; i < scr_cnt; i++)
     {
-      scr[i]->Setup(40, display_drv.GetScreenH() - 40 - status_box.GetHeight());
+      scr[i]->Setup(40, status_box.GetStartY() - 40);
     }
     // Show screen
     scr[scr_idx]->Show();
@@ -221,8 +221,11 @@ Result Application::ProcessCallback(const void* ptr)
     }
     else if(ptr == &right_btn)
     {
-      // Update right button text
-      if((grbl_comm.GetState() == GrblComm::ALARM) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
+      if(grbl_comm.GetState() == GrblComm::ALARM)
+      {
+        grbl_comm.Unlock(); // Send Unlock command
+      }
+      else if(grbl_comm.GetState() == GrblComm::UNKNOWN)
       {
         grbl_comm.Reset(); // Send Reset command
       }
@@ -268,18 +271,54 @@ void Application::UpdateLeftButtonText()
 }
 
 // *****************************************************************************
+// ***   Public: UpdateLeftButtonIdleText function   ***************************
+// *****************************************************************************
+void Application::UpdateLeftButtonIdleText(const char* str)
+{
+  // Update left button text
+  if((grbl_comm.GetState() == GrblComm::IDLE) && (str != nullptr))
+  {
+    left_btn.SetString(str);
+  }
+  else
+  {
+    UpdateLeftButtonText();
+  }
+}
+
+// *****************************************************************************
 // ***   Public: UpdateRightButtonText function   ******************************
 // *****************************************************************************
 void Application::UpdateRightButtonText()
 {
   // Update right button text
-  if((grbl_comm.GetState() == GrblComm::ALARM) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
+  if(grbl_comm.GetState() == GrblComm::ALARM)
+  {
+    right_btn.SetString("Unlock");
+  }
+  else if(grbl_comm.GetState() == GrblComm::UNKNOWN)
   {
     right_btn.SetString("Reset");
   }
   else
   {
     right_btn.SetString("Stop");
+  }
+}
+
+// *****************************************************************************
+// ***   Public: UpdateRightButtonIdleText function   **************************
+// *****************************************************************************
+void Application::UpdateRightButtonIdleText(const char* str)
+{
+  // Update right button text
+  if((grbl_comm.GetState() == GrblComm::IDLE) && (str != nullptr))
+  {
+    right_btn.SetString(str);
+  }
+  else
+  {
+    UpdateRightButtonText();
   }
 }
 
@@ -332,22 +371,8 @@ Result Application::ProcessButtonCallback(Application* obj_ptr, void* ptr)
     // Act on press button only
     if(btn.state == true)
     {
-      if(btn.btn == InputDrv::BTN_LEFT_UP)
+      if(btn.btn == InputDrv::BTN_USR)
       {
-        if(ths.scr_idx > 0u) ths.ChangeScreen(ths.scr_idx - 1u);
-      }
-      else if(btn.btn == InputDrv::BTN_RIGHT_UP)
-      {
-        if(ths.scr_idx < ths.scr_cnt - 1u) ths.ChangeScreen(ths.scr_idx + 1u);
-      }
-      else if(btn.btn == InputDrv::BTN_USR)
-      {
-//        // !!! TEST ONLY !!!
-//        rotation += 1u;
-//        if(rotation >= IDisplay::ROTATION_CNT) rotation = IDisplay::ROTATION_TOP;
-//        Setup();
-//        // !!! TEST ONLY !!!*/
-
         if(GrblComm::GetInstance().GetMpgModeRequest() == true)
         {
           GrblComm::GetInstance().ReleaseControl();

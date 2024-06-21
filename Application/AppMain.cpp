@@ -56,8 +56,8 @@ static StHalUart uart1(huart1);
 // Display & touch
 static ILI9488 display(480, 320, spi1, display_cs, display_dc, &display_rst);
 static FT6236 touch(iic1, ITouchscreen::ROTATION_LEFT, 320u, 480u);
-// NVM: MB85RC256V, no write protection, size 32kB, no pages(or one page equal size)
-static Eeprom24 eep(iic1, nullptr, 0x8000u, 0x8000u);
+// NVM: MB85RC256V, no write protection, size 32kB, no pages, but 64 used since we allocate buffer for it
+static Eeprom24 eep(iic1, nullptr, 0x8000u, 64u);
 
 // *****************************************************************************
 // ***   Main function   *******************************************************
