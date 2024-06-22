@@ -123,12 +123,12 @@ class Application : public AppTask
     // *************************************************************************
     // ***   Public: EnableScreenChange function   *****************************
     // *************************************************************************
-    void EnableScreenChange() {header.Enable();}
+    void EnableScreenChange() {header.Enable(); mpg_btn.Enable();}
 
     // *************************************************************************
     // ***   Public: DisableScreenChange function   ****************************
     // *************************************************************************
-    void DisableScreenChange() {header.Disable();}
+    void DisableScreenChange() {header.Disable(); mpg_btn.Disable();}
 
   private:
     // Timer period

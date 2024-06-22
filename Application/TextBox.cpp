@@ -28,7 +28,7 @@ Result TextBox::Setup(int32_t x, int32_t y, int32_t w, int32_t h)
   Result result = Result::RESULT_OK;
 
   // Set list params
-  list.SetParams(x, y, w, h);
+  VisList::SetParams(x, y, w, h);
 
   // Find how many visible lines do we have
   visible_cnt = h / Font_10x18::GetInstance().GetCharH();
@@ -38,13 +38,13 @@ Result TextBox::Setup(int32_t x, int32_t y, int32_t w, int32_t h)
   // Set strings parameters
   for(uint32_t i = 0u; i < visible_cnt; i++)
   {
-    str[i].SetList(list);
+    str[i].SetList(*this);
     str[i].SetParams(str_text[i], 0, Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
   }
 
   // Set selection box parameters
-  box.SetList(list);
-  box.SetParams(0, 0, list.GetWidth(), Font_10x18::GetInstance().GetCharH(), COLOR_BLUE, true);
+  box.SetList(*this);
+  box.SetParams(0, 0, VisList::GetWidth(), Font_10x18::GetInstance().GetCharH(), COLOR_BLUE, true);
 
   // Return result
   return result;
@@ -65,11 +65,11 @@ Result TextBox::Show(uint32_t z)
     str[i].Show(1);
   }
   // Set selection box parameters
-  box.SetParams(str[select_pos - scroll_pos].GetStartX(), str[select_pos - scroll_pos].GetStartY(), list.GetWidth(), str[select_pos - scroll_pos].GetHeight(), COLOR_BLUE, true);
+  box.SetParams(str[select_pos - scroll_pos].GetStartX(), str[select_pos - scroll_pos].GetStartY(), VisList::GetWidth(), str[select_pos - scroll_pos].GetHeight(), COLOR_BLUE, true);
   // Show selection box
   box.Show(0);
   // Show list
-  list.Show(z);
+  VisList::Show(z);
 
   // Return result
   return result;
@@ -83,7 +83,7 @@ Result TextBox::Hide()
   Result result = Result::RESULT_OK;
 
   // Hide list
-  list.Hide();
+  VisList::Hide();
 
   // Return result
   return result;
@@ -140,7 +140,7 @@ Result TextBox::Select(int32_t n)
     }
 
     // Set selection box parameters
-    box.SetParams(str[select_pos - scroll_pos].GetStartX(), str[select_pos - scroll_pos].GetStartY(), list.GetWidth(), str[select_pos - scroll_pos].GetHeight(), COLOR_BLUE, true);
+    box.SetParams(str[select_pos - scroll_pos].GetStartX(), str[select_pos - scroll_pos].GetStartY(), VisList::GetWidth(), str[select_pos - scroll_pos].GetHeight(), COLOR_BLUE, true);
 
     // Input parameter is ok
     result = Result::RESULT_OK;

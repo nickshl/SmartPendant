@@ -511,12 +511,12 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: Stop   ****************************************************
     // *************************************************************************
-    inline Result Stop() {return SendRealTimeCmd(CMD_STOP);}
+    inline Result Stop() {respond_pending = false; send_id = next_id; return SendRealTimeCmd(CMD_STOP);}
 
     // *************************************************************************
-    // ***   Public: Reset   ****************************************************
+    // ***   Public: Reset   ***************************************************
     // *************************************************************************
-    inline Result Reset() {return SendRealTimeCmd(CMD_RESET);}
+    inline Result Reset() {respond_pending = false; send_id = next_id; return SendRealTimeCmd(CMD_RESET);}
 
     // *************************************************************************
     // ***   Public: FeedReset   ***********************************************

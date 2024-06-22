@@ -109,6 +109,33 @@ class ProgrammSender : public IScreen
     UiButton& left_btn;
     UiButton& right_btn;
 
+    // *************************************************************************
+    // *** Feeds & Speeds override   *******************************************
+    // *************************************************************************
+
+    // String for caption
+    String feed_name;
+    // Data windows to show current value
+    DataWindow feed_dw;
+    // Feed value
+    int32_t feed_val = 0;
+
+    // String for caption
+    String speed_name;
+    // Data windows to show current value
+    DataWindow speed_dw;
+    // Feed value
+    int32_t speed_val = 0;
+
+    // Buttons for control flood coolant
+    UiButton flood_btn;
+    // Buttons for control mist coolant
+    UiButton mist_btn;
+
+    // *************************************************************************
+    // *************************************************************************
+    // *************************************************************************
+
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // GRBL Communication Interface instance
@@ -119,6 +146,11 @@ class ProgrammSender : public IScreen
 
     // Encoder callback entry
     InputDrv::CallbackListEntry enc_cble;
+
+    // *************************************************************************
+    // ***   Private: ProcessSpeedFeed function   ******************************
+    // *************************************************************************
+    Result ProcessSpeedFeed();
 
     // *************************************************************************
     // ***   Private: ProcessMenuOkCallback function   *************************

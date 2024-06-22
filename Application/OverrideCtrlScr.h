@@ -101,9 +101,6 @@ class OverrideCtrlScr : public IScreen
     // Feed value
     int32_t speed_val = 0;
 
-    // Buttons for reset rapids to default
-    UiButton rapids_btn[3u];
-
     // Buttons for control flood coolant
     UiButton flood_btn;
     // Buttons for control mist coolant

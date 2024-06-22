@@ -72,6 +72,8 @@ Result GrblComm::TimerExpired()
   {
     // If we lost control or if controller isn't responding - we don't expect answer anymore
     respond_pending = false;
+    // Clear send id
+    send_id = next_id;
     // Set appropriate error code for this situation
     grbl_status = Status_Comm_Error;
   }

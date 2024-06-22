@@ -31,7 +31,7 @@
 // *****************************************************************************
 // ***   TextBox Class   *******************************************************
 // *****************************************************************************
-class TextBox //: public VisObject
+class TextBox : public VisList
 {
   public:
     // *************************************************************************
@@ -87,9 +87,6 @@ class TextBox //: public VisObject
   private:
     // Pointer to text
     const char* p_text = nullptr;
-
-    // List that contains all TextBox elements
-    VisList list;
 
     // Strings to show text
     String str[32];

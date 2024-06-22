@@ -38,6 +38,8 @@ ProgrammSender& ProgrammSender::GetInstance()
 // *****************************************************************************
 Result ProgrammSender::Setup(int32_t y, int32_t height)
 {
+  constexpr int32_t CTRL_HEIGHT = 40;
+
   // Fill menu_items
   for(uint32_t i = 0u; i < NumberOf(menu_items); i++)
   {
@@ -49,7 +51,7 @@ Result ProgrammSender::Setup(int32_t y, int32_t height)
   // Setup menu
   menu.Setup(menu_items, NumberOf(menu_items), 0, y, display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2);
   // Setup text box
-  text_box.Setup(0, y, display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2);
+  text_box.Setup(0, y, display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2 - CTRL_HEIGHT);
 
   // Fill all windows
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
@@ -64,6 +66,33 @@ Result ProgrammSender::Setup(int32_t y, int32_t height)
     dw_real_name[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
     dw_real_name[i].Move(dw_real[i].GetStartX() + BORDER_W, dw_real[i].GetStartY() + BORDER_W);
   }
+
+  // Feed override
+  feed_dw.SetParams(0, dw_real[0].GetStartY() - BORDER_W - CTRL_HEIGHT, (display_drv.GetScreenW() - 2*CTRL_HEIGHT - 3*BORDER_W) / 2, CTRL_HEIGHT, 5u, 0u);
+  feed_dw.SetBorder(BORDER_W, COLOR_DARKBLUE);
+  feed_dw.SetDataFont(Font_12x16::GetInstance());
+  feed_dw.SetNumber(0);
+  feed_dw.SetUnits("%", DataWindow::RIGHT);
+  feed_dw.SetCallback(AppTask::GetCurrent());
+  feed_name.SetParams("FEED", feed_dw.GetStartX() + BORDER_W*3/2, feed_dw.GetStartY() + BORDER_W*3/2, COLOR_WHITE, Font_6x8::GetInstance());
+  // Speed override
+  speed_dw.SetParams(feed_dw.GetEndX() + BORDER_W, feed_dw.GetStartY(), feed_dw.GetWidth(), feed_dw.GetHeight(), 5u, 0u);
+  speed_dw.SetBorder(BORDER_W, COLOR_DARKBLUE);
+  speed_dw.SetDataFont(Font_12x16::GetInstance());
+  speed_dw.SetNumber(0);
+  speed_dw.SetUnits("%", DataWindow::RIGHT);
+  speed_dw.SetCallback(AppTask::GetCurrent());
+  speed_name.SetParams("SPEED", speed_dw.GetStartX() + BORDER_W*3/2, speed_dw.GetStartY() + BORDER_W*3/2, COLOR_WHITE, Font_6x8::GetInstance());
+  // Buttons for control flood coolant
+  flood_btn.SetParams("F", speed_dw.GetEndX() + BORDER_W, speed_dw.GetStartY(), speed_dw.GetHeight(), speed_dw.GetHeight(), true);
+  flood_btn.SetFont(Font_12x16::GetInstance());
+  flood_btn.SetCallback(AppTask::GetCurrent());
+  flood_btn.Disable();
+  // Buttons for control mist coolant
+  mist_btn.SetParams("M", flood_btn.GetEndX() + BORDER_W, speed_dw.GetStartY(), speed_dw.GetHeight(), speed_dw.GetHeight(), true);
+  mist_btn.SetFont(Font_12x16::GetInstance());
+  mist_btn.SetCallback(AppTask::GetCurrent());
+  mist_btn.Disable();
 
   // All good
   return Result::RESULT_OK;
@@ -102,6 +131,16 @@ Result ProgrammSender::Show()
   // Stop button
   right_btn.Show(102);
 
+  // Feed objects
+  feed_dw.Show(100);
+  feed_name.Show(100);
+  // Speed objects
+  speed_dw.Show(100);
+  speed_name.Show(100);
+  // Coolant buttons
+  flood_btn.Show(100);
+  mist_btn.Show(100);
+
   // All good
   return Result::RESULT_OK;
 }
@@ -131,6 +170,16 @@ Result ProgrammSender::Hide()
   // Open button
   open_btn.Hide();
 
+  // Feed objects
+  feed_dw.Hide();
+  feed_name.Hide();
+  // Speed objects
+  speed_dw.Hide();
+  speed_name.Hide();
+  // Coolant buttons
+  flood_btn.Hide();
+  mist_btn.Hide();
+
   // Reinit Soft Buttons to change their size back
   Application::GetInstance().InitSoftButtons();
 
@@ -153,52 +202,79 @@ Result ProgrammSender::TimerExpired(uint32_t interval)
     dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
   }
 
+  // Update numbers with current overrides
+  feed_dw.SetNumber(grbl_comm.GetFeedOverride());
+  speed_dw.SetNumber(grbl_comm.GetSpeedOverride());
+  // Set coolant state
+  flood_btn.SetColor(grbl_comm.GetCoolantFlood() ? COLOR_GREEN : COLOR_WHITE);
+  mist_btn.SetColor(grbl_comm.GetCoolantMist() ? COLOR_GREEN : COLOR_WHITE);
+
   if(run)
   {
-    if(grbl_comm.GetState() == GrblComm::HOLD)
+    // Process speed & feed change
+    ProcessSpeedFeed();
+
+    // We should stream programm if state is Idle, Run or Hold and we in control
+    if(((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::RUN) || (grbl_comm.GetState() == GrblComm::HOLD)) && (grbl_comm.IsInControl()))
     {
-      Application::GetInstance().EnableScreenChange();
+      // If ID is zero - we didn't send any commands yet
+      GrblComm::status_t result = (id != 0u) ? grbl_comm.GetCmdResult(id) : GrblComm::Status_OK;
+      // If result of previous command is ok
+      if((result == GrblComm::Status_OK) || (result == GrblComm::Status_Next_Cmd_Executed))
+      {
+        // Buffer for command
+        char cmd[128u];
+        // Since all program commands have striped out CR LF, we have to add it
+        snprintf(cmd, NumberOf(cmd), "%s\r\n", text_box.GetSelectedStringText());
+        // Send new command
+        if(grbl_comm.SendCmd(cmd, id) == Result::RESULT_OK)
+        {
+          int32_t select = text_box.GetSelect();
+          // Go to next line
+          text_box.Select(select + 1);
+          // Can't go further - end of program
+          if(select == text_box.GetSelect())
+          {
+            // Clear run flag
+            run = false;
+          }
+        }
+      }
+      else if(result == GrblComm::Status_Cmd_Not_Executed_Yet)
+      {
+        ; // Wait until command will be executed
+      }
+      else // In case of any error - stop executing program
+      {
+        // Clear run flag
+        run = false;
+      }
     }
     else
     {
-      Application::GetInstance().DisableScreenChange();
-    }
-
-    // If ID is zero - we didn't send any commands yet
-    GrblComm::status_t result = (id != 0u) ? grbl_comm.GetCmdResult(id) : GrblComm::Status_OK;
-    // If result of previous command is ok
-    if((result == GrblComm::Status_OK) || (result == GrblComm::Status_Next_Cmd_Executed))
-    {
-      // Buffer for command
-      char cmd[128u];
-      // Since all program commands have striped out CR LF, we have to add it
-      snprintf(cmd, NumberOf(cmd), "%s\r\n", text_box.GetSelectedStringText());
-      // Send new command
-      if(grbl_comm.SendCmd(cmd, id) == Result::RESULT_OK)
-      {
-        int32_t select = text_box.GetSelect();
-        // Go to next line
-        text_box.Select(select + 1);
-        // Can't go further - end of program
-        if(select == text_box.GetSelect())
-        {
-          // Clear run flag
-          run = false;
-        }
-      }
-    }
-    else if(result == GrblComm::Status_Cmd_Not_Executed_Yet)
-    {
-      ; // Wait until command will be executed
-    }
-    else // In case of any error - stop executing program
-    {
-      // Clear run flag
+      // In case of any unexpected error - stop the program
       run = false;
     }
   }
   else
   {
+    // If feed control enabled - disable it
+    if(feed_dw.IsActive())
+    {
+      feed_dw.SetActive(false);
+      feed_dw.SetBorder(BORDER_W, COLOR_DARKBLUE);
+      feed_dw.SetSeleced(false);
+    }
+    // If speed control enabled - disable it
+    if(speed_dw.IsActive())
+    {
+      speed_dw.SetActive(false);
+      speed_dw.SetBorder(BORDER_W, COLOR_DARKBLUE);
+      speed_dw.SetSeleced(false);
+    }
+    // Disable coolant control
+    flood_btn.Disable();
+    mist_btn.Disable();
     // Enable buttons back
     open_btn.Enable();
     // Enable screen change if program isn't running
@@ -215,6 +291,81 @@ Result ProgrammSender::TimerExpired(uint32_t interval)
   }
   // Return ok - we don't check semaphore give error, because we don't need to.
   return Result::RESULT_OK;
+}
+
+// *************************************************************************
+// ***   Private: ProcessSpeedFeed function   ******************************
+// *************************************************************************
+Result ProgrammSender::ProcessSpeedFeed()
+{
+  Result result = Result::RESULT_OK;
+
+  // Update feed if necessary. One step at a timer tick.
+  if(feed_val > 0)
+  {
+    if(feed_val > 10)
+    {
+      result = grbl_comm.FeedCoarsePlus();
+      feed_val -= 10;
+    }
+    else
+    {
+      result = grbl_comm.FeedFinePlus();
+      feed_val--;
+    }
+  }
+  else if (feed_val < 0)
+  {
+    if(feed_val < -10)
+    {
+      result = grbl_comm.FeedCoarseMinus();
+      feed_val += 10;
+    }
+    else
+    {
+      result = grbl_comm.FeedFineMinus();
+      feed_val++;
+    }
+  }
+  else
+  {
+    ; // Do nothing
+  }
+
+  // Update speed if necessary. One step at a timer tick.
+  if(speed_val > 0)
+  {
+    if(speed_val > 10)
+    {
+      result = grbl_comm.SpeedCoarsePlus();
+      speed_val -= 10;
+    }
+    else
+    {
+      result = grbl_comm.SpeedFinePlus();
+      speed_val--;
+    }
+  }
+  else if (speed_val < 0)
+  {
+    if(speed_val < -10)
+    {
+      result = grbl_comm.SpeedCoarseMinus();
+      speed_val += 10;
+    }
+    else
+    {
+      result = grbl_comm.SpeedFineMinus();
+      speed_val++;
+    }
+  }
+  else
+  {
+    ; // Do nothing
+  }
+
+  // Return result
+  return result;
 }
 
 // *****************************************************************************
@@ -339,21 +490,30 @@ Result ProgrammSender::ProcessCallback(const void* ptr)
   // button, we have to check if Run button is active.
   if(ptr == &left_btn)
   {
-    // If we already run program
-    if(run)
-    {
-      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
-    }
-    else
+    // We should run program only if it doesn't already run, we in control and state is Idle
+    if(!run && grbl_comm.IsInControl() && (grbl_comm.GetState() == GrblComm::IDLE))
     {
       // Clear id to run program
       id = 0u;
       // Set run flag to start program streaming
       run = true;
+      // Enable Feed & Speed control
+      feed_dw.SetActive(true);
+      speed_dw.SetActive(true);
+      feed_dw.SetBorder(BORDER_W, COLOR_RED);
+      speed_dw.SetBorder(BORDER_W, COLOR_RED);
+      feed_dw.SetSeleced(true);
+      speed_dw.SetSeleced(false);
+      flood_btn.Enable();
+      mist_btn.Enable();
       // Disable buttons while program is running
       open_btn.Disable();
       // Disable screen change if program is running
       Application::GetInstance().DisableScreenChange();
+    }
+    else
+    {
+      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
     }
   }
   // Process Reset button
@@ -432,6 +592,24 @@ Result ProgrammSender::ProcessCallback(const void* ptr)
     // Clear current position
     idx = 0u;
   }
+  else if(ptr == &feed_dw)
+  {
+    speed_dw.SetSeleced(false);
+    feed_dw.SetSeleced(true);
+  }
+  else if(ptr == &speed_dw)
+  {
+    feed_dw.SetSeleced(false);
+    speed_dw.SetSeleced(true);
+  }
+  else if(ptr == &flood_btn)
+  {
+    grbl_comm.CoolantFloodToggle();
+  }
+  else if(ptr == &mist_btn)
+  {
+    grbl_comm.CoolantMistToggle();
+  }
   else
   {
     ; // Do nothing - MISRA rule
@@ -454,8 +632,27 @@ Result ProgrammSender::ProcessEncoderCallback(ProgrammSender* obj_ptr, void* ptr
     // Cast pointer to "this". Since we can't use non-static members as callback,
     // we have to provide pinter to object.
     ProgrammSender& ths = *obj_ptr;
-    // Cast pointer itself to integer value and change current encoder value
-    ths.enc_val += (int32_t)ptr;
+    // Cast pointer itself to integer value
+    int32_t enc_val = (int32_t)ptr;
+
+    // If program isn't running - scroll text
+    if(!ths.run)
+    {
+      ths.enc_val += enc_val;
+    }
+    else if(ths.feed_dw.IsSeleced())
+    {
+      ths.feed_val += enc_val;
+    }
+    else if(ths.speed_dw.IsSeleced())
+    {
+      ths.speed_val += enc_val;
+    }
+    else
+    {
+      ; // Do nothing - MISRA rule
+    }
+
     // Set ok result
     result = Result::RESULT_OK;
   }
