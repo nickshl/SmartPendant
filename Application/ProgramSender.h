@@ -1,8 +1,8 @@
 //******************************************************************************
-//  @file ProgrammSender.h
+//  @file ProgramSender.h
 //  @author Nicolai Shlapunov
 //
-//  @details ProgrammSender: User ProgrammSender Class, header
+//  @details ProgramSender: User ProgramSender Class, header
 //
 //  @copyright Copyright (c) 2023, Devtronic & Nicolai Shlapunov
 //             All rights reserved.
@@ -15,8 +15,8 @@
 //
 //******************************************************************************
 
-#ifndef ProgrammSender_h
-#define ProgrammSender_h
+#ifndef ProgramSender_h
+#define ProgramSender_h
 
 // *****************************************************************************
 // ***   Includes   ************************************************************
@@ -42,15 +42,15 @@
 #define BG_Z (100)
 
 // *****************************************************************************
-// ***   ProgrammSender Class   **********************************************
+// ***   ProgramSender Class   *************************************************
 // *****************************************************************************
-class ProgrammSender : public IScreen
+class ProgramSender : public IScreen
 {
   public:
     // *************************************************************************
     // ***   Get Instance   ****************************************************
     // *************************************************************************
-    static ProgrammSender& GetInstance();
+    static ProgramSender& GetInstance();
 
     // *************************************************************************
     // ***   Setup function   **************************************************
@@ -77,11 +77,27 @@ class ProgrammSender : public IScreen
     // *************************************************************************
     virtual Result ProcessCallback(const void* ptr);
 
+    // *************************************************************************
+    // ***   Public: AllocateDataBuffer   **************************************
+    // *************************************************************************
+    char* AllocateDataBuffer(uint32_t size);
+
+    // *************************************************************************
+    // ***   Public: GetDataBufferPtr   ****************************************
+    // *************************************************************************
+    char* GetDataBufferPtr() {return text;}
+
+    // *************************************************************************
+    // ***   Public: ReleaseDataPointer   **************************************
+    // *************************************************************************
+    void ReleaseDataPointer();
+
   private:
     static const uint8_t BORDER_W = 4u;
 
     // Run flag
     bool run = false;
+    bool finished = false;
     // Current position
     uint32_t idx = 0u;
     // Current cmd ID
@@ -155,22 +171,22 @@ class ProgrammSender : public IScreen
     // *************************************************************************
     // ***   Private: ProcessMenuOkCallback function   *************************
     // *************************************************************************
-    static Result ProcessMenuOkCallback(ProgrammSender* obj_ptr, void* ptr);
+    static Result ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr);
 
     // *************************************************************************
     // ***   Private: ProcessMenuCancelCallback function   *********************
     // *************************************************************************
-    static Result ProcessMenuCancelCallback(ProgrammSender* obj_ptr, void* ptr);
+    static Result ProcessMenuCancelCallback(ProgramSender* obj_ptr, void* ptr);
 
     // *************************************************************************
     // ***   Private: ProcessEncoderCallback function   ************************
     // *************************************************************************
-    static Result ProcessEncoderCallback(ProgrammSender* obj_ptr, void* ptr);
+    static Result ProcessEncoderCallback(ProgramSender* obj_ptr, void* ptr);
 
     // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    ProgrammSender();
+    ProgramSender();
 };
 
 #endif

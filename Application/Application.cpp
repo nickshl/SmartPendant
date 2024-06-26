@@ -62,31 +62,8 @@ Result Application::Setup()
   // Set Soft Buttons parameters
   InitSoftButtons();
 
-  // Pages for screens(first call to set parameters)
-  header.SetParams(0, 0, display_drv.GetScreenW(), 40, Header::MAX_PAGES);
-  // Screens & Captions
-  scr_cnt = 0u;
-  header.SetText(scr_cnt, "MPG", Font_12x16::GetInstance());
-  header.SetImage(scr_cnt, MPG);
-  scr[scr_cnt++] = &DirectControlScr::GetInstance();
-  header.SetText(scr_cnt, "OVERRIDE", Font_12x16::GetInstance());
-  scr[scr_cnt++] = &OverrideCtrlScr::GetInstance();
-  header.SetText(scr_cnt, "POWER FEED", Font_12x16::GetInstance());
-  scr[scr_cnt++] = &DelayControlScr::GetInstance();
-  header.SetText(scr_cnt, "ROTARY TABLE", Font_12x16::GetInstance());
-  header.SetImage(scr_cnt, RotaryTable);
-  scr[scr_cnt++] = &RotaryTableScr::GetInstance();
-  header.SetText(scr_cnt, "SD CARD", Font_12x16::GetInstance());
-  scr[scr_cnt++] = &ProgrammSender::GetInstance();
-  header.SetText(scr_cnt, "PROBE", Font_12x16::GetInstance());
-  scr[scr_cnt++] = &ProbeScr::GetInstance();
-  header.SetText(scr_cnt, "SETTINGS", Font_12x16::GetInstance());
-  scr[scr_cnt++] = &SettingsScr::GetInstance();
-  // Pages for screens(second call to resize to actual numbers of pages)
-  header.SetParams(0, 0, display_drv.GetScreenW(), 40, scr_cnt);
-  // Set callback
-  header.SetCallback(this);
-  header.Show(2000);
+  // Initialize header
+  InitHeader();
 
   // Setup all screens
   for(uint32_t i = 0u; i < scr_cnt; i++)
@@ -133,12 +110,16 @@ Result Application::TimerExpired()
   {
     // Hide screen
     scr[scr_idx]->Hide();
-    // Setup all screens to apply new settings
+    // Initialize header
+    InitHeader();
+    // Setup all screens
     for(uint32_t i = 0u; i < scr_cnt; i++)
     {
       scr[i]->Setup(40, status_box.GetStartY() - 40);
     }
-    // Show screen
+    // Set index
+    scr_idx = 0u;
+    // Show first screen
     scr[scr_idx]->Show();
   }
 
@@ -323,6 +304,30 @@ void Application::UpdateRightButtonIdleText(const char* str)
 }
 
 // *****************************************************************************
+// ***   Public: ChangeScreen function   ***************************************
+// *****************************************************************************
+void Application::ChangeScreen(IScreen& screen)
+{
+  // Find new index
+  for(uint32_t i = 0u; i < NumberOf(scr); i++)
+  {
+    if(scr[i] == &screen)
+    {
+      // Hide old screen
+      scr[scr_idx]->Hide();
+      // Save scale to control
+      scr_idx = i;
+      // Set new page
+      header.SetSelectedPage(scr_idx);
+      // Show new screen
+      scr[scr_idx]->Show();
+      // Break the cycle
+      break;
+    }
+  }
+}
+
+// *****************************************************************************
 // ***   Private: ProcessButtonCallback function   *****************************
 // *****************************************************************************
 Result Application::ProcessButtonCallback(Application* obj_ptr, void* ptr)
@@ -410,4 +415,52 @@ void Application::ChangeScreen(uint8_t scrn)
   header.SetSelectedPage(scr_idx);
   // Show new screen
   scr[scr_idx]->Show();
+}
+
+// *****************************************************************************
+// ***   Private: InitHeader function   ****************************************
+// *****************************************************************************
+void Application::InitHeader()
+{
+  // Hide header
+  header.Hide();
+  // Pages for screens(first call to set parameters)
+  header.SetParams(0, 0, display_drv.GetScreenW(), 40, Header::MAX_PAGES);
+  // Screens & Captions
+  scr_cnt = 0u;
+  header.SetText(scr_cnt, "MPG", Font_12x16::GetInstance());
+  header.SetImage(scr_cnt, MPG);
+  scr[scr_cnt++] = &DirectControlScr::GetInstance();
+  header.SetText(scr_cnt, "OVERRIDE", Font_12x16::GetInstance());
+  scr[scr_cnt++] = &OverrideCtrlScr::GetInstance();
+  header.SetText(scr_cnt, "POWER FEED", Font_12x16::GetInstance());
+  scr[scr_cnt++] = &DelayControlScr::GetInstance();
+  // Rotary Table available only for mill
+  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_MILL)
+  {
+    header.SetText(scr_cnt, "ROTARY TABLE", Font_12x16::GetInstance());
+    header.SetImage(scr_cnt, RotaryTable);
+    scr[scr_cnt++] = &RotaryTableScr::GetInstance();
+  }
+  header.SetText(scr_cnt, "GCODE SENDER", Font_12x16::GetInstance());
+  scr[scr_cnt++] = &ProgramSender::GetInstance();
+  // Probing available only for mill
+  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_MILL)
+  {
+    header.SetText(scr_cnt, "PROBE", Font_12x16::GetInstance());
+    scr[scr_cnt++] = &ProbeScr::GetInstance();
+  }
+  // Milling Operation available only for mill
+  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_MILL)
+  {
+    header.SetText(scr_cnt, "MILLING OPERATIONS", Font_12x16::GetInstance());
+    scr[scr_cnt++] = &MillOpsScr::GetInstance();
+  }
+  header.SetText(scr_cnt, "SETTINGS", Font_12x16::GetInstance());
+  scr[scr_cnt++] = &SettingsScr::GetInstance();
+  // Pages for screens(second call to resize to actual numbers of pages)
+  header.SetParams(0, 0, display_drv.GetScreenW(), 40, scr_cnt);
+  // Set callback
+  header.SetCallback(this);
+  header.Show(2000);
 }

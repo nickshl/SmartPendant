@@ -110,7 +110,7 @@ extern "C" void vApplicationStackOverflowHook(TaskHandle_t* px_task, signed port
 // *****************************************************************************
 extern "C" void vApplicationMallocFailedHook(void)
 {
-// Commented out since ProgrammSender rely on nullptr retunr from new operator
+// Commented out since ProgramSender rely on nullptr retunr from new operator
 // in case if program is too big.
 //  Break();
 //  while(1);

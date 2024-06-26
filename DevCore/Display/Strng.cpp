@@ -20,7 +20,6 @@
 // *****************************************************************************
 #include "Strng.h"
 
-#include <cstring> // for strlen()
 #include <cstring>
 #include <stdarg.h>
 #include <stdio.h>

@@ -64,6 +64,9 @@ void Header::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t n)
   if(n > MAX_PAGES) n = MAX_PAGES;
   // Set pages count
   pages_cnt = n;
+
+  // Select first page
+  SetSelectedPage(0u);
 }
 
 // *****************************************************************************

@@ -41,8 +41,9 @@
 #include "OverrideCtrlScr.h"
 #include "DelayControlScr.h"
 #include "RotaryTableScr.h"
-#include "ProgrammSender.h"
+#include "ProgramSender.h"
 #include "ProbeScr.h"
+#include "MillOpsScr.h"
 #include "SettingsScr.h"
 
 // *****************************************************************************
@@ -119,6 +120,11 @@ class Application : public AppTask
     // ***   Public: UpdateRightButtonIdleText function   **********************
     // *************************************************************************
     void UpdateRightButtonIdleText(const char* str = nullptr);
+
+    // *************************************************************************
+    // ***   Public: ChangeScreen function   ***********************************
+    // *************************************************************************
+    void ChangeScreen(IScreen& screen);
 
     // *************************************************************************
     // ***   Public: EnableScreenChange function   *****************************
@@ -201,6 +207,11 @@ class Application : public AppTask
     // ***   Private: ChangeScreen function   **********************************
     // *************************************************************************
     void ChangeScreen(uint8_t scrn);
+
+    // *************************************************************************
+    // ***   Private: InitHeader function   ************************************
+    // *************************************************************************
+    void InitHeader();
 
     // *************************************************************************
     // ***   Private constructor   *********************************************

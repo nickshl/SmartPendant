@@ -1,8 +1,8 @@
 //******************************************************************************
-//  @file ProgrammSender.cpp
+//  @file ProgramSender.cpp
 //  @author Nicolai Shlapunov
 //
-//  @details ProgrammSender: User ProgrammSender Class, implementation
+//  @details ProgramSender: User ProgramSender Class, implementation
 //
 //  @copyright Copyright (c) 2016, Devtronic & Nicolai Shlapunov
 //             All rights reserved.
@@ -18,8 +18,7 @@
 // *****************************************************************************
 // ***   Includes   ************************************************************
 // *****************************************************************************
-#include "ProgrammSender.h"
-
+#include <ProgramSender.h>
 #include "Application.h"
 
 #include "fatfs.h"
@@ -27,16 +26,16 @@
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
 // *****************************************************************************
-ProgrammSender& ProgrammSender::GetInstance()
+ProgramSender& ProgramSender::GetInstance()
 {
-  static ProgrammSender pgmsenderscr;
+  static ProgramSender pgmsenderscr;
   return pgmsenderscr;
 }
 
 // *****************************************************************************
-// ***   ProgrammSender Setup   ************************************************
+// ***   ProgramSender Setup   *************************************************
 // *****************************************************************************
-Result ProgrammSender::Setup(int32_t y, int32_t height)
+Result ProgramSender::Setup(int32_t y, int32_t height)
 {
   constexpr int32_t CTRL_HEIGHT = 40;
 
@@ -101,7 +100,7 @@ Result ProgrammSender::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 // ***   Show   ****************************************************************
 // *****************************************************************************
-Result ProgrammSender::Show()
+Result ProgramSender::Show()
 {
   // Set encoder callback handler(before menu show since menu will handle it also)
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
@@ -114,6 +113,12 @@ Result ProgrammSender::Show()
   open_btn.SetParams("Open", left_btn.GetEndX() + BORDER_W + 1, left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
   open_btn.SetCallback(AppTask::GetCurrent());
 
+  // If text pointer exists
+  if(text != nullptr)
+  {
+    // Set it to text_box to recalculate number of lines
+    text_box.SetText(text);
+  }
   // Show text box
   text_box.Show(100);
 
@@ -148,7 +153,7 @@ Result ProgrammSender::Show()
 // *****************************************************************************
 // ***   Hide   ****************************************************************
 // *****************************************************************************
-Result ProgrammSender::Hide()
+Result ProgramSender::Hide()
 {
   // Delete encoder callback handler
   InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
@@ -190,7 +195,7 @@ Result ProgrammSender::Hide()
 // *****************************************************************************
 // ***   TimerExpired function   ***********************************************
 // *****************************************************************************
-Result ProgrammSender::TimerExpired(uint32_t interval)
+Result ProgramSender::TimerExpired(uint32_t interval)
 {
   // Update left & right button text
   Application::GetInstance().UpdateLeftButtonText();
@@ -214,40 +219,53 @@ Result ProgrammSender::TimerExpired(uint32_t interval)
     // Process speed & feed change
     ProcessSpeedFeed();
 
-    // We should stream programm if state is Idle, Run or Hold and we in control
+    // We should stream program if state is Idle, Run or Hold and we in control
     if(((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::RUN) || (grbl_comm.GetState() == GrblComm::HOLD)) && (grbl_comm.IsInControl()))
     {
-      // If ID is zero - we didn't send any commands yet
-      GrblComm::status_t result = (id != 0u) ? grbl_comm.GetCmdResult(id) : GrblComm::Status_OK;
-      // If result of previous command is ok
-      if((result == GrblComm::Status_OK) || (result == GrblComm::Status_Next_Cmd_Executed))
+      // If we finished streaming
+      if(finished)
       {
-        // Buffer for command
-        char cmd[128u];
-        // Since all program commands have striped out CR LF, we have to add it
-        snprintf(cmd, NumberOf(cmd), "%s\r\n", text_box.GetSelectedStringText());
-        // Send new command
-        if(grbl_comm.SendCmd(cmd, id) == Result::RESULT_OK)
+        // Wait until IDLE state
+        if(grbl_comm.GetState() == GrblComm::IDLE)
         {
-          int32_t select = text_box.GetSelect();
-          // Go to next line
-          text_box.Select(select + 1);
-          // Can't go further - end of program
-          if(select == text_box.GetSelect())
-          {
-            // Clear run flag
-            run = false;
-          }
+          // Then clear run flag
+          run = false;
         }
       }
-      else if(result == GrblComm::Status_Cmd_Not_Executed_Yet)
+      else
       {
-        ; // Wait until command will be executed
-      }
-      else // In case of any error - stop executing program
-      {
-        // Clear run flag
-        run = false;
+        // If ID is zero - we didn't send any commands yet
+        GrblComm::status_t result = (id != 0u) ? grbl_comm.GetCmdResult(id) : GrblComm::Status_OK;
+        // If result of previous command is ok
+        if((result == GrblComm::Status_OK) || (result == GrblComm::Status_Next_Cmd_Executed))
+        {
+          // Buffer for command
+          char cmd[128u];
+          // Since all program commands have striped out CR LF, we have to add it
+          snprintf(cmd, NumberOf(cmd), "%s\r\n", text_box.GetSelectedStringText());
+          // Send new command
+          if(grbl_comm.SendCmd(cmd, id) == Result::RESULT_OK)
+          {
+            int32_t select = text_box.GetSelect();
+            // Go to next line
+            text_box.Select(select + 1);
+            // Can't go further - end of program
+            if(select == text_box.GetSelect())
+            {
+              // Set finished flag
+              finished = true;
+            }
+          }
+        }
+        else if(result == GrblComm::Status_Cmd_Not_Executed_Yet)
+        {
+          ; // Wait until command will be executed
+        }
+        else // In case of any error - stop executing program
+        {
+          // Clear run flag
+          run = false;
+        }
       }
     }
     else
@@ -296,7 +314,7 @@ Result ProgrammSender::TimerExpired(uint32_t interval)
 // *************************************************************************
 // ***   Private: ProcessSpeedFeed function   ******************************
 // *************************************************************************
-Result ProgrammSender::ProcessSpeedFeed()
+Result ProgramSender::ProcessSpeedFeed()
 {
   Result result = Result::RESULT_OK;
 
@@ -371,7 +389,7 @@ Result ProgrammSender::ProcessSpeedFeed()
 // *****************************************************************************
 // ***   Private: ProcessMenuOkCallback function   *****************************
 // *****************************************************************************
-Result ProgrammSender::ProcessMenuOkCallback(ProgrammSender* obj_ptr, void* ptr)
+Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
 {
   Result result = Result::ERR_NULL_PTR;
 
@@ -380,19 +398,13 @@ Result ProgrammSender::ProcessMenuOkCallback(ProgrammSender* obj_ptr, void* ptr)
   {
     // Cast pointer to "this". Since we can't use non-static members as callback,
     // we have to provide pinter to object.
-    ProgrammSender& ths = *obj_ptr;
+    ProgramSender& ths = *obj_ptr;
 
     // Hide the menu
     ths.menu.Hide();
 
-    // If buffer was previously allocated
-    if(ths.text != nullptr)
-    {
-      // Hide text box before delete buffer
-      ths.text_box.Hide();
-      // Delete previously allocated buffer
-      delete [] ths.text;
-    }
+    // Clear current data
+    ths.ReleaseDataPointer();
 
     // Open file
     FRESULT fres = f_open(&SDFile, ths.menu_items[(uint32_t)ptr].text, FA_OPEN_EXISTING | FA_READ);
@@ -449,7 +461,7 @@ Result ProgrammSender::ProcessMenuOkCallback(ProgrammSender* obj_ptr, void* ptr)
 // *****************************************************************************
 // ***   Private: ProcessMenuCancelCallback function   *************************
 // *****************************************************************************
-Result ProgrammSender::ProcessMenuCancelCallback(ProgrammSender* obj_ptr, void* ptr)
+Result ProgramSender::ProcessMenuCancelCallback(ProgramSender* obj_ptr, void* ptr)
 {
   Result result = Result::ERR_NULL_PTR;
 
@@ -458,7 +470,7 @@ Result ProgrammSender::ProcessMenuCancelCallback(ProgrammSender* obj_ptr, void* 
   {
     // Cast pointer to "this". Since we can't use non-static members as callback,
     // we have to provide pinter to object.
-    ProgrammSender& ths = *obj_ptr;
+    ProgramSender& ths = *obj_ptr;
 
     // Hide the menu
     ths.menu.Hide();
@@ -482,7 +494,7 @@ Result ProgrammSender::ProcessMenuCancelCallback(ProgrammSender* obj_ptr, void* 
 // *****************************************************************************
 // ***   ProcessCallback function   ********************************************
 // *****************************************************************************
-Result ProgrammSender::ProcessCallback(const void* ptr)
+Result ProgramSender::ProcessCallback(const void* ptr)
 {
   Result result = Result::RESULT_OK;
 
@@ -497,6 +509,7 @@ Result ProgrammSender::ProcessCallback(const void* ptr)
       id = 0u;
       // Set run flag to start program streaming
       run = true;
+      finished = false;
       // Enable Feed & Speed control
       feed_dw.SetActive(true);
       speed_dw.SetActive(true);
@@ -619,10 +632,50 @@ Result ProgrammSender::ProcessCallback(const void* ptr)
   return result;
 }
 
-// *************************************************************************
-// ***   Private: ProcessEncoderCallback function   ************************
-// *************************************************************************
-Result ProgrammSender::ProcessEncoderCallback(ProgrammSender* obj_ptr, void* ptr)
+// *****************************************************************************
+// ***   Public: AllocateDataBuffer   ******************************************
+// *****************************************************************************
+char* ProgramSender::AllocateDataBuffer(uint32_t size)
+{
+  // Always release data buffer before allocate it again
+  ReleaseDataPointer();
+  // Allocate memory for data
+  text = new char[size];
+  // If allocation is successful
+  if(text != nullptr)
+  {
+    // Add null-terminator to the first element
+    text[0] = '\0';
+    // And set buffer to textbox
+    text_box.SetText(text);
+  }
+  // Return result
+  return text;
+}
+
+// *****************************************************************************
+// ***   Public: ReleaseDataPointer   ******************************************
+// *****************************************************************************
+void ProgramSender::ReleaseDataPointer()
+{
+  // If buffer was previously allocated
+  if(text != nullptr)
+  {
+    // Hide text box before delete buffer
+    text_box.Hide();
+    // Set empty string to avoid read data from released pointer
+    text_box.SetText("");
+    // Delete previously allocated buffer
+    delete [] text;
+    // Set text to nullptr
+    text = nullptr;
+  }
+}
+
+// *****************************************************************************
+// ***   Private: ProcessEncoderCallback function   ****************************
+// *****************************************************************************
+Result ProgramSender::ProcessEncoderCallback(ProgramSender* obj_ptr, void* ptr)
 {
   Result result = Result::ERR_NULL_PTR;
 
@@ -631,7 +684,7 @@ Result ProgrammSender::ProcessEncoderCallback(ProgrammSender* obj_ptr, void* ptr
   {
     // Cast pointer to "this". Since we can't use non-static members as callback,
     // we have to provide pinter to object.
-    ProgrammSender& ths = *obj_ptr;
+    ProgramSender& ths = *obj_ptr;
     // Cast pointer itself to integer value
     int32_t enc_val = (int32_t)ptr;
 
@@ -661,8 +714,8 @@ Result ProgrammSender::ProcessEncoderCallback(ProgrammSender* obj_ptr, void* ptr
   return result;
 }
 
-// *************************************************************************
-// ***   Private constructor   *********************************************
-// *************************************************************************
-ProgrammSender::ProgrammSender() : left_btn(Application::GetInstance().GetLeftButton()),
+// *****************************************************************************
+// ***   Private constructor   *************************************************
+// *****************************************************************************
+ProgramSender::ProgramSender() : left_btn(Application::GetInstance().GetLeftButton()),
                                    right_btn(Application::GetInstance().GetRightButton()) {};
