@@ -97,9 +97,9 @@ class DelayControlScr : public IScreen
     DataWindow dw_diff[GrblComm::AXIS_CNT];
 
     // String for caption
-    String speed_name;
-    // Data windows to show speed of movement
-    DataWindow dw_speed;
+    String feed_name;
+    // Data windows to show feed of movement
+    DataWindow dw_feed;
 
     // Buttons to choose scale
     UiButton scale_btn[3u];

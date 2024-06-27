@@ -39,6 +39,9 @@ Result ProgramSender::Setup(int32_t y, int32_t height)
 {
   constexpr int32_t CTRL_HEIGHT = 40;
 
+  // Initialize font
+  mem_info.SetParams(mem_info_buf, 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
+
   // Fill menu_items
   for(uint32_t i = 0u; i < NumberOf(menu_items); i++)
   {
@@ -105,6 +108,10 @@ Result ProgramSender::Show()
   // Set encoder callback handler(before menu show since menu will handle it also)
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
 
+  // Show free memory info
+  UpdateMemoryInfo();
+  mem_info.Show(10000);
+
   // Run button
   left_btn.SetParams("Run", left_btn.GetStartX(), left_btn.GetStartY(), (display_drv.GetScreenW()- BORDER_W * 2) / 3, left_btn.GetHeight(), true);
   // Stop button
@@ -157,6 +164,9 @@ Result ProgramSender::Hide()
 {
   // Delete encoder callback handler
   InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
+
+  // Hide free memory info
+  mem_info.Hide();
 
   // Hide menu
   menu.Hide();
@@ -312,6 +322,21 @@ Result ProgramSender::TimerExpired(uint32_t interval)
 }
 
 // *************************************************************************
+// ***   Private: UpdateMemoryInfo function   ******************************
+// *************************************************************************
+void ProgramSender::UpdateMemoryInfo()
+{
+  // Get memory stats from FreeRTOS
+  HeapStats_t HeapStats;
+  vPortGetHeapStats(&HeapStats);
+  snprintf(mem_info_buf, sizeof(mem_info_buf), "Available memory: %db", HeapStats.xSizeOfLargestFreeBlockInBytes);
+  // Update string and recalculate size
+  mem_info.SetString(mem_info_buf, true);
+  // Set string params
+  mem_info.SetParams(mem_info_buf, display_drv.GetScreenW()/2 - mem_info.GetWidth()/2, 30, COLOR_WHITE, Font_6x8::GetInstance());
+}
+
+// *************************************************************************
 // ***   Private: ProcessSpeedFeed function   ******************************
 // *************************************************************************
 Result ProgramSender::ProcessSpeedFeed()
@@ -403,9 +428,6 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
     // Hide the menu
     ths.menu.Hide();
 
-    // Clear current data
-    ths.ReleaseDataPointer();
-
     // Open file
     FRESULT fres = f_open(&SDFile, ths.menu_items[(uint32_t)ptr].text, FA_OPEN_EXISTING | FA_READ);
     // Write data to file
@@ -414,7 +436,7 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
       // Get file size
       uint32_t fsize = f_size(&SDFile) + 1u;
       // Allocate memory for data
-      ths.text = new char[fsize];
+      ths.AllocateDataBuffer(fsize);
       // Check if allocation was successful
       if(ths.text != nullptr)
       {
@@ -544,6 +566,9 @@ Result ProgramSender::ProcessCallback(const void* ptr)
     // time.
     AppTask::GetCurrent()->StopTimer();
 
+    // Clear current data to show available memory
+    ReleaseDataPointer();
+
     // Reinit SD card
     BSP_SD_Init();
 
@@ -572,7 +597,7 @@ Result ProgramSender::ProcessCallback(const void* ptr)
         if (res != FR_OK || fno.fname[0] == 0) break; // Break on error or end of dir
         if(!(fno.fattrib & AM_DIR))                   // It is a directory
         {
-          menu_items[idx].str.SetString(menu_items[idx].text, menu_items[idx].n, "%s", fno.fname);
+          menu_items[idx].str.SetString(menu_items[idx].text, menu_items[idx].n, "%-12s%19lub", fno.fname, fno.fsize);
           idx++;
           if(idx == NumberOf(menu_items)) break;
         }
@@ -649,6 +674,8 @@ char* ProgramSender::AllocateDataBuffer(uint32_t size)
     // And set buffer to textbox
     text_box.SetText(text);
   }
+  // Update free memory info
+  UpdateMemoryInfo();
   // Return result
   return text;
 }
@@ -670,6 +697,8 @@ void ProgramSender::ReleaseDataPointer()
     // Set text to nullptr
     text = nullptr;
   }
+  // Update free memory info
+  UpdateMemoryInfo();
 }
 
 // *****************************************************************************

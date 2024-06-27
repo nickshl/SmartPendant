@@ -80,7 +80,7 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   // Set corresponded button pressed
   scale_btn[1u].SetPressed(true);
 
-  // Speed position
+  // Radius position
   radius_dw.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetUnitsPrecision());
   radius_dw.SetBorder(BORDER_W, COLOR_RED);
   radius_dw.SetDataFont(Font_8x12::GetInstance(), 2u);
@@ -249,14 +249,14 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
 {
   Result result = Result::RESULT_OK;
 
-  // Speed in encoder clicks per second
-  uint32_t speed = InputDrv::GetInstance().GetEncoderSpeed();
+  // Feed in encoder clicks per second
+  uint32_t feed = InputDrv::GetInstance().GetEncoderSpeed();
   // 20 clicks per second as minimum speed
-  if(speed < 20u) speed = 20u;
-  // Speed in um per second
-  speed *= scale;
-  // Convert speed from um/sec to mm*100/min
-  speed = speed * 60u / 10u;
+  if(feed < 20u) feed = 20u;
+  // Feed in um per second
+  feed *= scale;
+  // Convert feed from um/sec to mm*100/min
+  feed = feed * 60u / 10u;
 
   // Real X & Y axis data
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
@@ -287,7 +287,7 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
   if(z_val != 0)
   {
     // Execute Jog
-    result = grbl_comm.Jog(GrblComm::AXIS_Z, z_val, speed, false);
+    result = grbl_comm.Jog(GrblComm::AXIS_Z, z_val, feed, false);
     // Clear value
     z_val = 0;
   }
@@ -311,7 +311,7 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
     // Set arc length
     arc_dw.SetNumber(arc_length);
     // Move tool for new radius
-    result = grbl_comm.JogMultiple(start_x, start_y, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z), speed, true);
+    result = grbl_comm.JogMultiple(start_x, start_y, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z), feed, true);
   }
 
   // *** Process arc length change *********************************************
@@ -335,7 +335,7 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
       current_x = new_x;
       current_y = new_y;
       // Run Jog command
-      result = grbl_comm.JogArcXYR((int32_t)current_x, (int32_t)current_y, radius, speed, diff < 0, true);
+      result = grbl_comm.JogArcXYR((int32_t)current_x, (int32_t)current_y, radius, feed, diff < 0, true);
     }
 
     // *** TODO: REMOVE ! ******************************************************
@@ -530,7 +530,7 @@ Result RotaryTableScr::ProcessButtonCallback(RotaryTableScr* obj_ptr, void* ptr)
 // *****************************************************************************
 void RotaryTableScr::UpdateObjects(void)
 {
-  // Update speed window border color
+  // Update windows border color
   radius_dw.SetSeleced((focus  == FOCUS_RADIUS) ? true : false);
   z_axis_dw.SetSeleced((focus == FOCUS_Z_AXIS) ? true : false);
   arc_dw.SetSeleced((focus == FOCUS_ARC_LENGTH) ? true : false);

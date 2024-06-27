@@ -215,14 +215,14 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
     {
       // Calculate distance - number of encoder clicks multiplied by click value
       int32_t distance = jog_val[i] * scale;
-      // Speed in encoder clicks per second
-      uint32_t speed = InputDrv::GetInstance().GetEncoderSpeed();
-      // 20 clicks per second as minimum speed
-      if(speed < 20u) speed = 20u;
-      // Speed in units(1 um or 0.0001 inch depend on controller settings) per second
-      speed *= scale;
-      // Convert speed from units/sec to units*100/min
-      speed = speed * 60u / 10u;
+      // Feed in encoder clicks per second
+      uint32_t feed = InputDrv::GetInstance().GetEncoderSpeed();
+      // 20 clicks per second as minimum feed
+      if(feed < 20u) feed = 20u;
+      // Feed in units(1 um or 0.0001 inch depend on controller settings) per second
+      feed *= scale;
+      // Convert feed from units/sec to units*100/min
+      feed = feed * 60u / 10u;
 
       // In Lathe mode we need some changes
       if((i == GrblComm::AXIS_X) && (grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE))
@@ -232,7 +232,7 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
         distance = -distance;
       }
 
-      result = grbl_comm.Jog(i, distance, speed, false);
+      result = grbl_comm.Jog(i, distance, feed, false);
 
       // Clear value
       jog_val[i] = 0;

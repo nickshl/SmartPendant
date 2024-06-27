@@ -118,6 +118,10 @@ class ProgramSender : public IScreen
     // String for caption
     String dw_real_name[NumberOf(dw_real)];
 
+    // Memory info
+    String mem_info;
+    char mem_info_buf[32u];
+
     // Buttons to open file
     UiButton open_btn;
 
@@ -162,6 +166,11 @@ class ProgramSender : public IScreen
 
     // Encoder callback entry
     InputDrv::CallbackListEntry enc_cble;
+
+    // *************************************************************************
+    // ***   Private: UpdateMemoryInfo function   ******************************
+    // *************************************************************************
+    void UpdateMemoryInfo();
 
     // *************************************************************************
     // ***   Private: ProcessSpeedFeed function   ******************************

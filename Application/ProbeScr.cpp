@@ -381,7 +381,7 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
       }
       if(result.IsGood())
       {
-        // Move Z axis to the point before probing at speed 500 mm/min
+        // Move Z axis to the point before probing at feed 500 mm/min
         grbl_comm.JogInMachineCoodinates(GrblComm::AXIS_Z, z_position, grbl_comm.ConvertMetricToUnits(500u));
         // Clear cmd if
         cmd_id = 0u;
@@ -415,7 +415,7 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
       grbl_comm.RequestOffsets();
       // Get current Z position in machine coordinates to return Z axis back after probing
       z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
-      // Try to probe Z axis -1 meter at speed 100 mm/min
+      // Try to probe Z axis -1 meter at feed 100 mm/min
       grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
     }
     else if(ptr == &clear_offset_btn)
@@ -736,7 +736,7 @@ Result CenterFinderTab::ProbeLineSequence(probe_line_state_t& state, uint8_t axi
     grbl_comm.SetAbsoluteMode();
     // Get current axis position to return probe back after probing
     safe_pos = grbl_comm.GetAxisPosition(axis);
-    // Try to probe axis +/- 1 meter at speed 200 mm/min TODO: make speed adjustable via settings
+    // Try to probe axis +/- 1 meter at feed 200 mm/min TODO: make feed adjustable via settings
     result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (grbl_comm.ConvertMetricToUnits(1000000) * dir), grbl_comm.ConvertMetricToUnits(200u), cmd_id);
     // Set next state
     state = PROBE_LINE_FAST;
@@ -745,14 +745,14 @@ Result CenterFinderTab::ProbeLineSequence(probe_line_state_t& state, uint8_t axi
   {
     // Get probe axis position
     measured_pos = grbl_comm.GetProbePosition(axis);
-    // Move away from workpiece at speed 200 mm/min until probe contact lost(but not more than safe pisition)
+    // Move away from workpiece at feed 200 mm/min until probe contact lost(but not more than safe pisition)
     result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, grbl_comm.ConvertMetricToUnits(200u), cmd_id);
     // Set next state
     state = PROBE_LINE_FAST_RETURN;
   }
   if(state == PROBE_LINE_FAST_RETURN)
   {
-    // Try to probe axis at measured position +/- 1 mm at speed 50 mm/min TODO: make speed adjustable via settings
+    // Try to probe axis at measured position +/- 1 mm at feed 50 mm/min TODO: make feed adjustable via settings
     result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * dir), grbl_comm.ConvertMetricToUnits(50u), cmd_id);
     // Set next state
     state = PROBE_LINE_SLOW;

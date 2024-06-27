@@ -80,24 +80,24 @@ class NVM
     Result SetDisplayInvert(bool invert_display) {data.invert_display = invert_display; return WriteData();}
 
     // *************************************************************************
-    // ***   GetProbeSearchSpeed function   ************************************
+    // ***   GetProbeSearchFeed function   *************************************
     // *************************************************************************
-    uint32_t GetProbeSearchSpeed() {return data.search_speed;}
+    uint32_t GetProbeSearchFeed() {return data.search_feed;}
 
     // *************************************************************************
-    // ***   SetProbeSearchSpeed function   ************************************
+    // ***   SetProbeSearchFeed function   *************************************
     // *************************************************************************
-    Result SetProbeSearchSpeed(uint32_t speed) {data.search_speed = speed; return WriteData();}
+    Result SetProbeSearchFeed(uint32_t feed) {data.search_feed = feed; return WriteData();}
 
     // *************************************************************************
-    // ***   GetProbeLockSpeed function   **************************************
+    // ***   GetProbeLockFeed function   ***************************************
     // *************************************************************************
-    uint32_t GetProbeLockSpeed() {return data.lock_speed;}
+    uint32_t GetProbeLockFeed() {return data.lock_feed;}
 
     // *************************************************************************
-    // ***   SetProbeLockSpeed function   **************************************
+    // ***   SetProbeLockFeed function   ***************************************
     // *************************************************************************
-    Result SetProbeLockSpeed(uint32_t speed) {data.lock_speed = speed; return WriteData();}
+    Result SetProbeLockFeed(uint32_t feed) {data.lock_feed = feed; return WriteData();}
 
     // *************************************************************************
     // ***   GetProbeTipDiameter function   ************************************
@@ -120,8 +120,8 @@ class NVM
       uint8_t tx_ctrl = 2u; // Pin & Software command by default
       uint8_t invert_display = false;
       // Probing
-      uint32_t search_speed = 200u;
-      uint32_t lock_speed = 50u;
+      uint32_t search_feed = 200u;
+      uint32_t lock_feed = 50u;
       uint32_t ball_tip = 2000u;
       // CRC
       uint32_t crc = 0u;

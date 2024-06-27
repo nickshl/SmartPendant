@@ -596,22 +596,22 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: Jog   *****************************************************
     // *************************************************************************
-    Result Jog(uint8_t axis, int32_t distance, uint32_t speed_x100, bool is_absolute);
+    Result Jog(uint8_t axis, int32_t distance, uint32_t feed_x100, bool is_absolute);
 
     // *************************************************************************
     // ***   Public: JogInMachineCoodinates   **********************************
     // *************************************************************************
-    Result JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t speed_x100);
+    Result JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t feed_x100);
 
     // *************************************************************************
     // ***   Public: JogMultiple   *********************************************
     // *************************************************************************
-    Result JogMultiple(int32_t distance_x, int32_t distance_y, int32_t distance_z, uint32_t speed_x100, bool is_absolute);
+    Result JogMultiple(int32_t distance_x, int32_t distance_y, int32_t distance_z, uint32_t feed_x100, bool is_absolute);
 
     // *************************************************************************
     // ***   Public: JogArcXY   ************************************************
     // *************************************************************************
-    Result JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t speed_x100, bool direction, bool is_absolute);
+    Result JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t feed_x100, bool direction, bool is_absolute);
 
     // *************************************************************************
     // ***   Public: ZeroAxis   ************************************************
@@ -646,17 +646,17 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: MoveAxis   ************************************************
     // *************************************************************************
-    Result MoveAxis(uint8_t axis, int32_t distance, uint32_t speed_x100, uint32_t &id);
+    Result MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, uint32_t &id);
 
     // *************************************************************************
     // ***   Public: ProbeAxisTowardWorkpiece   ********************************
     // *************************************************************************
-    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t speed, uint32_t &id);
+    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id);
 
     // *************************************************************************
     // ***   Public: ProbeAxisAwayFromWorkpiece   ******************************
     // *************************************************************************
-    Result ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t speed, uint32_t &id);
+    Result ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id);
 
     // *************************************************************************
     // ***   Public: SetToolLengthOffset   *************************************

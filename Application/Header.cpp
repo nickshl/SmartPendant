@@ -39,7 +39,7 @@ void Header::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t n)
   height = h;
 
   // Bottom line
-  line_bottm.SetParams(x_start, y_end, x_end, y_end, COLOR_WHITE);
+  line_bottom.SetParams(x_start, y_end, x_end, y_end, COLOR_WHITE);
 
   // Left button
   btn_left.SetParams("<", x_start, y_start, height, height - 1, true);
@@ -142,7 +142,7 @@ Result Header::Show(uint32_t z)
   Result result = VisObject::Show(z);
 
   // Show lines
-  line_bottm.Show(z);
+  line_bottom.Show(z);
   // Show buttons
   btn_left.Show(z+1);
   btn_right.Show(z+1);
@@ -175,7 +175,7 @@ Result Header::Hide()
   Result result = VisObject::Hide();
 
   // Hide lines
-  line_bottm.Hide();
+  line_bottom.Hide();
   // Hide buttons
   btn_left.Hide();
   btn_right.Hide();

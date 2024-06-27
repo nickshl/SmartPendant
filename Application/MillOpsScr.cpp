@@ -302,16 +302,16 @@ Result DrillGeneratorTab::Setup(int32_t y, int32_t height)
     scale_btn[i].SetSpacing(3u);
   }
 
-  // Drill speed
-  dw_drill_speed.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, 0u);
-  dw_drill_speed.SetBorder(BORDER_W, COLOR_RED);
-  dw_drill_speed.SetDataFont(Font_8x12::GetInstance(), 2u);
-  dw_drill_speed.SetNumber(0);
-  dw_drill_speed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::RIGHT);
-  dw_drill_speed.SetCallback(AppTask::GetCurrent());
-  dw_drill_speed.SetActive(true);
-  // Drill speed caption
-  dw_drill_speed_name.SetParams("SPEED", dw_drill_speed.GetStartX() + BORDER_W*2, dw_drill_speed.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
+  // Drill feed
+  dw_drill_feed.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, 0u);
+  dw_drill_feed.SetBorder(BORDER_W, COLOR_RED);
+  dw_drill_feed.SetDataFont(Font_8x12::GetInstance(), 2u);
+  dw_drill_feed.SetNumber(0);
+  dw_drill_feed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::RIGHT);
+  dw_drill_feed.SetCallback(AppTask::GetCurrent());
+  dw_drill_feed.SetActive(true);
+  // Drill feed caption
+  dw_drill_feed_name.SetParams("FEED", dw_drill_feed.GetStartX() + BORDER_W*2, dw_drill_feed.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // All good
   return Result::RESULT_OK;
@@ -326,12 +326,12 @@ Result DrillGeneratorTab::Show()
   dw_drill_distance.Show(100);
   dw_drill_stepover.Show(100);
   dw_drill_clearance.Show(100);
-  dw_drill_speed.Show(100);
+  dw_drill_feed.Show(100);
   // String for caption
   dw_drill_distance_name.Show(101);
   dw_drill_stepover_name.Show(101);
   dw_drill_clearance_name.Show(101);
-  dw_drill_speed_name.Show(101);
+  dw_drill_feed_name.Show(101);
 
   // Scale buttons
   for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
@@ -367,12 +367,12 @@ Result DrillGeneratorTab::Hide()
   dw_drill_distance_name.Hide();
   dw_drill_stepover_name.Hide();
   dw_drill_clearance_name.Hide();
-  dw_drill_speed_name.Hide();
+  dw_drill_feed_name.Hide();
   // Data windows
   dw_drill_distance.Hide();
   dw_drill_stepover.Hide();
   dw_drill_clearance.Hide();
-  dw_drill_speed.Hide();
+  dw_drill_feed.Hide();
 
   // Drill button
   left_btn.Hide();
@@ -423,28 +423,28 @@ Result DrillGeneratorTab::ProcessCallback(const void* ptr)
     dw_drill_distance.SetSeleced(true);
     dw_drill_stepover.SetSeleced(false);
     dw_drill_clearance.SetSeleced(false);
-    dw_drill_speed.SetSeleced(false);
+    dw_drill_feed.SetSeleced(false);
   }
   else if(ptr == &dw_drill_stepover)
   {
     dw_drill_distance.SetSeleced(false);
     dw_drill_stepover.SetSeleced(true);
     dw_drill_clearance.SetSeleced(false);
-    dw_drill_speed.SetSeleced(false);
+    dw_drill_feed.SetSeleced(false);
   }
   else if(ptr == &dw_drill_clearance)
   {
     dw_drill_distance.SetSeleced(false);
     dw_drill_stepover.SetSeleced(false);
     dw_drill_clearance.SetSeleced(true);
-    dw_drill_speed.SetSeleced(false);
+    dw_drill_feed.SetSeleced(false);
   }
-  else if(ptr == &dw_drill_speed)
+  else if(ptr == &dw_drill_feed)
   {
     dw_drill_distance.SetSeleced(false);
     dw_drill_stepover.SetSeleced(false);
     dw_drill_clearance.SetSeleced(false);
-    dw_drill_speed.SetSeleced(true);
+    dw_drill_feed.SetSeleced(true);
   }
   else if(ptr == &scale_btn[0])
   {
@@ -500,14 +500,14 @@ Result DrillGeneratorTab::ProcessEncoderCallback(DrillGeneratorTab* obj_ptr, voi
     {
       ths.dw_drill_clearance.SetNumber(ths.dw_drill_clearance.GetNumber() + enc_val * ths.scale);
     }
-    else if(ths.dw_drill_speed.IsSeleced())
+    else if(ths.dw_drill_feed.IsSeleced())
     {
-      // Calculate new speed
-      int32_t new_number = ths.dw_drill_speed.GetNumber() + enc_val;
-      // Speed can't be negative(and zero too, but whatever)
+      // Calculate new feed
+      int32_t new_number = ths.dw_drill_feed.GetNumber() + enc_val;
+      // Feed can't be negative(and zero too, but whatever)
       if(new_number < 0) new_number = 0;
-      // Set new speed number
-      ths.dw_drill_speed.SetNumber(new_number);
+      // Set new feed number
+      ths.dw_drill_feed.SetNumber(new_number);
     }
     else
     {
@@ -527,25 +527,29 @@ Result DrillGeneratorTab::ProcessEncoderCallback(DrillGeneratorTab* obj_ptr, voi
 // ******************************************************************************
 Result DrillGeneratorTab::GenerateGcode()
 {
-  int32_t size = 8192;
+  // Drilling parameters
+  int32_t drill_distance = dw_drill_distance.GetNumber();
+  int32_t drill_stepover = dw_drill_stepover.GetNumber();
+  int32_t drill_feed = dw_drill_feed.GetNumber();
+
+  // If stepover set to zero or or greater than drill distance
+  if((drill_stepover == 0) || (drill_stepover >  drill_distance))
+  {
+    // Drill all way in one go
+    drill_stepover = drill_distance;
+  }
+
+  // Calculate size (approx. Number of steps * 3 lines per step * 32 bytes per line)
+  int32_t size = (drill_distance / drill_stepover + 1) * 3 * 32;
+  // Allocate buffer
   char *txt = ProgramSender::GetInstance().AllocateDataBuffer(size);
 
+  // If allocation is successful - generate G-code
   if(txt != nullptr)
   {
-    // Drilling parameters
-    int32_t drill_distance = dw_drill_distance.GetNumber();
-    int32_t drill_stepover = dw_drill_stepover.GetNumber();
-    int32_t drill_speed = dw_drill_speed.GetNumber();
-    // Clear drill progress
+    // Drill progress and clearance - 0 by default for first step
     int32_t drill_progress = 0;
     int32_t clearance = 0;
-
-    // If stepover set to zero
-    if(drill_stepover == 0)
-    {
-      // Drill all way in one go
-      drill_stepover = drill_distance;
-    }
 
     PrintStr(txt, size, "G91; Relative mode");
 
@@ -565,7 +569,7 @@ Result DrillGeneratorTab::GenerateGcode()
       // Check if it more than we need and correct it
       if(drill_progress > drill_distance) drill_progress = drill_distance;
       // Drill piece
-      PrintStr(txt, size, "G1 Z%li.%03i F%li", -(drill_stepover + clearance)/1000, abs((drill_stepover + clearance) % 1000), drill_speed);
+      PrintStr(txt, size, "G1 Z%li.%03i F%li", -(drill_stepover + clearance)/1000, abs((drill_stepover + clearance) % 1000), drill_feed);
       // Rapid move out to clear chips
       PrintStr(txt, size, "G0 Z%li.%03i", drill_progress/1000, abs(drill_progress % 1000));
     }
@@ -645,16 +649,16 @@ Result EnlargeGeneratorTab::Setup(int32_t y, int32_t height)
     scale_btn[i].SetSpacing(3u);
   }
 
-  // Drill speed
-  dw_speed.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, 0u);
-  dw_speed.SetBorder(BORDER_W, COLOR_RED);
-  dw_speed.SetDataFont(Font_8x12::GetInstance(), 2u);
-  dw_speed.SetNumber(0);
-  dw_speed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::RIGHT);
-  dw_speed.SetCallback(AppTask::GetCurrent());
-  dw_speed.SetActive(true);
-  // Drill speed caption
-  dw_speed_name.SetParams("SPEED", dw_speed.GetStartX() + BORDER_W*2, dw_speed.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
+  // Drill feed
+  dw_feed.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, 0u);
+  dw_feed.SetBorder(BORDER_W, COLOR_RED);
+  dw_feed.SetDataFont(Font_8x12::GetInstance(), 2u);
+  dw_feed.SetNumber(0);
+  dw_feed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::RIGHT);
+  dw_feed.SetCallback(AppTask::GetCurrent());
+  dw_feed.SetActive(true);
+  // Drill feed caption
+  dw_feed_name.SetParams("FEED", dw_feed.GetStartX() + BORDER_W*2, dw_feed.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // All good
   return Result::RESULT_OK;
@@ -669,12 +673,12 @@ Result EnlargeGeneratorTab::Show()
   dw_hole_diameter.Show(100);
   dw_stepover.Show(100);
   dw_endmill_diameter.Show(100);
-  dw_speed.Show(100);
+  dw_feed.Show(100);
   // String for caption
   dw_hole_diameter_name.Show(101);
   dw_stepover_name.Show(101);
   dw_endmill_diameter_name.Show(101);
-  dw_speed_name.Show(101);
+  dw_feed_name.Show(101);
 
   // Scale buttons
   for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
@@ -710,12 +714,12 @@ Result EnlargeGeneratorTab::Hide()
   dw_hole_diameter_name.Hide();
   dw_stepover_name.Hide();
   dw_endmill_diameter_name.Hide();
-  dw_speed_name.Hide();
+  dw_feed_name.Hide();
   // Data windows
   dw_hole_diameter.Hide();
   dw_stepover.Hide();
   dw_endmill_diameter.Hide();
-  dw_speed.Hide();
+  dw_feed.Hide();
 
   // Drill button
   left_btn.Hide();
@@ -766,28 +770,28 @@ Result EnlargeGeneratorTab::ProcessCallback(const void* ptr)
     dw_hole_diameter.SetSeleced(true);
     dw_stepover.SetSeleced(false);
     dw_endmill_diameter.SetSeleced(false);
-    dw_speed.SetSeleced(false);
+    dw_feed.SetSeleced(false);
   }
   else if(ptr == &dw_stepover)
   {
     dw_hole_diameter.SetSeleced(false);
     dw_stepover.SetSeleced(true);
     dw_endmill_diameter.SetSeleced(false);
-    dw_speed.SetSeleced(false);
+    dw_feed.SetSeleced(false);
   }
   else if(ptr == &dw_endmill_diameter)
   {
     dw_hole_diameter.SetSeleced(false);
     dw_stepover.SetSeleced(false);
     dw_endmill_diameter.SetSeleced(true);
-    dw_speed.SetSeleced(false);
+    dw_feed.SetSeleced(false);
   }
-  else if(ptr == &dw_speed)
+  else if(ptr == &dw_feed)
   {
     dw_hole_diameter.SetSeleced(false);
     dw_stepover.SetSeleced(false);
     dw_endmill_diameter.SetSeleced(false);
-    dw_speed.SetSeleced(true);
+    dw_feed.SetSeleced(true);
   }
   else if(ptr == &scale_btn[0])
   {
@@ -843,14 +847,14 @@ Result EnlargeGeneratorTab::ProcessEncoderCallback(EnlargeGeneratorTab* obj_ptr,
     {
       ths.dw_endmill_diameter.SetNumber(ths.dw_endmill_diameter.GetNumber() + enc_val * ths.scale);
     }
-    else if(ths.dw_speed.IsSeleced())
+    else if(ths.dw_feed.IsSeleced())
     {
-      // Calculate new speed
-      int32_t new_number = ths.dw_speed.GetNumber() + enc_val;
-      // Speed can't be negative(and zero too, but whatever)
+      // Calculate new feed
+      int32_t new_number = ths.dw_feed.GetNumber() + enc_val;
+      // Feed can't be negative(and zero too, but whatever)
       if(new_number < 0) new_number = 0;
-      // Set new speed number
-      ths.dw_speed.SetNumber(new_number);
+      // Set new feed number
+      ths.dw_feed.SetNumber(new_number);
     }
     else
     {
@@ -870,17 +874,27 @@ Result EnlargeGeneratorTab::ProcessEncoderCallback(EnlargeGeneratorTab* obj_ptr,
 // ******************************************************************************
 Result EnlargeGeneratorTab::GenerateGcode()
 {
-  int32_t size = 8192;
+  // Drilling parameters
+  int32_t endmill_radius = dw_endmill_diameter.GetNumber() / 2;
+  int32_t hole_radius = (dw_hole_diameter.GetNumber() / 2) - endmill_radius;
+  int32_t stepover = dw_stepover.GetNumber();
+  int32_t feed = dw_feed.GetNumber();
+
+  // Find number of iterations: radius divided by stepover
+  uint32_t n = hole_radius / stepover;
+  // We can lost last operation if last step isn't equal to stepover
+  n += (hole_radius % stepover) ? 1u : 0u;
+  // Number of steps should be odd to make round hole. If it already odd, hole won't be round since even step isn't have center in center.
+  n += (n%2) ? 1u : 2u;
+
+  // Calculate required memory(approximately)
+  int32_t size = (3 + n) * 40;
+  // And allocate it
   char *txt = ProgramSender::GetInstance().AllocateDataBuffer(size);
 
-  if(txt != nullptr)
+  if((txt != nullptr) && (dw_endmill_diameter.GetNumber() < dw_hole_diameter.GetNumber()))
   {
-    // Drilling parameters
-    int32_t endmill_radius = dw_endmill_diameter.GetNumber() / 2;
-    int32_t hole_radius = (dw_hole_diameter.GetNumber() / 2) - endmill_radius;
-    int32_t stepover = dw_stepover.GetNumber();
-    int32_t speed = dw_speed.GetNumber();
-    // Clear drill progress
+    // Clear enlarge progress and center
     int32_t enlarge_progress = 0;
     int32_t center = 0;
 
@@ -888,14 +902,7 @@ Result EnlargeGeneratorTab::GenerateGcode()
     PrintStr(txt, size, "G91; Relative mode");
 
     // Move half stepover to center
-    PrintStr(txt, size, "G1 X-%li.%03i F%li", (stepover / 2) / 1000, abs((stepover / 2) % 1000), speed);
-
-    // Find number of iterations: radius divided by stepover
-    uint32_t n = hole_radius / stepover;
-    // We can lost last operation if last step isn't equal to stepover
-    n += (hole_radius % stepover) ? 1u : 0u;
-    // Number of steps should be odd to make round hole. If it already odd, hole won't be round since even step isn't have center in center.
-    n += (n%2) ? 1u : 2u;
+    PrintStr(txt, size, "G1 X-%li.%03i F%li", (stepover / 2) / 1000, abs((stepover / 2) % 1000), feed);
 
     // Generate cycle
     for(uint32_t i = 0u; i < n; i++)
@@ -912,11 +919,11 @@ Result EnlargeGeneratorTab::GenerateGcode()
       // Every other iteration minuses should be added
       if(i%2)
       {
-        PrintStr(txt, size, "G3 I-%li.%03i X-%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (speed * enlarge_progress) / (enlarge_progress + endmill_radius));
+        PrintStr(txt, size, "G3 I-%li.%03i X-%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (feed * enlarge_progress) / (enlarge_progress + endmill_radius));
       }
       else
       {
-        PrintStr(txt, size, "G3 I%li.%03i X%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (speed * enlarge_progress) / (enlarge_progress + endmill_radius));
+        PrintStr(txt, size, "G3 I%li.%03i X%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (feed * enlarge_progress) / (enlarge_progress + endmill_radius));
       }
     }
 

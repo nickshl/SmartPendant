@@ -113,7 +113,7 @@ class ChangeValueBox
 
     // String for caption
     String value_name;
-    // Data windows to show speed of movement
+    // Data windows to show value
     DataWindow value_dw;
 
     // Buttons to choose scale

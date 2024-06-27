@@ -166,12 +166,12 @@ class DrillGeneratorTab : public IScreen
     String dw_drill_distance_name;
     String dw_drill_stepover_name;
     String dw_drill_clearance_name;
-    String dw_drill_speed_name;
+    String dw_drill_feed_name;
     // Data windows
     DataWindow dw_drill_distance;
     DataWindow dw_drill_stepover;
     DataWindow dw_drill_clearance;
-    DataWindow dw_drill_speed;
+    DataWindow dw_drill_feed;
 
     // Buttons to choose scale
     UiButton scale_btn[3u];
@@ -254,12 +254,12 @@ class EnlargeGeneratorTab : public IScreen
     String dw_hole_diameter_name;
     String dw_stepover_name;
     String dw_endmill_diameter_name;
-    String dw_speed_name;
+    String dw_feed_name;
     // Data windows
     DataWindow dw_hole_diameter;
     DataWindow dw_stepover;
     DataWindow dw_endmill_diameter;
-    DataWindow dw_speed;
+    DataWindow dw_feed;
 
     // Buttons to choose scale
     UiButton scale_btn[3u];

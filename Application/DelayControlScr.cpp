@@ -75,18 +75,18 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
     scale_btn[i].SetSpacing(3u);
   }
 
-  // Speed position
-  dw_speed.SetParams(display_drv.GetScreenW() / 2, scale_btn[0].GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*2) / 2,  window_height, 4u, 0u);
-  dw_speed.SetBorder(BORDER_W, COLOR_RED);
-  dw_speed.SetDataFont(Font_8x12::GetInstance(), 2u);
-  dw_speed.SetNumber(300);
-  dw_speed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::BOTTOM_RIGHT);
-  dw_speed.SetCallback(AppTask::GetCurrent());
-  dw_speed.SetActive(true);
-  // Speed caption
-  speed_name.SetParams("SPEED:", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
-  speed_name.SetScale(2u);
-  speed_name.Move((display_drv.GetScreenW() / 2 - dw_speed.GetWidth()) / 2, (dw_speed.GetStartY() + dw_speed.GetHeight() / 2) - (speed_name.GetHeight() / 2));
+  // Feed position
+  dw_feed.SetParams(display_drv.GetScreenW() / 2, scale_btn[0].GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*2) / 2,  window_height, 4u, 0u);
+  dw_feed.SetBorder(BORDER_W, COLOR_RED);
+  dw_feed.SetDataFont(Font_8x12::GetInstance(), 2u);
+  dw_feed.SetNumber(300);
+  dw_feed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::BOTTOM_RIGHT);
+  dw_feed.SetCallback(AppTask::GetCurrent());
+  dw_feed.SetActive(true);
+  // Feed caption
+  feed_name.SetParams("FEED:", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
+  feed_name.SetScale(2u);
+  feed_name.Move((display_drv.GetScreenW() / 2 - dw_feed.GetWidth()) / 2, (dw_feed.GetStartY() + dw_feed.GetHeight() / 2) - (feed_name.GetHeight() / 2));
 
   // Set scale 0.01 mm
   scale = 10;
@@ -119,9 +119,9 @@ Result DelayControlScr::Show()
     scale_btn[i].Show(101);
   }
 
-  // Speed window and name
-  dw_speed.Show(100);
-  speed_name.Show(100);
+  // Feed window and name
+  dw_feed.Show(100);
+  feed_name.Show(100);
 
   // Show X mode string(will be set blank if controllers is not in Lathe mode)
   x_mode_str.Show(100 + 1);
@@ -158,9 +158,9 @@ Result DelayControlScr::Hide()
   {
     scale_btn[i].Hide();
   }
-  // Speed window and name
-  dw_speed.Hide();
-  speed_name.Hide();
+  // Feed window and name
+  dw_feed.Hide();
+  feed_name.Hide();
 
   // Hide X mode string
   x_mode_str.Hide();
@@ -262,7 +262,7 @@ Result DelayControlScr::ProcessCallback(const void* ptr)
   {
     if(grbl_comm.GetState() == GrblComm::IDLE)
     {
-      grbl_comm.JogMultiple(dw[GrblComm::AXIS_X].GetNumber(), dw[GrblComm::AXIS_Y].GetNumber(), dw[GrblComm::AXIS_Z].GetNumber(), dw_speed.GetNumber() * 100u, true);
+      grbl_comm.JogMultiple(dw[GrblComm::AXIS_X].GetNumber(), dw[GrblComm::AXIS_Y].GetNumber(), dw[GrblComm::AXIS_Z].GetNumber(), dw_feed.GetNumber() * 100u, true);
     }
     else
     {
@@ -286,8 +286,8 @@ Result DelayControlScr::ProcessCallback(const void* ptr)
       result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
     }
   }
-  // Process speed data window
-  else if(ptr == &dw_speed)
+  // Process feed data window
+  else if(ptr == &dw_feed)
   {
     // Set axis to max
     axis = GrblComm::AXIS_CNT;
@@ -338,14 +338,14 @@ Result DelayControlScr::ProcessEncoderCallback(DelayControlScr* obj_ptr, void* p
       {
         ths.dw[ths.axis].SetNumber(ths.dw[ths.axis].GetNumber() + enc_val * ths.scale);
       }
-      else // Change speed
+      else // Change feed
       {
-        // Calculate new speed
-        int32_t new_number = ths.dw_speed.GetNumber() + enc_val;
-        // Speed can't be negative(and zero too, but whatever)
+        // Calculate new feed
+        int32_t new_number = ths.dw_feed.GetNumber() + enc_val;
+        // Feed can't be negative(and zero too, but whatever)
         if(new_number < 0) new_number = 0;
-        // Set new speed number
-        ths.dw_speed.SetNumber(new_number);
+        // Set new feed number
+        ths.dw_feed.SetNumber(new_number);
       }
     }
     // Set ok result
@@ -361,8 +361,8 @@ Result DelayControlScr::ProcessEncoderCallback(DelayControlScr* obj_ptr, void* p
 // *****************************************************************************
 void DelayControlScr::UpdateObjects(void)
 {
-  // Update speed window border color
-  dw_speed.SetSeleced((axis < GrblComm::AXIS_CNT) ? false : true);
+  // Update feed window border color
+  dw_feed.SetSeleced((axis < GrblComm::AXIS_CNT) ? false : true);
 
   // Update data windows
   for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)

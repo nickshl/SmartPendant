@@ -582,7 +582,7 @@ Result GrblComm::RequestOffsets()
 // *****************************************************************************
 // ***   Public: Jog   *********************************************************
 // *****************************************************************************
-Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t speed_x100, bool is_absolute)
+Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t feed_x100, bool is_absolute)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -596,14 +596,14 @@ Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t speed_x100, bool i
       // Set ID for command
       msg.id = GetNextId();
 
-      // Buffers for distance and speed strings
+      // Buffers for distance and feed strings
       char distance_str[16u];
-      char speed_str[16u];
-      // Convert distance & speed values to strings
+      char feed_str[16u];
+      // Convert distance & feed values to strings
       ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
-      ValueToString(speed_str, NumberOf(speed_str), speed_x100, 100);
+      ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
       // Create jog string
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%sF%s\r\n", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91", axis_str[axis], distance_str, speed_str);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%sF%s\r\n", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91", axis_str[axis], distance_str, feed_str);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -621,7 +621,7 @@ Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t speed_x100, bool i
 // *****************************************************************************
 // ***   Public: JogInMachineCoodinates   **************************************
 // *****************************************************************************
-Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t speed)
+Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t feed)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -640,7 +640,7 @@ Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t
       // Convert distance value to string
       ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
       // Create jog string
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%sG53G90%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str, speed);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%sG53G90%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -658,7 +658,7 @@ Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t
 // *****************************************************************************
 // ***   Public: JogMultiple   *************************************************
 // *****************************************************************************
-Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t distance_z, uint32_t speed_x100, bool is_absolute)
+Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t distance_z, uint32_t feed_x100, bool is_absolute)
 {
   Result result = Result::RESULT_OK;
 
@@ -674,16 +674,16 @@ Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t dis
     char distance_x_str[16u];
     char distance_y_str[16u];
     char distance_z_str[16u];
-    char speed_str[16u];
+    char feed_str[16u];
     // Convert distance value to string
     ValueToString(distance_x_str, NumberOf(distance_x_str), distance_x, GetUnitsScaler());
     ValueToString(distance_y_str, NumberOf(distance_y_str), distance_y, GetUnitsScaler());
     ValueToString(distance_z_str, NumberOf(distance_z_str), distance_z, GetUnitsScaler());
-    ValueToString(speed_str, NumberOf(speed_str), speed_x100, 100);
+    ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
     // Create jog string
     snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%s%s%s%s%sF%s\r\n", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91",
                                                 axis_str[AXIS_X], distance_x_str, axis_str[AXIS_Y], distance_y_str,
-                                                axis_str[AXIS_Z], distance_z_str, speed_str);
+                                                axis_str[AXIS_Z], distance_z_str, feed_str);
 
     // Send message
     result = SendTaskMessage(&msg);
@@ -700,7 +700,7 @@ Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t dis
 // *****************************************************************************
 // ***   Public: JogArcXYR   ***************************************************
 // *****************************************************************************
-Result GrblComm::JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t speed_x100, bool direction, bool is_absolute)
+Result GrblComm::JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t feed_x100, bool direction, bool is_absolute)
 {
   Result result = Result::RESULT_OK;
 
@@ -724,21 +724,21 @@ Result GrblComm::JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t speed_x100
     // Set ID for command
     msg.id = GetNextId();
 
-    // Buffers for distance and speed strings
+    // Buffers for distance and feed strings
     char x_str[16u];
     char y_str[16u];
     char r_str[16u];
-    char speed_str[16u];
-    // Convert distance & speed values to strings
+    char feed_str[16u];
+    // Convert distance & feed values to strings
     ValueToString(x_str, NumberOf(x_str), x, GetUnitsScaler());
     ValueToString(y_str, NumberOf(y_str), y, GetUnitsScaler());
     ValueToString(r_str, NumberOf(r_str), r, GetUnitsScaler());
-    ValueToString(speed_str, NumberOf(speed_str), speed_x100, 100);
+    ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
 
     // Create Jog command
     snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG17%s%s%s%s%s%sR%sF%s\r\n", GetMeasurementSystemGcode(),
                                                 is_absolute ? "G90" : "G91", direction ? "G02" : "G03",
-                                                axis_str[AXIS_X], x_str, axis_str[AXIS_Y], y_str, r_str, speed_str);
+                                                axis_str[AXIS_X], x_str, axis_str[AXIS_Y], y_str, r_str, feed_str);
 
     // Send message
     result = SendTaskMessage(&msg);
@@ -876,7 +876,7 @@ Result GrblComm::SetLatheDiameterMode()
 // *****************************************************************************
 // ***   Public: MoveAxis   ****************************************************
 // *****************************************************************************
-Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t speed_x100, uint32_t &id)
+Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, uint32_t &id)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -890,17 +890,17 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t speed_x100, u
       // Set ID for command
       msg.id = GetNextId();
 
-      // Buffers for distance and speed strings
+      // Buffers for distance and feed strings
       char distance_str[16u];
-      char speed_str[16u];
-      // Convert distance & speed values to strings
+      char feed_str[16u];
+      // Convert distance & feed values to strings
       ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
-      ValueToString(speed_str, NumberOf(speed_str), speed_x100, 100);
+      ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
 
-      // Create move command(zero speed mean rapid)
-      if(speed_x100)
+      // Create move command(zero feed mean rapid)
+      if(feed_x100)
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG1%s%sF%s\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str, speed_str);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG1%s%sF%s\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed_str);
       }
       else
       {
@@ -925,7 +925,7 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t speed_x100, u
 // *****************************************************************************
 // ***   Public: ProbeAxisTowardWorkpiece   ************************************
 // *****************************************************************************
-Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t speed, uint32_t &id)
+Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -944,7 +944,7 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
       // Convert distance value to string
       ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.2%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, speed);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.2%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -964,7 +964,7 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
 // *****************************************************************************
 // ***   Public: ProbeAxisAwayFromWorkpiece   **********************************
 // *****************************************************************************
-Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t speed, uint32_t &id)
+Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -983,7 +983,7 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint
       // Convert distance value to string
       ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.4%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, speed);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.4%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
 
       // Send message
       result = SendTaskMessage(&msg);

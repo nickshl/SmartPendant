@@ -36,14 +36,14 @@ Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, 
   // Width of box
   static const uint32_t width = display_drv.GetScreenW();
 
-  // Speed caption
+  // Value caption
   value_name.SetParams(title, 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
   value_name.SetScale(2u);
   value_name.Move((width - value_name.GetWidth()) / 2, BORDER_W * 2, false);
   value_name.SetList(list);
   value_name.Show(1u);
 
-  // Speed position
+  // Value position
   value_dw.SetParams(BORDER_W * 2, value_name.GetEndY() + BORDER_W*2, width - BORDER_W * 4,  Font_8x12::GetInstance().GetCharH() * 5u, 13u, point_pos);
   value_dw.SetBorder(BORDER_W, COLOR_GREEN);
   value_dw.SetDataFont(Font_8x12::GetInstance(), 2u);

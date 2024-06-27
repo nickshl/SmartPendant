@@ -141,7 +141,7 @@ class Header : public VisObject
     UiButton button[MAX_PAGES];
 
     // Line
-    Line line_bottm;
+    Line line_bottom;
     // Buttons
     UiButton btn_left;
     UiButton btn_right;
