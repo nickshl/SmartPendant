@@ -362,7 +362,7 @@ Result DelayControlScr::ProcessEncoderCallback(DelayControlScr* obj_ptr, void* p
 void DelayControlScr::UpdateObjects(void)
 {
   // Update feed window border color
-  dw_feed.SetSeleced((axis < GrblComm::AXIS_CNT) ? false : true);
+  dw_feed.SetSelected((axis < GrblComm::AXIS_CNT) ? false : true);
 
   // Update data windows
   for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
@@ -370,7 +370,7 @@ void DelayControlScr::UpdateObjects(void)
     // Check if value is different from machine value and this axis will move and set corresponded color
     dw[i].SetBorderColor((dw[i].GetNumber() != grbl_comm.GetAxisPosition(i)) ? COLOR_YELLOW : COLOR_RED);
     // Set selected Data Window flag
-    dw[i].SetSeleced(i == axis);
+    dw[i].SetSelected(i == axis);
   }
 
   // Set pressed state for selected scale button and unpressed for unselected ones

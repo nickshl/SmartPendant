@@ -260,6 +260,10 @@ class EnlargeGeneratorTab : public IScreen
     DataWindow dw_stepover;
     DataWindow dw_endmill_diameter;
     DataWindow dw_feed;
+    // Buttons to choose direction
+    UiButton direction_btn;
+    const char direction_str[2u][9u] = {"CW", "CCW"};
+    bool direction = false;
 
     // Buttons to choose scale
     UiButton scale_btn[3u];

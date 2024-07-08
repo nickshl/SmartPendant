@@ -44,12 +44,9 @@ Result Application::Setup()
   // Set display background color
   display_drv.SetBackgroundColor(COLOR_DARKGREY);
 
+  // Box for status
   status_box.SetParams(0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3 - Font_12x16::GetInstance().GetCharH() * 2 - 2, display_drv.GetScreenW() - Font_12x16::GetInstance().GetCharW() * 6, Font_12x16::GetInstance().GetCharH() * 2, COLOR_GREY, false);
-  state_str.SetParams("", 4, status_box.GetStartY() + status_box.GetHeight() / 2 - Font_12x16::GetInstance().GetCharH() / 2, COLOR_WHITE, Font_12x16::GetInstance());
-  status_str.SetParams("", 8 * Font_12x16::GetInstance().GetCharW(), state_str.GetEndY() -Font_8x12::GetInstance().GetCharH(), COLOR_WHITE, Font_8x12::GetInstance());
   status_box.Show(1000);
-  state_str.Show(1001);
-  status_str.Show(1001);
 
   // Release control by default at startup
   grbl_comm.ReleaseControl();
@@ -58,6 +55,14 @@ Result Application::Setup()
   mpg_btn.SetCallback(this);
   mpg_btn.SetPressed(false);
   mpg_btn.Show(1000);
+
+  // Info strings
+  state_str.SetParams("", 4, status_box.GetStartY() + status_box.GetHeight() / 2 - Font_12x16::GetInstance().GetCharH() / 2, COLOR_WHITE, Font_12x16::GetInstance());
+  status_str.SetParams("", state_str.GetStartX() + 5 * Font_12x16::GetInstance().GetCharW() + Font_8x12::GetInstance().GetCharW(), status_box.GetEndY() - Font_8x12::GetInstance().GetCharH() - 2, COLOR_WHITE, Font_8x12::GetInstance());
+  pins_str.SetParams("", mpg_btn.GetStartX() - Font_8x8::GetInstance().GetCharW() * 11u, status_box.GetStartY() + 4, COLOR_RED, Font_8x8::GetInstance());
+  state_str.Show(1001);
+  status_str.Show(1002);
+  pins_str.Show(1003);
 
   // Set Soft Buttons parameters
   InitSoftButtons();
@@ -91,6 +96,7 @@ Result Application::TimerExpired()
   // Update state & status
   state_str.SetString(grbl_comm.GetCurrentStateName());
   status_str.SetString(grbl_comm.GetCurrentStatusName());
+  pins_str.SetString(grbl_comm.GetPinsStr(), grbl_comm.IsPinsStrChanged());
 
   // If button pressed - we requested control
   if(mpg_btn.GetPressed())

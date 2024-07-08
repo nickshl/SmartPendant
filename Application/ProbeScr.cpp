@@ -463,16 +463,53 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
     // Real position
     dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 7u, grbl_comm.GetUnitsPrecision());
     dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
+    dw_real[i].SetBorderColor(COLOR_GREY, COLOR_RED);
     dw_real[i].SetDataFont(Font_10x18::GetInstance());
     dw_real[i].SetNumber(0);
     dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::BOTTOM_RIGHT, Font_6x8::GetInstance());
+    dw_real[i].SetCallback(AppTask::GetCurrent());
     // Axis Name
     dw_real_name[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_10x18::GetInstance());
     dw_real_name[i].Move(dw_real[i].GetStartX() + (dw_real[i].GetWidth() - dw_real_name[i].GetWidth()) / 2, dw_real[i].GetStartY() - BORDER_W - dw_real_name[i].GetHeight());
   }
+  // Set X and Y data window active
+  dw_real[GrblComm::AXIS_X].SetActive(true);
+  dw_real[GrblComm::AXIS_Y].SetActive(true);
+  // Select both data window
+  dw_real[GrblComm::AXIS_X].SetSelected(true);
+  dw_real[GrblComm::AXIS_Y].SetSelected(true);
+
+  // Buttons to select type of measurement
+  inside_btn.SetParams("INSIDE", BORDER_W, dw_real[0].GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * 3) / 2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  outside_btn.SetParams("OUTSIDE", display_drv.GetScreenW() - inside_btn.GetWidth() - BORDER_W, inside_btn.GetStartY(), inside_btn.GetWidth(), inside_btn.GetHeight(), true);
+  inside_btn.SetCallback(AppTask::GetCurrent());
+  outside_btn.SetCallback(AppTask::GetCurrent());
+  inside_btn.SetPressed(true);
+
+  // Clearance
+  dw_clearance.SetParams(BORDER_W, inside_btn.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, inside_btn.GetHeight(), 15u, grbl_comm.GetUnitsPrecision());
+  dw_clearance.SetBorder(BORDER_W, COLOR_RED);
+  dw_clearance.SetDataFont(Font_8x12::GetInstance(), 2u);
+  dw_clearance.SetNumber(0);
+  dw_clearance.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
+  dw_clearance.SetCallback(AppTask::GetCurrent());
+  dw_clearance.SetActive(true);
+  // Radius caption
+  dw_clearance_name.SetParams("CLEARANCE", dw_clearance.GetStartX() + BORDER_W*2, dw_clearance.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
+
+  // Distance
+  dw_distance.SetParams(BORDER_W, dw_clearance.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, inside_btn.GetHeight(), 15u, grbl_comm.GetUnitsPrecision());
+  dw_distance.SetBorder(BORDER_W, COLOR_RED);
+  dw_distance.SetDataFont(Font_8x12::GetInstance(), 2u);
+  dw_distance.SetNumber(0);
+  dw_distance.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
+  dw_distance.SetCallback(AppTask::GetCurrent());
+  dw_distance.SetActive(true);
+  // Radius caption
+  dw_distance_name.SetParams("DISTANCE", dw_distance.GetStartX() + BORDER_W*2, dw_distance.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // Find Center button
-  find_center_btn.SetParams("FIND CENTER", BORDER_W, dw_real[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  find_center_btn.SetParams("FIND CENTER", BORDER_W, y + height - Font_8x12::GetInstance().GetCharH() * 5 - BORDER_W, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
   find_center_btn.SetCallback(AppTask::GetCurrent());
 
   // For diameter data
@@ -503,11 +540,27 @@ Result CenterFinderTab::Show()
     diameter_str[i].Show(100);
   }
 
+  // Buttons to select type of measurement
+  inside_btn.Show(100);
+  outside_btn.Show(100);
+
+  // Option for outside probing
+  if(outside_btn.GetPressed())
+  {
+    dw_clearance.Show(100);
+    dw_clearance_name.Show(100);
+    dw_distance.Show(100);
+    dw_distance_name.Show(100);
+  }
+
   // Find Center button
   find_center_btn.Show(102);
 
   // Request offsets to show it
   grbl_comm.RequestOffsets();
+
+  // Set encoder callback handler
+  InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
 
   // All good
   return Result::RESULT_OK;
@@ -518,6 +571,9 @@ Result CenterFinderTab::Show()
 // *****************************************************************************
 Result CenterFinderTab::Hide()
 {
+  // Delete encoder callback handler
+  InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
+
   // Axis data
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
   {
@@ -531,6 +587,16 @@ Result CenterFinderTab::Hide()
     diameter_str[i].Hide();
   }
 
+  // Buttons to select type of measurement
+  inside_btn.Hide();
+  outside_btn.Hide();
+
+  // Option for outside probing
+  dw_clearance.Hide();
+  dw_clearance_name.Hide();
+  dw_distance.Hide();
+  dw_distance_name.Hide();
+
   // Find Center button
   find_center_btn.Hide();
 
@@ -543,6 +609,9 @@ Result CenterFinderTab::Hide()
 // *****************************************************************************
 Result CenterFinderTab::TimerExpired(uint32_t interval)
 {
+  // Not for the return, for check probing result
+  Result result = Result::RESULT_OK;
+
   // Update numbers with current position and position difference
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
   {
@@ -561,7 +630,9 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
   }
 
   // If we send command and this command executed successfully
-  if((cmd_id && (grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK)) || (state == PROBE_START))
+  if(((cmd_id != 0) && (grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK) && (grbl_comm.IsStatusReceivedAfterCmd(cmd_id))) ||
+     ((cmd_id == 0) && (state == PROBE_START)) ||
+     ((cmd_id == 0) && (line_state == PROBE_LINE_START)))
   {
     // Check if command done executing
     if(grbl_comm.GetState() == GrblComm::IDLE)
@@ -576,10 +647,8 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
         }
         // Restart line sequence
         line_state = PROBE_LINE_START;
-        // Start probing sequence
-        ProbeLineSequence(line_state, GrblComm::AXIS_X, -1, x_safe_pos, x_min_pos);
         // Change state to measure X min
-        state = PROBE_X_MIN;
+        state = dw_real[GrblComm::AXIS_X].IsSelected() ? PROBE_X_MIN : PROBE_Y_MIN;
       }
       else if(state == PROBE_X_MIN)
       {
@@ -588,15 +657,13 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
         {
           // Restart line sequence
           line_state = PROBE_LINE_START;
-          // Start probing sequence for X max
-          ProbeLineSequence(line_state, GrblComm::AXIS_X, +1, x_safe_pos, x_max_pos);
           // Change state to measure X max
           state = PROBE_X_MAX;
         }
         else
         {
           // Otherwise continue probing sequence for X min
-          ProbeLineSequence(line_state, GrblComm::AXIS_X, -1, x_safe_pos, x_min_pos);
+          result = ProbeLineSequence(line_state, GrblComm::AXIS_X, -1, x_safe_pos, x_min_pos);
         }
       }
       else if(state == PROBE_X_MAX)
@@ -605,10 +672,8 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
         {
           // Restart line sequence
           line_state = PROBE_LINE_START;
-          // Start probing sequence for Y min
-          ProbeLineSequence(line_state, GrblComm::AXIS_Y, -1, y_safe_pos, y_min_pos);
-          // Change state to measure Y min
-          state = PROBE_Y_MIN;
+          // Change state
+          state = dw_real[GrblComm::AXIS_Y].IsSelected() ? PROBE_Y_MIN : PROBE_DONE;
         }
         else
         {
@@ -622,7 +687,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
             diameter_str[0u].SetString(diameter_str_buf[0u], NumberOf(diameter_str_buf[0u]), "Dx: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_x, NumberOf(tmp_x), x_diameter), grbl_comm.GetReportUnits());
           }
           // Otherwise continue probing sequence for X max
-          ProbeLineSequence(line_state, GrblComm::AXIS_X, +1, x_safe_pos, x_max_pos);
+          result = ProbeLineSequence(line_state, GrblComm::AXIS_X, +1, x_safe_pos, x_max_pos);
         }
       }
       else if(state == PROBE_Y_MIN)
@@ -632,15 +697,13 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
         {
           // Restart line sequence
           line_state = PROBE_LINE_START;
-          // Start probing sequence for Y max
-          ProbeLineSequence(line_state, GrblComm::AXIS_Y, +1, y_safe_pos, y_max_pos);
           // Change state to measure Y max
           state = PROBE_Y_MAX;
         }
         else
         {
           // Otherwise continue probing sequence for Y min
-          ProbeLineSequence(line_state, GrblComm::AXIS_Y, -1, y_safe_pos, y_min_pos);
+          result = ProbeLineSequence(line_state, GrblComm::AXIS_Y, -1, y_safe_pos, y_min_pos);
         }
       }
       else if(state == PROBE_Y_MAX)
@@ -649,9 +712,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
         if(line_state == PROBE_LINE_CNT)
         {
           // Done probing
-          state = PROBE_CNT;
-          // Clear CMD ID
-          cmd_id = 0u;
+          state = PROBE_DONE;
         }
         else
         {
@@ -660,17 +721,28 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
           {
             y_safe_pos = y_min_pos + (y_max_pos - y_min_pos) / 2;
             y_diameter = y_max_pos - y_min_pos + grbl_comm.ConvertMetricToUnits(2000); // TODO: ball diameter 2 mm, make it adjustable!
-            diameter_diviation = x_diameter - y_diameter;
             // Update Y diameter string
             char tmp_y[13u] = {0};
             diameter_str[1u].SetString(diameter_str_buf[1u], NumberOf(diameter_str_buf[1u]), "Dy: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_y, NumberOf(tmp_y), y_diameter), grbl_comm.GetReportUnits());
-            // Update X diameter string
-            char tmp_d[13u] = {0};
-            diameter_str[2u].SetString(diameter_str_buf[2u], NumberOf(diameter_str_buf[2u]), "Dd: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_d, NumberOf(tmp_d), diameter_diviation), grbl_comm.GetReportUnits());
+
+            // Update diameter deviation string
+            if(dw_real[GrblComm::AXIS_X].IsSelected())
+            {
+              diameter_diviation = x_diameter - y_diameter;
+              char tmp_d[13u] = {0};
+              diameter_str[2u].SetString(diameter_str_buf[2u], NumberOf(diameter_str_buf[2u]), "Dd: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_d, NumberOf(tmp_d), diameter_diviation), grbl_comm.GetReportUnits());
+            }
           }
           // Otherwise continue probing sequence for Y max
-          ProbeLineSequence(line_state, GrblComm::AXIS_Y, +1, y_safe_pos, y_max_pos);
+          result = ProbeLineSequence(line_state, GrblComm::AXIS_Y, +1, y_safe_pos, y_max_pos);
         }
+      }
+      else if(state == PROBE_DONE)
+      {
+        // Done probing
+        state = PROBE_CNT;
+        // Clear CMD ID
+        cmd_id = 0u;
       }
       else
       {
@@ -679,18 +751,26 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
     }
   }
   // Error check - if command was sent, but not accepted by controller TODO: do we need this?
-  else if(cmd_id && (grbl_comm.GetCmdResult(cmd_id) != GrblComm::Status_Cmd_Not_Executed_Yet))
+  else if(cmd_id && (grbl_comm.GetCmdResult(cmd_id) != GrblComm::Status_Cmd_Not_Executed_Yet) && (grbl_comm.GetCmdResult(cmd_id) != GrblComm::Status_OK))
+  {
+    // Set error to stop sequence
+    result = Result::ERR_CANNOT_EXECUTE;
+  }
+  else
+  {
+    ; // Do nothing - MISRA rule
+  }
+
+  if(result.IsBad())
   {
     // Send Stop command
     grbl_comm.Stop();
     // Clear state
     state = PROBE_CNT;
+    // Clear line state
+    line_state = PROBE_LINE_CNT;
     // Clear CMD ID
     cmd_id = 0u;
-  }
-  else
-  {
-    ; // Do nothing - MISRA rule
   }
 
   // Return ok - we don't check semaphore give error, because we don't need to.
@@ -702,15 +782,66 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
 // *****************************************************************************
 Result CenterFinderTab::ProcessCallback(const void* ptr)
 {
-  // We can start probing only in IDLE state and if probing isn't started yet
-  if(grbl_comm.GetState() == GrblComm::IDLE)
+  // Change anything only if probing isn't started
+  if(state == PROBE_CNT)
   {
+    // We can start probing only in IDLE state and if probing isn't started yet
     // Check button
     if(ptr == &find_center_btn)
     {
-      // Start probing
-      state = PROBE_START;
-      line_state = PROBE_LINE_START;
+      if(grbl_comm.GetState() == GrblComm::IDLE)
+      {
+        // Start probing only if at least one data window is selected
+        if(dw_real[GrblComm::AXIS_X].IsSelected() || dw_real[GrblComm::AXIS_Y].IsSelected())
+        {
+          state = PROBE_START;
+          line_state = PROBE_LINE_START;
+        }
+      }
+    }
+    // X data window
+    else if(ptr == &dw_real[GrblComm::AXIS_X])
+    {
+      dw_real[GrblComm::AXIS_X].SetSelected(!dw_real[GrblComm::AXIS_X].IsSelected());
+    }
+    // Y data window
+    else if(ptr == &dw_real[GrblComm::AXIS_Y])
+    {
+      dw_real[GrblComm::AXIS_Y].SetSelected(!dw_real[GrblComm::AXIS_Y].IsSelected());
+    }
+    // Inside button
+    else if(ptr == &inside_btn)
+    {
+      inside_btn.SetPressed(true);
+      outside_btn.SetPressed(false);
+      // Option for outside probing
+      dw_clearance.Hide();
+      dw_clearance_name.Hide();
+      dw_distance.Hide();
+      dw_distance_name.Hide();
+    }
+    // Y data window
+    else if(ptr == &outside_btn)
+    {
+      outside_btn.SetPressed(true);
+      inside_btn.SetPressed(false);
+      // Option for outside probing
+      dw_clearance.Show(100);
+      dw_clearance_name.Show(100);
+      dw_distance.Show(100);
+      dw_distance_name.Show(100);
+    }
+    // Distance data window
+    else if(ptr == &dw_distance)
+    {
+      dw_distance.SetSelected(true);
+      dw_clearance.SetSelected(false);
+    }
+    // Clearance data window
+    else if(ptr == &dw_clearance)
+    {
+      dw_clearance.SetSelected(true);
+      dw_distance.SetSelected(false);
     }
     else
     {
@@ -718,14 +849,82 @@ Result CenterFinderTab::ProcessCallback(const void* ptr)
     }
   }
 
+  // Enable or disable Find button
+  if(dw_real[GrblComm::AXIS_X].IsSelected() || dw_real[GrblComm::AXIS_Y].IsSelected())
+  {
+    find_center_btn.Enable();
+  }
+  else
+  {
+    find_center_btn.Disable();
+  }
+
   // Always good
   return Result::RESULT_OK;
+}
+
+// *************************************************************************
+// ***   Private: ProcessEncoderCallback function   ************************
+// *************************************************************************
+Result CenterFinderTab::ProcessEncoderCallback(CenterFinderTab* obj_ptr, void* ptr)
+{
+  Result result = Result::ERR_NULL_PTR;
+
+  // Check pointer
+  if(obj_ptr != nullptr)
+  {
+    // Cast pointer to "this". Since we can't use non-static members as callback,
+    // we have to provide pinter to object.
+    CenterFinderTab& ths = *obj_ptr;
+    // Cast pointer itself to integer value
+    int32_t enc_val = (int32_t)ptr;
+
+    // Process it
+    if(enc_val != 0)
+    {
+      // Change clearance
+      if(ths.dw_clearance.IsShow() && ths.dw_clearance.IsSelected())
+      {
+        ths.dw_clearance.SetNumber(ths.dw_clearance.GetNumber() + enc_val * 100);
+      }
+      // Change distance
+      if(ths.dw_distance.IsShow() && ths.dw_distance.IsSelected())
+      {
+        ths.dw_distance.SetNumber(ths.dw_distance.GetNumber() + enc_val * 100);
+      }
+    }
+    // Set ok result
+    result = Result::RESULT_OK;
+  }
+
+  // Return result
+  return result;
 }
 
 // *****************************************************************************
 // ***   ProbeLineSequence function   ******************************************
 // *****************************************************************************
 Result CenterFinderTab::ProbeLineSequence(probe_line_state_t& state, uint8_t axis, int32_t dir, int32_t& safe_pos, int32_t& measured_pos)
+{
+  Result result = Result::RESULT_OK;
+
+  if(inside_btn.GetPressed())
+  {
+    result = ProbeInsideLineSequence(state, axis, dir, safe_pos, measured_pos);
+  }
+  else
+  {
+    result = ProbeOutsideLineSequence(state, axis, dir, dw_distance.GetNumber(), dw_clearance.GetNumber(), safe_pos, measured_pos);
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   ProbeInsideLineSequence function   ************************************
+// *****************************************************************************
+Result CenterFinderTab::ProbeInsideLineSequence(probe_line_state_t& state, uint8_t axis, int32_t dir, int32_t& safe_pos, int32_t& measured_pos)
 {
   Result result = Result::RESULT_OK;
 
@@ -750,7 +949,7 @@ Result CenterFinderTab::ProbeLineSequence(probe_line_state_t& state, uint8_t axi
     // Set next state
     state = PROBE_LINE_FAST_RETURN;
   }
-  if(state == PROBE_LINE_FAST_RETURN)
+  else if(state == PROBE_LINE_FAST_RETURN)
   {
     // Try to probe axis at measured position +/- 1 mm at feed 50 mm/min TODO: make feed adjustable via settings
     result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * dir), grbl_comm.ConvertMetricToUnits(50u), cmd_id);
@@ -775,6 +974,166 @@ Result CenterFinderTab::ProbeLineSequence(probe_line_state_t& state, uint8_t axi
   {
     // Probe max state - done sequence
     state = PROBE_LINE_CNT;
+  }
+  else
+  {
+    ; // Should never get there
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   ProbeOutsideLineSequence function   ***********************************
+// *****************************************************************************
+Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint8_t axis, int32_t dir, int32_t len, int32_t dive, int32_t& safe_pos, int32_t& measured_pos)
+{
+  Result result = Result::RESULT_OK;
+
+  // Error flag. We don't need return error immediately.
+  static bool error = false;
+  // Safe Z position
+  static int32_t z_safe_pos = 0;
+
+  // ***************************************************************************
+  // *** Move line to start position *******************************************
+  // ***************************************************************************
+  if(state == PROBE_LINE_START)
+  {
+    // Absolute mode necessary for probing, otherwise probe can be screwed up
+    grbl_comm.SetAbsoluteMode();
+    // Get current axis positions to return probe back after probing
+    safe_pos = grbl_comm.GetAxisPosition(axis);
+    z_safe_pos = grbl_comm.GetAxisPosition(GrblComm::AXIS_Z);
+    // Clear error flag
+    error = false;
+    // Rapid move axis to the dive point
+    result = grbl_comm.MoveAxis(axis, safe_pos + len * dir, 0u, cmd_id);
+    // Set next state
+    state = PROBE_LINE_MOVE;
+  }
+  // ***************************************************************************
+  // *** Dive probe to measurement *********************************************
+  // ***************************************************************************
+  else if(state == PROBE_LINE_MOVE)
+  {
+    // Dive before probing. We use probing command to avoid probe damage if distance is incorrect.
+    result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, z_safe_pos - grbl_comm.ConvertMetricToUnits(dive), grbl_comm.ConvertMetricToUnits(200u), cmd_id, false);
+    // Set next state
+    state = PROBE_LINE_DIVE;
+  }
+  // ***************************************************************************
+  // *** Start fast measurement toward workpiece *******************************
+  // ***************************************************************************
+  else if(state == PROBE_LINE_DIVE)
+  {
+    // Check if probe reached dive depth
+    if( (grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) != (z_safe_pos - grbl_comm.ConvertMetricToUnits(dive))) ||
+        (grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) != grbl_comm.GetProbePosition(GrblComm::AXIS_Z)) )
+    {
+      // Set error flag - we need report it at the end of the sequence
+      error = true;
+      // Error - probe isn't reached requested depth. Lift the probe and return.
+      result = grbl_comm.MoveAxis(GrblComm::AXIS_Z, z_safe_pos, 0u, cmd_id);
+      // Skip probing sequence
+      state = PROBE_LINE_ASCEND;
+    }
+    else
+    {
+      // Try to probe axis +/- 1 meter at feed 200 mm/min TODO: make feed adjustable via settings
+      result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (grbl_comm.ConvertMetricToUnits(1000000) * (-dir)), grbl_comm.ConvertMetricToUnits(200u), cmd_id);
+      // Set next state
+      state = PROBE_LINE_FAST;
+    }
+  }
+  // ***************************************************************************
+  // *** Return after fast measurement toward workpiece ************************
+  // ***************************************************************************
+  else if(state == PROBE_LINE_FAST)
+  {
+    // Get probe axis position
+    measured_pos = grbl_comm.GetProbePosition(axis);
+    // Move away from workpiece at feed 200 mm/min until probe contact lost(but not more than safe position)
+    result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos + len * dir, grbl_comm.ConvertMetricToUnits(200u), cmd_id);
+    // Set next state
+    state = PROBE_LINE_FAST_RETURN;
+  }
+  // ***************************************************************************
+  // *** Start slow measurement toward workpiece *******************************
+  // ***************************************************************************
+  else if(state == PROBE_LINE_FAST_RETURN)
+  {
+    // Try to probe axis at measured position +/- 1 mm at feed 50 mm/min TODO: make feed adjustable via settings
+    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * (-dir)), grbl_comm.ConvertMetricToUnits(50u), cmd_id);
+    // Set next state
+    state = PROBE_LINE_SLOW;
+  }
+  // ***************************************************************************
+  // *** Block to allow recalculate safe position  *****************************
+  // ***************************************************************************
+  else if(state == PROBE_LINE_SLOW)
+  {
+    // Get probe axis position
+    measured_pos = grbl_comm.GetProbePosition(axis);
+    // Set result ready state
+    state = PROBE_LINE_RESULT_READY;
+  }
+  // ***************************************************************************
+  // *** Return after slow measurement toward workpiece ************************
+  // ***************************************************************************
+  else if(state == PROBE_LINE_RESULT_READY)
+  {
+    // Rapid move axis to the point before probing
+    result = grbl_comm.MoveAxis(axis, safe_pos + len * dir, 0u, cmd_id);
+    // Return after axis probing
+    state = PROBE_LINE_SLOW_RETURN;
+  }
+  // ***************************************************************************
+  // *** Ascend to save Z position *********************************************
+  // ***************************************************************************
+  else if(state == PROBE_LINE_SLOW_RETURN)
+  {
+    // Rapid ascend Z axis
+    result = grbl_comm.MoveAxis(GrblComm::AXIS_Z, z_safe_pos, 0u, cmd_id);
+    // Current state
+    state = PROBE_LINE_ASCEND;
+  }
+  // ***************************************************************************
+  // *** Return to save position ***********************************************
+  // ***************************************************************************
+  else if(state == PROBE_LINE_ASCEND)
+  {
+    // Check if we actually lifted Z axis
+    if(z_safe_pos == grbl_comm.GetAxisPosition(GrblComm::AXIS_Z))
+    {
+      // Rapid move axis to the point before probing
+      result = grbl_comm.MoveAxis(axis, safe_pos, 0u, cmd_id);
+    }
+    else
+    {
+      // We didn't lifted Z by some reason
+      result = Result::ERR_CANNOT_EXECUTE;
+    }
+    // Probe max state - done sequence
+    state = PROBE_LINE_RETURN;
+  }
+  // ***************************************************************************
+  // *** End of sequence *******************************************************
+  // ***************************************************************************
+  else if(state == PROBE_LINE_RETURN)
+  {
+    // Set error
+    if(error)
+    {
+      result = Result::ERR_CANNOT_EXECUTE;
+    }
+    // Probe max state - done sequence
+    state = PROBE_LINE_CNT;
+  }
+  else
+  {
+    ; // Should never get there
   }
 
   // Return result

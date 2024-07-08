@@ -301,6 +301,8 @@ Result DrillGeneratorTab::Setup(int32_t y, int32_t height)
     scale_btn[i].SetCallback(AppTask::GetCurrent());
     scale_btn[i].SetSpacing(3u);
   }
+  // Set middle scale
+  ProcessCallback(&scale_btn[1u]);
 
   // Drill feed
   dw_drill_feed.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, 0u);
@@ -420,31 +422,31 @@ Result DrillGeneratorTab::ProcessCallback(const void* ptr)
   }
   else if(ptr == &dw_drill_distance)
   {
-    dw_drill_distance.SetSeleced(true);
-    dw_drill_stepover.SetSeleced(false);
-    dw_drill_clearance.SetSeleced(false);
-    dw_drill_feed.SetSeleced(false);
+    dw_drill_distance.SetSelected(true);
+    dw_drill_stepover.SetSelected(false);
+    dw_drill_clearance.SetSelected(false);
+    dw_drill_feed.SetSelected(false);
   }
   else if(ptr == &dw_drill_stepover)
   {
-    dw_drill_distance.SetSeleced(false);
-    dw_drill_stepover.SetSeleced(true);
-    dw_drill_clearance.SetSeleced(false);
-    dw_drill_feed.SetSeleced(false);
+    dw_drill_distance.SetSelected(false);
+    dw_drill_stepover.SetSelected(true);
+    dw_drill_clearance.SetSelected(false);
+    dw_drill_feed.SetSelected(false);
   }
   else if(ptr == &dw_drill_clearance)
   {
-    dw_drill_distance.SetSeleced(false);
-    dw_drill_stepover.SetSeleced(false);
-    dw_drill_clearance.SetSeleced(true);
-    dw_drill_feed.SetSeleced(false);
+    dw_drill_distance.SetSelected(false);
+    dw_drill_stepover.SetSelected(false);
+    dw_drill_clearance.SetSelected(true);
+    dw_drill_feed.SetSelected(false);
   }
   else if(ptr == &dw_drill_feed)
   {
-    dw_drill_distance.SetSeleced(false);
-    dw_drill_stepover.SetSeleced(false);
-    dw_drill_clearance.SetSeleced(false);
-    dw_drill_feed.SetSeleced(true);
+    dw_drill_distance.SetSelected(false);
+    dw_drill_stepover.SetSelected(false);
+    dw_drill_clearance.SetSelected(false);
+    dw_drill_feed.SetSelected(true);
   }
   else if(ptr == &scale_btn[0])
   {
@@ -488,19 +490,19 @@ Result DrillGeneratorTab::ProcessEncoderCallback(DrillGeneratorTab* obj_ptr, voi
     // Cast pointer itself to integer value
     int32_t enc_val = (int32_t)ptr;
 
-    if(ths.dw_drill_distance.IsSeleced())
+    if(ths.dw_drill_distance.IsSelected())
     {
       ths.dw_drill_distance.SetNumber(ths.dw_drill_distance.GetNumber() + enc_val * ths.scale);
     }
-    else if(ths.dw_drill_stepover.IsSeleced())
+    else if(ths.dw_drill_stepover.IsSelected())
     {
       ths.dw_drill_stepover.SetNumber(ths.dw_drill_stepover.GetNumber() + enc_val * ths.scale);
     }
-    else if(ths.dw_drill_clearance.IsSeleced())
+    else if(ths.dw_drill_clearance.IsSelected())
     {
       ths.dw_drill_clearance.SetNumber(ths.dw_drill_clearance.GetNumber() + enc_val * ths.scale);
     }
-    else if(ths.dw_drill_feed.IsSeleced())
+    else if(ths.dw_drill_feed.IsSelected())
     {
       // Calculate new feed
       int32_t new_number = ths.dw_drill_feed.GetNumber() + enc_val;
@@ -594,8 +596,8 @@ DrillGeneratorTab::DrillGeneratorTab() : left_btn(Application::GetInstance().Get
 // ******************************************************************************
 EnlargeGeneratorTab& EnlargeGeneratorTab::GetInstance()
 {
-  static EnlargeGeneratorTab drill_generator_tab;
-  return drill_generator_tab;
+  static EnlargeGeneratorTab enlarge_generator_tab;
+  return enlarge_generator_tab;
 }
 
 // ******************************************************************************
@@ -648,9 +650,11 @@ Result EnlargeGeneratorTab::Setup(int32_t y, int32_t height)
     scale_btn[i].SetCallback(AppTask::GetCurrent());
     scale_btn[i].SetSpacing(3u);
   }
+  // Set middle scale
+  ProcessCallback(&scale_btn[1u]);
 
   // Drill feed
-  dw_feed.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, 0u);
+  dw_feed.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW()/2 - BORDER_W*2,  window_height, 6u, 0u);
   dw_feed.SetBorder(BORDER_W, COLOR_RED);
   dw_feed.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_feed.SetNumber(0);
@@ -658,7 +662,12 @@ Result EnlargeGeneratorTab::Setup(int32_t y, int32_t height)
   dw_feed.SetCallback(AppTask::GetCurrent());
   dw_feed.SetActive(true);
   // Drill feed caption
-  dw_feed_name.SetParams("FEED", dw_feed.GetStartX() + BORDER_W*2, dw_feed.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
+  dw_feed_name.SetParams("FEED", dw_feed.GetStartX() + BORDER_W*2, dw_feed.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_8x12::GetInstance());
+
+  // Direction button
+  direction_btn.SetParams(direction_str[direction], display_drv.GetScreenW()/2 + BORDER_W, dw_feed.GetStartY(), dw_feed.GetWidth(), dw_feed.GetHeight(), true);
+  direction_btn.SetFont(Font_12x16::GetInstance());
+  direction_btn.SetCallback(AppTask::GetCurrent());
 
   // All good
   return Result::RESULT_OK;
@@ -686,7 +695,10 @@ Result EnlargeGeneratorTab::Show()
     scale_btn[i].Show(101);
   }
 
-  // Drill button
+  // Direction button
+  direction_btn.Show(102);
+
+  // Generate button
   left_btn.Show(102);
 
   // Set encoder callback handler
@@ -720,6 +732,9 @@ Result EnlargeGeneratorTab::Hide()
   dw_stepover.Hide();
   dw_endmill_diameter.Hide();
   dw_feed.Hide();
+
+  // Direction button
+  direction_btn.Hide();
 
   // Drill button
   left_btn.Hide();
@@ -767,31 +782,31 @@ Result EnlargeGeneratorTab::ProcessCallback(const void* ptr)
   }
   else if(ptr == &dw_hole_diameter)
   {
-    dw_hole_diameter.SetSeleced(true);
-    dw_stepover.SetSeleced(false);
-    dw_endmill_diameter.SetSeleced(false);
-    dw_feed.SetSeleced(false);
+    dw_hole_diameter.SetSelected(true);
+    dw_stepover.SetSelected(false);
+    dw_endmill_diameter.SetSelected(false);
+    dw_feed.SetSelected(false);
   }
   else if(ptr == &dw_stepover)
   {
-    dw_hole_diameter.SetSeleced(false);
-    dw_stepover.SetSeleced(true);
-    dw_endmill_diameter.SetSeleced(false);
-    dw_feed.SetSeleced(false);
+    dw_hole_diameter.SetSelected(false);
+    dw_stepover.SetSelected(true);
+    dw_endmill_diameter.SetSelected(false);
+    dw_feed.SetSelected(false);
   }
   else if(ptr == &dw_endmill_diameter)
   {
-    dw_hole_diameter.SetSeleced(false);
-    dw_stepover.SetSeleced(false);
-    dw_endmill_diameter.SetSeleced(true);
-    dw_feed.SetSeleced(false);
+    dw_hole_diameter.SetSelected(false);
+    dw_stepover.SetSelected(false);
+    dw_endmill_diameter.SetSelected(true);
+    dw_feed.SetSelected(false);
   }
   else if(ptr == &dw_feed)
   {
-    dw_hole_diameter.SetSeleced(false);
-    dw_stepover.SetSeleced(false);
-    dw_endmill_diameter.SetSeleced(false);
-    dw_feed.SetSeleced(true);
+    dw_hole_diameter.SetSelected(false);
+    dw_stepover.SetSelected(false);
+    dw_endmill_diameter.SetSelected(false);
+    dw_feed.SetSelected(true);
   }
   else if(ptr == &scale_btn[0])
   {
@@ -804,6 +819,11 @@ Result EnlargeGeneratorTab::ProcessCallback(const void* ptr)
   else if(ptr == &scale_btn[2])
   {
     scale = 100;
+  }
+  else if(ptr == &direction_btn)
+  {
+    direction = !direction;
+    direction_btn.SetString(direction_str[direction]);
   }
   else
   {
@@ -835,19 +855,19 @@ Result EnlargeGeneratorTab::ProcessEncoderCallback(EnlargeGeneratorTab* obj_ptr,
     // Cast pointer itself to integer value
     int32_t enc_val = (int32_t)ptr;
 
-    if(ths.dw_hole_diameter.IsSeleced())
+    if(ths.dw_hole_diameter.IsSelected())
     {
       ths.dw_hole_diameter.SetNumber(ths.dw_hole_diameter.GetNumber() + enc_val * ths.scale);
     }
-    else if(ths.dw_stepover.IsSeleced())
+    else if(ths.dw_stepover.IsSelected())
     {
       ths.dw_stepover.SetNumber(ths.dw_stepover.GetNumber() + enc_val * ths.scale);
     }
-    else if(ths.dw_endmill_diameter.IsSeleced())
+    else if(ths.dw_endmill_diameter.IsSelected())
     {
       ths.dw_endmill_diameter.SetNumber(ths.dw_endmill_diameter.GetNumber() + enc_val * ths.scale);
     }
-    else if(ths.dw_feed.IsSeleced())
+    else if(ths.dw_feed.IsSelected())
     {
       // Calculate new feed
       int32_t new_number = ths.dw_feed.GetNumber() + enc_val;
@@ -919,11 +939,11 @@ Result EnlargeGeneratorTab::GenerateGcode()
       // Every other iteration minuses should be added
       if(i%2)
       {
-        PrintStr(txt, size, "G3 I-%li.%03i X-%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (feed * enlarge_progress) / (enlarge_progress + endmill_radius));
+        PrintStr(txt, size, direction ? "G3 I-%li.%03i X-%li.%03i F%li" : "G2 I-%li.%03i X-%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (feed * enlarge_progress) / (enlarge_progress + endmill_radius));
       }
       else
       {
-        PrintStr(txt, size, "G3 I%li.%03i X%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (feed * enlarge_progress) / (enlarge_progress + endmill_radius));
+        PrintStr(txt, size, direction ? "G3 I%li.%03i X%li.%03i F%li" : "G2 I%li.%03i X%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (feed * enlarge_progress) / (enlarge_progress + endmill_radius));
       }
     }
 

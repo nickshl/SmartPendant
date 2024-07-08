@@ -227,9 +227,9 @@ void DataWindow::UpdateStringPositions(void)
 }
 
 // *****************************************************************************
-// ***   SetSeleced   **********************************************************
+// ***   SetSelected   *********************************************************
 // *****************************************************************************
-void DataWindow::SetSeleced(bool is_selected)
+void DataWindow::SetSelected(bool is_selected)
 {
   // Ignore same state requests
   if(is_selected != selected)
@@ -242,7 +242,6 @@ void DataWindow::SetSeleced(bool is_selected)
     InvalidateObjArea();
   }
 }
-
 
 // *****************************************************************************
 // ***   Set callback function   ***********************************************

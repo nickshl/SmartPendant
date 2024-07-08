@@ -159,6 +159,7 @@ class Application : public AppTask
     Box status_box;
     String state_str;
     String status_str;
+    String pins_str;
 
     // Soft Buttons
     UiButton left_btn;

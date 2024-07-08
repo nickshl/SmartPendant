@@ -43,9 +43,9 @@ InputDrv::ButtonCallbackData InputDrv::btn_callback_data[BTN_MAX][2u] =
 InputDrv& InputDrv::GetInstance(void)
 {
   // This class is static and declared here
-  static InputDrv buttons_drv;
+  static InputDrv input_drv;
   // Return reference to class
-  return buttons_drv;
+  return input_drv;
 }
 
 // *****************************************************************************

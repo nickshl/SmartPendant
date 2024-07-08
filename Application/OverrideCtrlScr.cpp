@@ -273,8 +273,8 @@ Result OverrideCtrlScr::ProcessCallback(const void* ptr)
 
   if(ptr == &feed_dw)
   {
-    speed_dw.SetSeleced(false);
-    feed_dw.SetSeleced(true);
+    speed_dw.SetSelected(false);
+    feed_dw.SetSelected(true);
   }
   else if(ptr == &feed_reset_btn)
   {
@@ -282,8 +282,8 @@ Result OverrideCtrlScr::ProcessCallback(const void* ptr)
   }
   else if(ptr == &speed_dw)
   {
-    feed_dw.SetSeleced(false);
-    speed_dw.SetSeleced(true);
+    feed_dw.SetSelected(false);
+    speed_dw.SetSelected(true);
   }
   else if(ptr == &speed_reset_btn)
   {
@@ -323,13 +323,13 @@ Result OverrideCtrlScr::ProcessEncoderCallback(OverrideCtrlScr* obj_ptr, void* p
     int32_t enc_val = (int32_t)ptr;
 
     // Save value to process it later
-    if(ths.feed_dw.IsSeleced())
+    if(ths.feed_dw.IsSelected())
     {
       ths.feed_val += enc_val;
     }
 
     // Save value to process it later
-    if(ths.speed_dw.IsSeleced())
+    if(ths.speed_dw.IsSelected())
     {
       ths.speed_val += enc_val;
     }

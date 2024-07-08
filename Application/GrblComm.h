@@ -30,7 +30,7 @@
 // *****************************************************************************
 // ***   Debug defines   *******************************************************
 // *****************************************************************************
-//#define SEND_DATA_TO_USB
+#define SEND_DATA_TO_USB
 
 // *****************************************************************************
 // ***   GrblComm Class   ******************************************************
@@ -354,6 +354,16 @@ class GrblComm : public AppTask
     state_t GetState() {return grbl_state;}
 
     // *************************************************************************
+    // ***   Public: GetPinsStr function   *************************************
+    // *************************************************************************
+    const char* const GetPinsStr() {return grbl_pins;}
+
+    // *************************************************************************
+    // ***   Public: IsPinsStrChanged function   *******************************
+    // *************************************************************************
+    bool IsPinsStrChanged() {bool ret = grbl_changed.pins; grbl_changed.pins = false; return ret;}
+
+    // *************************************************************************
     // ***   Public: GetStateName function   ***********************************
     // *************************************************************************
     const char* const GetStateName(state_t state);
@@ -482,6 +492,11 @@ class GrblComm : public AppTask
     // ***   Public: GetCmdResult   ********************************************
     // *************************************************************************
     status_t GetCmdResult(uint32_t id);
+
+    // *************************************************************************
+    // ***   Public: IsStatusReceivedAfterCmd   ********************************
+    // *************************************************************************
+    bool IsStatusReceivedAfterCmd(uint32_t id);
 
     // *************************************************************************
     // ***   Public: SendCmd   *************************************************
@@ -651,7 +666,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: ProbeAxisTowardWorkpiece   ********************************
     // *************************************************************************
-    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id);
+    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id, bool strict = true);
 
     // *************************************************************************
     // ***   Public: ProbeAxisAwayFromWorkpiece   ******************************
@@ -709,8 +724,10 @@ class GrblComm : public AppTask
     uint32_t status_tx_timestamp = 0u;
     // When status last time received
     uint32_t status_rx_timestamp = 0u;
-    // When ack last time received
+    // When cmd was sent
     uint32_t cmd_tx_timestamp = 0u;
+    // When ack last time received
+    uint32_t cmd_rx_timestamp = 0u;
 
     // ID for next command
     uint32_t next_id = 1u;
@@ -794,7 +811,7 @@ class GrblComm : public AppTask
 
     // This array must match the grbl_state_t enum!
     const char* const grbl_state_str[STATE_CNT] =
-    {"Unknown", "Idle", "Run", "Jog", "Hold", "Alarm", "Check", "Door", "Tool", "Home", "Sleep"};
+    {"-----", "Idle", "Run", "Jog", "Hold", "Alarm", "Check", "Door", "Tool", "Home", "Sleep"};
 
     // *************************************************************************
     // ***   Alarm executor codes. Zero is reserved.   *************************

@@ -160,9 +160,10 @@ Result GrblComm::ProcessMessage()
       // If previous command successful
       if(grbl_status == Status_OK)
       {
-        cmd_tx_timestamp = RtosTick::GetTimeMs();
         // Lock mutex before parsing data
         mutex.Lock();
+        // Save cmd TX timestamp
+        cmd_tx_timestamp = RtosTick::GetTimeMs();
         // Set pending flag
         respond_pending = true;
         // Set ID
@@ -476,6 +477,38 @@ GrblComm::status_t GrblComm::GetCmdResult(uint32_t id)
   }
 
   return status;
+}
+
+// *****************************************************************************
+// ***   Public: IsStatusReceivedAfterCmd   ************************************
+// *****************************************************************************
+bool GrblComm::IsStatusReceivedAfterCmd(uint32_t id)
+{
+  bool result = false;
+
+  // If requested command executed and respond received
+  if(GetCmdResult(id) == Status_OK)
+  {
+    // And respond rx timestamp less than last status rx timestamp
+    if(cmd_rx_timestamp < status_rx_timestamp)
+    {
+      result = true;
+    }
+  }
+  else if(GetCmdResult(id) == Status_Next_Cmd_Executed)
+  {
+    // If next cmd is executed, we can check cmd tx timestamp and status rx timestamp
+    if(cmd_tx_timestamp < status_rx_timestamp)
+    {
+      result = true;
+    }
+  }
+  else
+  {
+    ; // Do nothing
+  }
+
+  return result;
 }
 
 // *****************************************************************************
@@ -925,7 +958,7 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, ui
 // *****************************************************************************
 // ***   Public: ProbeAxisTowardWorkpiece   ************************************
 // *****************************************************************************
-Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id)
+Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id, bool strict)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -943,8 +976,15 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
       char position_str[16u];
       // Convert distance value to string
       ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
-      // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.2%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+      // Create Set Axis command. Strict uses .2 to produce alarm, non-strict uses .3 to avoid alarm.
+      if(strict)
+      {
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.2%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+      }
+      else
+      {
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.3%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+      }
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -1284,6 +1324,8 @@ void GrblComm::ParseData(void)
   // Check "ok" response
   if(!strcmp((char*)rx_buf, "ok"))
   {
+    // Save cmd response timestamp
+    cmd_rx_timestamp = RtosTick::GetTimeMs();
     respond_pending = false;
     grbl_status = Status_OK;
     return;
@@ -1376,15 +1418,32 @@ void GrblComm::ParseData(void)
         }
         grbl_changed.pos = ParseAxisData(line + 5, grbl_position);
       }
-      else if(!strncmp(line, "FS:", 3)) ParseFeedSpeed(line + 3);
-
-      else if(!strncmp(line, "WCO:", 4)) ParseOffsets(line + 4);
-
+      else if(!strncmp(line, "FS:", 3))
+      {
+        ParseFeedSpeed(line + 3);
+      }
+      else if(!strncmp(line, "WCO:", 4))
+      {
+        ParseOffsets(line + 4);
+      }
       else if(!strncmp(line, "Pn:", 3))
       {
+        // Pins received
         pins = true;
-        if((grbl_changed.pins = (strcmp(grbl_pins, line + 3) != 0)));
-        strcpy(grbl_pins, line + 3);
+        // Copy and check pins
+        for(uint32_t i = 0u; i < NumberOf(grbl_pins); i++)
+        {
+          // Terminate string
+          grbl_pins[i] = '\0';
+          // If we reach end of sting or closing bracket - break the cycle
+          if((line[3 + i] == '\0') || (line[3 + i] == '>')) break;
+          // Check if sting changed and set flag
+          if(grbl_pins[i] != line[3 + i]) grbl_changed.pins = true;
+          // Copy character
+          grbl_pins[i] = line[3 + i];
+        }
+        // If string longer than buffer - terminate it
+        grbl_pins[NumberOf(grbl_pins) - 1u] = '\0';
       }
       else if(!strncmp(line, "D:", 2))
       {

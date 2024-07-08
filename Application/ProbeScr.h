@@ -264,6 +264,7 @@ class CenterFinderTab : public IScreen
       PROBE_X_MAX,
       PROBE_Y_MIN,
       PROBE_Y_MAX,
+      PROBE_DONE,
       PROBE_CNT
     } probe_state_t;
 
@@ -271,14 +272,17 @@ class CenterFinderTab : public IScreen
     typedef enum
     {
       PROBE_LINE_START,
+      PROBE_LINE_MOVE,
+      PROBE_LINE_DIVE,
       PROBE_LINE_FAST,
       PROBE_LINE_FAST_RETURN,
       PROBE_LINE_SLOW,
       PROBE_LINE_RESULT_READY, // <- this state allow to replace safe_pos with calculated center for example
       PROBE_LINE_SLOW_RETURN,
+      PROBE_LINE_ASCEND,
+      PROBE_LINE_RETURN,
       PROBE_LINE_CNT
     } probe_line_state_t;
-
     // Current state
     probe_state_t state = PROBE_CNT;
     probe_line_state_t line_state = PROBE_LINE_CNT;
@@ -295,8 +299,6 @@ class CenterFinderTab : public IScreen
     int32_t y_diameter = 0u;
     int32_t diameter_diviation = 0u;
 
-//    // Current selected axis
-//    GrblComm::Axis_t axis = GrblComm::AXIS_CNT;
     // ID to track send message
     uint32_t cmd_id = 0u;
 
@@ -308,9 +310,20 @@ class CenterFinderTab : public IScreen
     // String for caption
     String dw_real_name[NumberOf(dw_real)];
 
+    // Data windows for clearance
+    DataWindow dw_clearance;
+    String dw_clearance_name;
+    // Data windows for distance
+    DataWindow dw_distance;
+    String dw_distance_name;
+
     // String for caption
     String diameter_str[3u];
     char diameter_str_buf[NumberOf(diameter_str)][64] = {0};
+
+    // Buttons to select type of measurement
+    UiButton inside_btn;
+    UiButton outside_btn;
 
     // Buttons to start movement
     UiButton find_center_btn;
@@ -320,10 +333,28 @@ class CenterFinderTab : public IScreen
     // GRBL Communication Interface instance
     GrblComm& grbl_comm = GrblComm::GetInstance();
 
+    // Encoder callback entry
+    InputDrv::CallbackListEntry enc_cble;
+
+    // *************************************************************************
+    // ***   Private: ProcessEncoderCallback function   ************************
+    // *************************************************************************
+    static Result ProcessEncoderCallback(CenterFinderTab* obj_ptr, void* ptr);
+
     // *************************************************************************
     // ***   ProbeLineSequence function   **************************************
     // *************************************************************************
     Result ProbeLineSequence(probe_line_state_t& state, uint8_t axis, int32_t dir, int32_t& safe_pos, int32_t& measured_pos);
+
+    // *************************************************************************
+    // ***   ProbeInsideLineSequence function   ********************************
+    // *************************************************************************
+    Result ProbeInsideLineSequence(probe_line_state_t& state, uint8_t axis, int32_t dir, int32_t& safe_pos, int32_t& measured_pos);
+
+    // *************************************************************************
+    // ***   ProbeOutsideLineSequence function   *******************************
+    // *************************************************************************
+    Result ProbeOutsideLineSequence(probe_line_state_t& state, uint8_t axis, int32_t dir, int32_t len, int32_t dive, int32_t& safe_pos, int32_t& measured_pos);
 
     // *************************************************************************
     // ***   Private constructor   *********************************************

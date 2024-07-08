@@ -117,7 +117,7 @@ Result DirectControlScr::Show()
   // Set border to red for all windows
   for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
   {
-    dw[i].SetSeleced(false);
+    dw[i].SetSelected(false);
   }
 
   // In Lathe mode show Radius/Diameter string on top of X window and button to change it
@@ -355,10 +355,10 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
           // Set border to red for all windows
           for(uint32_t j = 0u; j < GrblComm::AXIS_CNT; j++)
           {
-            dw[j].SetSeleced(false);
+            dw[j].SetSelected(false);
           }
           // Then set border to green for selected one
-          dw[i].SetSeleced(true);
+          dw[i].SetSelected(true);
           // Save axis to control
           axis = (GrblComm::Axis_t)i;
           // Break the cycle

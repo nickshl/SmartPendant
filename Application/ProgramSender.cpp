@@ -291,14 +291,14 @@ Result ProgramSender::TimerExpired(uint32_t interval)
     {
       feed_dw.SetActive(false);
       feed_dw.SetBorder(BORDER_W, COLOR_DARKBLUE);
-      feed_dw.SetSeleced(false);
+      feed_dw.SetSelected(false);
     }
     // If speed control enabled - disable it
     if(speed_dw.IsActive())
     {
       speed_dw.SetActive(false);
       speed_dw.SetBorder(BORDER_W, COLOR_DARKBLUE);
-      speed_dw.SetSeleced(false);
+      speed_dw.SetSelected(false);
     }
     // Disable coolant control
     flood_btn.Disable();
@@ -537,8 +537,8 @@ Result ProgramSender::ProcessCallback(const void* ptr)
       speed_dw.SetActive(true);
       feed_dw.SetBorder(BORDER_W, COLOR_RED);
       speed_dw.SetBorder(BORDER_W, COLOR_RED);
-      feed_dw.SetSeleced(true);
-      speed_dw.SetSeleced(false);
+      feed_dw.SetSelected(true);
+      speed_dw.SetSelected(false);
       flood_btn.Enable();
       mist_btn.Enable();
       // Disable buttons while program is running
@@ -632,13 +632,13 @@ Result ProgramSender::ProcessCallback(const void* ptr)
   }
   else if(ptr == &feed_dw)
   {
-    speed_dw.SetSeleced(false);
-    feed_dw.SetSeleced(true);
+    speed_dw.SetSelected(false);
+    feed_dw.SetSelected(true);
   }
   else if(ptr == &speed_dw)
   {
-    feed_dw.SetSeleced(false);
-    speed_dw.SetSeleced(true);
+    feed_dw.SetSelected(false);
+    speed_dw.SetSelected(true);
   }
   else if(ptr == &flood_btn)
   {
@@ -722,11 +722,11 @@ Result ProgramSender::ProcessEncoderCallback(ProgramSender* obj_ptr, void* ptr)
     {
       ths.enc_val += enc_val;
     }
-    else if(ths.feed_dw.IsSeleced())
+    else if(ths.feed_dw.IsSelected())
     {
       ths.feed_val += enc_val;
     }
-    else if(ths.speed_dw.IsSeleced())
+    else if(ths.speed_dw.IsSelected())
     {
       ths.speed_val += enc_val;
     }

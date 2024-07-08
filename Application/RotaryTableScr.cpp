@@ -531,14 +531,14 @@ Result RotaryTableScr::ProcessButtonCallback(RotaryTableScr* obj_ptr, void* ptr)
 void RotaryTableScr::UpdateObjects(void)
 {
   // Update windows border color
-  radius_dw.SetSeleced((focus  == FOCUS_RADIUS) ? true : false);
-  z_axis_dw.SetSeleced((focus == FOCUS_Z_AXIS) ? true : false);
-  arc_dw.SetSeleced((focus == FOCUS_ARC_LENGTH) ? true : false);
+  radius_dw.SetSelected((focus  == FOCUS_RADIUS) ? true : false);
+  z_axis_dw.SetSelected((focus == FOCUS_Z_AXIS) ? true : false);
+  arc_dw.SetSelected((focus == FOCUS_ARC_LENGTH) ? true : false);
 
   // Update position window border colors
   for(uint32_t i = 0u; i <= FOCUS_CENTER_Y_AXIS; i++)
   {
-    center_dw[i].SetSeleced((i == focus) ? true : false);
+    center_dw[i].SetSelected((i == focus) ? true : false);
   }
 
   // Set pressed state for selected scale button and unpressed for unselected ones
