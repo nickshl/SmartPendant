@@ -490,30 +490,43 @@ Result DrillGeneratorTab::ProcessEncoderCallback(DrillGeneratorTab* obj_ptr, voi
     // Cast pointer itself to integer value
     int32_t enc_val = (int32_t)ptr;
 
+    // Pointer to DataWindow which data should be changed
+    DataWindow* pdw = nullptr;
+    // Addition value - by default multiplied by scale to minimize code
+    int32_t add_val = enc_val * ths.scale;
+
+    // Find pointer for currently selected DataWindow
     if(ths.dw_drill_distance.IsSelected())
     {
-      ths.dw_drill_distance.SetNumber(ths.dw_drill_distance.GetNumber() + enc_val * ths.scale);
+      pdw = &ths.dw_drill_distance;
     }
     else if(ths.dw_drill_stepover.IsSelected())
     {
-      ths.dw_drill_stepover.SetNumber(ths.dw_drill_stepover.GetNumber() + enc_val * ths.scale);
+      pdw = &ths.dw_drill_stepover;
     }
     else if(ths.dw_drill_clearance.IsSelected())
     {
-      ths.dw_drill_clearance.SetNumber(ths.dw_drill_clearance.GetNumber() + enc_val * ths.scale);
+      pdw = &ths.dw_drill_clearance;
     }
     else if(ths.dw_drill_feed.IsSelected())
     {
-      // Calculate new feed
-      int32_t new_number = ths.dw_drill_feed.GetNumber() + enc_val;
-      // Feed can't be negative(and zero too, but whatever)
-      if(new_number < 0) new_number = 0;
-      // Set new feed number
-      ths.dw_drill_feed.SetNumber(new_number);
+      pdw = &ths.dw_drill_feed;
+      add_val = enc_val; // Feed doesn't need scale to be used
     }
     else
     {
       ; // Do nothing - MISRA rule
+    }
+
+    // If we found currently selected DataWindow
+    if(pdw != nullptr)
+    {
+      // Calculate new value
+      int32_t new_number = pdw->GetNumber() + add_val;
+      // Value can't be negative(and probably zero too, but whatever)
+      if(new_number < 0) new_number = 0;
+      // Set new feed number
+      pdw->SetNumber(new_number);
     }
 
     // Set ok result
@@ -571,9 +584,9 @@ Result DrillGeneratorTab::GenerateGcode()
       // Check if it more than we need and correct it
       if(drill_progress > drill_distance) drill_progress = drill_distance;
       // Drill piece
-      PrintStr(txt, size, "G1 Z%li.%03i F%li", -(drill_stepover + clearance)/1000, abs((drill_stepover + clearance) % 1000), drill_feed);
+      PrintStr(txt, size, "G1 Z%li.%03i F%li", -(drill_stepover + clearance)/1000, (drill_stepover + clearance) % 1000, drill_feed);
       // Rapid move out to clear chips
-      PrintStr(txt, size, "G0 Z%li.%03i", drill_progress/1000, abs(drill_progress % 1000));
+      PrintStr(txt, size, "G0 Z%li.%03i", drill_progress/1000, drill_progress % 1000);
     }
   }
 
@@ -855,30 +868,43 @@ Result EnlargeGeneratorTab::ProcessEncoderCallback(EnlargeGeneratorTab* obj_ptr,
     // Cast pointer itself to integer value
     int32_t enc_val = (int32_t)ptr;
 
+    // Pointer to DataWindow which data should be changed
+    DataWindow* pdw = nullptr;
+    // Addition value - by default multiplied by scale to minimize code
+    int32_t add_val = enc_val * ths.scale;
+
+    // Find pointer for currently selected DataWindow
     if(ths.dw_hole_diameter.IsSelected())
     {
-      ths.dw_hole_diameter.SetNumber(ths.dw_hole_diameter.GetNumber() + enc_val * ths.scale);
+      pdw = &ths.dw_hole_diameter;
     }
     else if(ths.dw_stepover.IsSelected())
     {
-      ths.dw_stepover.SetNumber(ths.dw_stepover.GetNumber() + enc_val * ths.scale);
+      pdw = &ths.dw_stepover;
     }
     else if(ths.dw_endmill_diameter.IsSelected())
     {
-      ths.dw_endmill_diameter.SetNumber(ths.dw_endmill_diameter.GetNumber() + enc_val * ths.scale);
+      pdw = &ths.dw_endmill_diameter;
     }
     else if(ths.dw_feed.IsSelected())
     {
-      // Calculate new feed
-      int32_t new_number = ths.dw_feed.GetNumber() + enc_val;
-      // Feed can't be negative(and zero too, but whatever)
-      if(new_number < 0) new_number = 0;
-      // Set new feed number
-      ths.dw_feed.SetNumber(new_number);
+      pdw = &ths.dw_feed;
+      add_val = enc_val; // Feed doesn't need scale to be used
     }
     else
     {
       ; // Do nothing - MISRA rule
+    }
+
+    // If we found currently selected DataWindow
+    if(pdw != nullptr)
+    {
+      // Calculate new value
+      int32_t new_number = pdw->GetNumber() + add_val;
+      // Value can't be negative(and probably zero too, but whatever)
+      if(new_number < 0) new_number = 0;
+      // Set new feed number
+      pdw->SetNumber(new_number);
     }
 
     // Set ok result
@@ -895,20 +921,15 @@ Result EnlargeGeneratorTab::ProcessEncoderCallback(EnlargeGeneratorTab* obj_ptr,
 Result EnlargeGeneratorTab::GenerateGcode()
 {
   // Drilling parameters
-  int32_t endmill_radius = dw_endmill_diameter.GetNumber() / 2;
-  int32_t hole_radius = (dw_hole_diameter.GetNumber() / 2) - endmill_radius;
+  int32_t endmill_diameter = dw_endmill_diameter.GetNumber();
+  int32_t hole_diameter = dw_hole_diameter.GetNumber() - endmill_diameter;
   int32_t stepover = dw_stepover.GetNumber();
   int32_t feed = dw_feed.GetNumber();
 
-  // Find number of iterations: radius divided by stepover
-  uint32_t n = hole_radius / stepover;
-  // We can lost last operation if last step isn't equal to stepover
-  n += (hole_radius % stepover) ? 1u : 0u;
-  // Number of steps should be odd to make round hole. If it already odd, hole won't be round since even step isn't have center in center.
-  n += (n%2) ? 1u : 2u;
-
+  // Find number of iterations to calculate memory needed for program
+  uint32_t n = hole_diameter / stepover;
   // Calculate required memory(approximately)
-  int32_t size = (3 + n) * 40;
+  int32_t size = (5 + n) * 40;
   // And allocate it
   char *txt = ProgramSender::GetInstance().AllocateDataBuffer(size);
 
@@ -921,34 +942,39 @@ Result EnlargeGeneratorTab::GenerateGcode()
     // Switch to relative mode
     PrintStr(txt, size, "G91; Relative mode");
 
-    // Move half stepover to center
-    PrintStr(txt, size, "G1 X-%li.%03i F%li", (stepover / 2) / 1000, abs((stepover / 2) % 1000), feed);
-
     // Generate cycle
-    for(uint32_t i = 0u; i < n; i++)
+    while((enlarge_progress + stepover * 2) < hole_diameter)
     {
-      // Increase diameter
+      // Increase diameter by stepover
       enlarge_progress += stepover;
-      // Check result and correct it if it needed
-      if(enlarge_progress > hole_radius)
-      {
-        enlarge_progress = hole_radius;
-      }
-      // Find new I value
+      // Find new I value for the first arc
       center = enlarge_progress / 2;
-      // Every other iteration minuses should be added
-      if(i%2)
-      {
-        PrintStr(txt, size, direction ? "G3 I-%li.%03i X-%li.%03i F%li" : "G2 I-%li.%03i X-%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (feed * enlarge_progress) / (enlarge_progress + endmill_radius));
-      }
-      else
-      {
-        PrintStr(txt, size, direction ? "G3 I%li.%03i X%li.%03i F%li" : "G2 I%li.%03i X%li.%03i F%li", center/1000, abs(center%1000), enlarge_progress/1000, abs(enlarge_progress%1000), (feed * enlarge_progress) / (enlarge_progress + endmill_radius));
-      }
+      // Arc(half circle) with enlarge operation.
+      PrintStr(txt, size, direction ? "G3 I%li.%03i X%li.%03i F%li" : "G2 I%li.%03i X%li.%03i F%li", center/1000, center%1000, enlarge_progress/1000, enlarge_progress%1000, (feed * enlarge_progress) / (enlarge_progress + endmill_diameter));
+
+      // Increase diameter by stepover
+      enlarge_progress += stepover;
+      // Find new I value for the second arc
+      center = enlarge_progress / 2;
+      // Arc(half circle)
+      PrintStr(txt, size, direction ? "G3 I-%li.%03i X-%li.%03i F%li" : "G2 I-%li.%03i X-%li.%03i F%li", center/1000, center%1000, enlarge_progress/1000, enlarge_progress%1000, (feed * enlarge_progress) / (enlarge_progress + endmill_diameter));
     }
 
-    // Return to center. n always have to be odd.
-    PrintStr(txt, size, "G0 X%li.%03i", center/1000, abs(center%1000));
+    // Find diameter of last enlarge arc - we need add radius of current circle and radius of desired circle.
+    enlarge_progress = (enlarge_progress / 2) + (hole_diameter / 2);
+    // Find new I value for the last enlarge arc
+    center = enlarge_progress / 2;
+    // Last enlarge arc(half circle)
+    PrintStr(txt, size, direction ? "G3 I%li.%03i X%li.%03i F%li" : "G2 I%li.%03i X%li.%03i F%li", center/1000, center%1000, enlarge_progress/1000, enlarge_progress%1000, (feed * enlarge_progress) / (enlarge_progress + endmill_diameter));
+
+    // Find new I value for the final circle
+    center = hole_diameter / 2;
+    // Do full circle with desired diameter
+    PrintStr(txt, size, direction ? "G3 I-%li.%03i X-%li.%03i F%li" : "G2 I-%li.%03i X-%li.%03i F%li", center/1000, center%1000, hole_diameter/1000, hole_diameter%1000, (feed * hole_diameter) / (hole_diameter + endmill_diameter));
+    PrintStr(txt, size, direction ? "G3 I%li.%03i X%li.%03i F%li" : "G2 I%li.%03i X%li.%03i F%li", center/1000, center%1000, hole_diameter/1000, hole_diameter%1000, (feed * hole_diameter) / (hole_diameter + endmill_diameter));
+
+    // Return to center
+    PrintStr(txt, size, "G0 X-%li.%03i", center/1000, center%1000);
   }
 
   return Result::RESULT_OK;
