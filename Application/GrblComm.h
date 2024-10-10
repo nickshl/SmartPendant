@@ -30,7 +30,7 @@
 // *****************************************************************************
 // ***   Debug defines   *******************************************************
 // *****************************************************************************
-#define SEND_DATA_TO_USB
+//#define SEND_DATA_TO_USB
 
 // *****************************************************************************
 // ***   GrblComm Class   ******************************************************
@@ -319,19 +319,14 @@ class GrblComm : public AppTask
     void ReleaseControl();
 
     // *************************************************************************
-    // ***   Public: SetFullControlMode function   *****************************
-    // *************************************************************************
-    void SetFullControlMode(bool mode);
-
-    // *************************************************************************
     // ***   Public: GetFullControlMode function   *****************************
     // *************************************************************************
-    bool GetFullControlMode() {return full_control;}
+    bool GetFullControlMode() {return(NVM::GetInstance().GetCtrlTx() == CTRL_FULL);}
 
     // *************************************************************************
     // ***   Public: IsInControl function   ************************************
     // *************************************************************************
-    bool IsInControl() {return (grbl_mpgMode || full_control);}
+    bool IsInControl() {return (grbl_mpgMode || GetFullControlMode());}
 
     // *************************************************************************
     // ***   Public: GetMpgMode function   *************************************
@@ -404,6 +399,11 @@ class GrblComm : public AppTask
     inline int32_t GetUnitsScaler() {return (IsMetric() ? 1000 : 10000);} // 1 um for metric(base unit mm) / 1 tenths for imperial(base unit inch)
 
     // *************************************************************************
+    // ***   Public: GetSpeedScaler function   *********************************
+    // *************************************************************************
+    inline int32_t GetSpeedScaler() {return (IsMetric() ? 1 : 1);} // 1 mm/min or 1 inch/min
+
+    // *************************************************************************
     // ***   Public: GetUnitsPrecision function   *********************************
     // *************************************************************************
     inline uint32_t GetUnitsPrecision() {return (IsMetric() ? 3u : 4u);} // 0.000 for metric / 0.0000 for imperial
@@ -421,12 +421,27 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetReportUnits function   *********************************
     // *************************************************************************
-    const char* GetReportUnits() {return ((measurement_system == MEASUREMENT_SYSTEM_METRIC) ? "mm" : "inch");}
+    inline const char* GetReportUnits() {return ((measurement_system == MEASUREMENT_SYSTEM_METRIC) ? "mm" : "inch");}
+
+    // *************************************************************************
+    // ***   Public: GetReportSpeedUnits function   ****************************
+    // *************************************************************************
+    inline const char* GetReportSpeedUnits() {return ((measurement_system == MEASUREMENT_SYSTEM_METRIC) ? "mm/min" : "inches/min");}
+
+    // *************************************************************************
+    // ***   Public: ValueToStringWithScaler function   ************************
+    // *************************************************************************
+    inline char* ValueToStringWithScaler(char* buf, uint32_t buf_size, int32_t val, int32_t scaler) {return ValueToString(buf, buf_size, val, scaler);}
+
+    // *************************************************************************
+    // ***   Public: ValueToStringWithScalerAndUnits function   ****************
+    // *************************************************************************
+    inline char* ValueToStringWithScalerAndUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units) {return ValueToStringWithUnits(buf, buf_size, val, scaler, units);}
 
     // *************************************************************************
     // ***   Public: ValueToStringInCurrentUnits function   ********************
     // *************************************************************************
-    char* ValueToStringInCurrentUnits(char* buf, uint32_t buf_size, int32_t val) {return ValueToString(buf, buf_size, val, GetUnitsScaler());}
+    inline char* ValueToStringInCurrentUnits(char* buf, uint32_t buf_size, int32_t val) {return ValueToString(buf, buf_size, val, GetUnitsScaler());}
 
     // *************************************************************************
     // ***   Public: GetModeOfOperation function   *****************************
@@ -688,6 +703,11 @@ class GrblComm : public AppTask
     // *************************************************************************
     char* ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t scaler);
 
+    // *****************************************************************************
+    // ***   Public: ValueToStringWithUnits function   *****************************
+    // *****************************************************************************
+    char* ValueToStringWithUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units);
+
     // *************************************************************************
     // ***   Public: SetUartDrv function   *************************************
     // *************************************************************************
@@ -708,9 +728,6 @@ class GrblComm : public AppTask
     // Counter for received characters
     uint16_t rx_char_cnt = 0u;
 
-    // Flag to indicate full control, pendant is main control device without
-    // sender on a PC
-    bool full_control = false;
     // Flag to show if we trying to gain control
     bool mpg_mode_request = true;
 

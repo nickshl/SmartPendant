@@ -309,7 +309,7 @@ Result DrillGeneratorTab::Setup(int32_t y, int32_t height)
   dw_drill_feed.SetBorder(BORDER_W, COLOR_RED);
   dw_drill_feed.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_drill_feed.SetNumber(0);
-  dw_drill_feed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::RIGHT);
+  dw_drill_feed.SetUnits(grbl_comm.GetReportSpeedUnits(), DataWindow::RIGHT);
   dw_drill_feed.SetCallback(AppTask::GetCurrent());
   dw_drill_feed.SetActive(true);
   // Drill feed caption
@@ -614,7 +614,7 @@ EnlargeGeneratorTab& EnlargeGeneratorTab::GetInstance()
 }
 
 // ******************************************************************************
-// ***   EnlargeGeneratorTab Setup   **********************************************
+// ***   EnlargeGeneratorTab Setup   ********************************************
 // ******************************************************************************
 Result EnlargeGeneratorTab::Setup(int32_t y, int32_t height)
 {
@@ -671,7 +671,7 @@ Result EnlargeGeneratorTab::Setup(int32_t y, int32_t height)
   dw_feed.SetBorder(BORDER_W, COLOR_RED);
   dw_feed.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_feed.SetNumber(0);
-  dw_feed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::RIGHT);
+  dw_feed.SetUnits(grbl_comm.GetReportSpeedUnits(), DataWindow::RIGHT);
   dw_feed.SetCallback(AppTask::GetCurrent());
   dw_feed.SetActive(true);
   // Drill feed caption

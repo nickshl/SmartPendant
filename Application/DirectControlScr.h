@@ -112,12 +112,12 @@ class DirectControlScr : public IScreen
     // Set buttons
     UiButton set_mode_btn;
 
-    // Object to change numerical parameters
-    ChangeValueBox change_box;
-
     // Soft Buttons
     UiButton& left_btn;
     UiButton& right_btn;
+
+    // Object to change numerical parameters
+    ChangeValueBox& change_box;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();

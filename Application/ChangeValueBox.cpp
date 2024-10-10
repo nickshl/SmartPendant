@@ -23,7 +23,7 @@
 // *****************************************************************************
 // ***   ChangeValueBox Setup   ************************************************
 // *****************************************************************************
-Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, int32_t min, int32_t max, uint32_t point_pos)
+Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, int32_t min, int32_t max, uint32_t point_pos, uint8_t title_scale)
 {
   // Save min and max values to prevent select out of range
   min_val = min;
@@ -38,7 +38,7 @@ Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, 
 
   // Value caption
   value_name.SetParams(title, 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
-  value_name.SetScale(2u);
+  value_name.SetScale(title_scale);
   value_name.Move((width - value_name.GetWidth()) / 2, BORDER_W * 2, false);
   value_name.SetList(list);
   value_name.Show(1u);
@@ -72,9 +72,9 @@ Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, 
   }
 
   // Set scale
-  scale = 10;
+  scale = 100;
   // Set corresponded button pressed
-  scale_btn[1u].SetPressed(true);
+  scale_btn[2u].SetPressed(true);
 
   // Set box parameters
   box.SetParams(0, 0, width, scale_btn[0u].GetEndY() + BORDER_W*2, COLOR_BLACK, true);
@@ -328,7 +328,15 @@ void ChangeValueBox::UpdateObjects(void)
 // *****************************************************************************
 int32_t ChangeValueBox::Power(int32_t val, uint32_t power)
 {
-  int32_t result = val;
-  for(uint32_t i = 1u; i < power; i++) result *= val;
+  // Result - 1 by default to handle 0 power
+  int32_t result = 1;
+  // If power isn't zero
+  if(power != 0)
+  {
+    // Set result to value
+    result = val;
+    // And cycle until get power
+    for(uint32_t i = 1u; i < power; i++) result *= val;
+  }
   return result;
 }

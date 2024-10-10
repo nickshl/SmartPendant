@@ -318,20 +318,6 @@ void GrblComm::ReleaseControl()
 }
 
 // *****************************************************************************
-// ***   Public: SetFullControlMode function   *********************************
-// *****************************************************************************
-void GrblComm::SetFullControlMode(bool mode)
-{
-  // Set full control mode flag
-  full_control = mode;
-  // If full control mode is on
-  if(full_control == true)
-  {
-    GainControl(); // Turn on TX line
-  }
-}
-
-// *****************************************************************************
 // ***   Public: GetAxisName function   ****************************************
 // *****************************************************************************
 const char* const GrblComm::GetAxisName(uint8_t axis)
@@ -1137,6 +1123,26 @@ char* GrblComm::ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t
 }
 
 // *****************************************************************************
+// ***   Public: ValueToStringWithUnits function   *****************************
+// *****************************************************************************
+char* GrblComm::ValueToStringWithUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units)
+{
+  // Create numeric string
+  ValueToString(buf, buf_size, val, scaler);
+
+  // Check units pointer
+  if(units != nullptr)
+  {
+    // Get string length
+    uint32_t len = strlen(buf);
+    // Add units to the string
+    snprintf(buf + len, buf_size - len, "%s%s", " ", units);
+  }
+
+  return buf;
+}
+
+// *****************************************************************************
 // ***   Private: ParseState function   ****************************************
 // *****************************************************************************
 bool GrblComm::ParseState(char *data)
@@ -1537,11 +1543,20 @@ void GrblComm::PollSerial(void)
 
   while(uart->Read(c) == Result::RESULT_OK)
   {
-    if(c == 0x18u) // ASCII_CAN
+    // If ASCII_CAN received or buffer is full
+    if((c == 0x18u) || (rx_char_cnt >= NumberOf(rx_buf) - 3u)) //  minus one for null-terminator, minus 2 for \n\r for USB debug
     {
+#if defined(SEND_DATA_TO_USB)
+        // Send to USB
+        if(USBD_CDC_SetTxBuffer(&hUsbDeviceFS, rx_buf, rx_char_cnt) == USBD_OK)
+        {
+          // Send packet - no waiting
+          USBD_CDC_TransmitPacket(&hUsbDeviceFS);
+        }
+#endif
       rx_char_cnt = 0u;
     }
-    else if(((c == '\n') || (c == '\r')))
+    else if(((c == '\n') || (c == '\r'))) // Line received
     {
       // If we have at least one character
       if(rx_char_cnt > 0u)
@@ -1570,7 +1585,7 @@ void GrblComm::PollSerial(void)
       }
       rx_char_cnt = 0u;
     }
-    else if(rx_char_cnt < NumberOf(rx_buf) - 1u - 2u) // minus one for null-terminator, minus 2 for \n\r for USB debug
+    else
     {
       rx_buf[rx_char_cnt++] = (char)c;
     }

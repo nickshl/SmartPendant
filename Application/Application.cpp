@@ -445,7 +445,7 @@ void Application::InitHeader()
   if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_MILL)
   {
     header.SetText(scr_cnt, "ROTARY TABLE", Font_12x16::GetInstance());
-    header.SetImage(scr_cnt, RotaryTable);
+//    header.SetImage(scr_cnt, RotaryTable);
     scr[scr_cnt++] = &RotaryTableScr::GetInstance();
   }
   header.SetText(scr_cnt, "GCODE SENDER", Font_12x16::GetInstance());
@@ -461,6 +461,12 @@ void Application::InitHeader()
   {
     header.SetText(scr_cnt, "MILLING OPERATIONS", Font_12x16::GetInstance());
     scr[scr_cnt++] = &MillOpsScr::GetInstance();
+  }
+  // Turning Operation available only for lathe
+  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE)
+  {
+    header.SetText(scr_cnt, "TURNING OPERATIONS", Font_12x16::GetInstance());
+    scr[scr_cnt++] = &LatheOpsScr::GetInstance();
   }
   header.SetText(scr_cnt, "SETTINGS", Font_12x16::GetInstance());
   scr[scr_cnt++] = &SettingsScr::GetInstance();

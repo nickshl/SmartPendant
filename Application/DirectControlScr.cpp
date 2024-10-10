@@ -375,6 +375,7 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
           {
             // Setup object to change numerical parameters
             change_box.Setup(grbl_comm.GetAxisName(i), grbl_comm.GetReportUnits(), dw[i].GetNumber(), -10000000, 10000000, grbl_comm.GetUnitsPrecision());
+            // Set AppTask
             change_box.SetCallback(AppTask::GetCurrent());
             // Save axis index as ID
             change_box.SetId(i);
@@ -425,4 +426,5 @@ Result DirectControlScr::ProcessEncoderCallback(DirectControlScr* obj_ptr, void*
 // ***   Private constructor   *********************************************
 // *************************************************************************
 DirectControlScr::DirectControlScr() : left_btn(Application::GetInstance().GetLeftButton()),
-                                       right_btn(Application::GetInstance().GetRightButton()) {};
+                                       right_btn(Application::GetInstance().GetRightButton()),
+                                       change_box(Application::GetInstance().GetChangeValueBox()){};

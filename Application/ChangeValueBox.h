@@ -58,7 +58,7 @@ class ChangeValueBox
     // *************************************************************************
     // ***   Public: Setup function   ******************************************
     // *************************************************************************
-    Result Setup(const char* title, const char* units, int32_t val, int32_t min, int32_t max, uint32_t point_pos);
+    Result Setup(const char* title, const char* units, int32_t val, int32_t min, int32_t max, uint32_t point_pos, uint8_t title_scale = 2u);
 
     // *************************************************************************
     // ***   Set callback function   *******************************************

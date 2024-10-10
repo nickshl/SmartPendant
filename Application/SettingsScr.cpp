@@ -71,8 +71,6 @@ Result SettingsScr::Show()
 // *****************************************************************************
 Result SettingsScr::Hide()
 {
-  // Hide change box if it on the screen now
-  change_box.Hide();
   // Hide menu
   menu.Hide();
 
@@ -99,7 +97,7 @@ Result SettingsScr::ProcessCallback(const void* ptr)
 }
 
 // *****************************************************************************
-// ***   Private: ProcessButtonCallback function   *****************************
+// ***   Private: ProcessMenuCallback function   *******************************
 // *****************************************************************************
 Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
 {
@@ -140,7 +138,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
 }
 
 // *****************************************************************************
-// ***   Private: Update function   ********************************************
+// ***   Private: UpdateStrings function   *************************************
 // *****************************************************************************
 void SettingsScr::UpdateStrings(void)
 {

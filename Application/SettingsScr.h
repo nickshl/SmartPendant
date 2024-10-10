@@ -27,8 +27,8 @@
 
 #include "IScreen.h"
 #include "InputDrv.h"
-#include "Menu.h"
 #include "NVM.h"
+#include "Menu.h"
 #include "ChangeValueBox.h"
 
 // *****************************************************************************
@@ -92,9 +92,6 @@ class SettingsScr : public IScreen
     // Menu object
     Menu menu;
 
-    // Object to change numerical parameters
-    ChangeValueBox change_box;
-
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // NVM instance
@@ -106,7 +103,7 @@ class SettingsScr : public IScreen
     static Result ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr);
 
     // *************************************************************************
-    // ***   Private: Update function   ****************************************
+    // ***   Private: UpdateStrings function   *********************************
     // *************************************************************************
     void UpdateStrings();
 

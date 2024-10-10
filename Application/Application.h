@@ -44,6 +44,7 @@
 #include "ProgramSender.h"
 #include "ProbeScr.h"
 #include "MillOpsScr.h"
+#include "LatheOpsScr.h"
 #include "SettingsScr.h"
 
 // *****************************************************************************
@@ -100,6 +101,11 @@ class Application : public AppTask
     // ***   Public: GetLeftButton function   **********************************
     // *************************************************************************
     UiButton& GetLeftButton() {return left_btn;}
+
+    // *************************************************************************
+    // ***   Public: GetChangeValueBox function   ******************************
+    // *************************************************************************
+    ChangeValueBox& GetChangeValueBox() {return change_value_box;}
 
     // *************************************************************************
     // ***   Public: UpdateLeftButtonText function   ***************************
@@ -164,6 +170,9 @@ class Application : public AppTask
     // Soft Buttons
     UiButton left_btn;
     UiButton right_btn;
+
+    // Object to change numerical parameters
+    ChangeValueBox change_value_box;
 
     // Display rotation
     uint8_t rotation = IDisplay::ROTATION_RIGHT;

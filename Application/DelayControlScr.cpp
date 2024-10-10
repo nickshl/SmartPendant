@@ -80,7 +80,7 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
   dw_feed.SetBorder(BORDER_W, COLOR_RED);
   dw_feed.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_feed.SetNumber(300);
-  dw_feed.SetUnits(grbl_comm.IsMetric() ? "mm/min" : "inches/min", DataWindow::BOTTOM_RIGHT);
+  dw_feed.SetUnits(grbl_comm.GetReportSpeedUnits(), DataWindow::BOTTOM_RIGHT);
   dw_feed.SetCallback(AppTask::GetCurrent());
   dw_feed.SetActive(true);
   // Feed caption
@@ -278,7 +278,11 @@ Result DelayControlScr::ProcessCallback(const void* ptr)
       // Reset numbers with current position
       for(uint32_t i = 0u; i < NumberOf(dw); i++)
       {
-        dw[i].SetNumber(grbl_comm.GetAxisPosition(i));
+        // Clear reset selected data window
+        if(dw[i].IsSelected())
+        {
+          dw[i].SetNumber(grbl_comm.GetAxisPosition(i));
+        }
       }
     }
     else // otherwise
