@@ -39,6 +39,17 @@
 class NVM
 {
   public:
+    // Enum with menu items
+    enum Parameters
+    {
+      TX_CONTROL,
+      SCREEN_INVERT,
+      PROBE_SEARCH_FEED,
+      PROBE_LOCK_FEED,
+      PROBE_BALL_TIP,
+      MAX_VALUES
+    };
+
     // *************************************************************************
     // ***   Get Instance   ****************************************************
     // *************************************************************************
@@ -60,54 +71,34 @@ class NVM
     Result WriteData(void);
 
     // *************************************************************************
+    // ***   GetValue function   ***********************************************
+    // *************************************************************************
+    int32_t GetValue(Parameters idx) {return data.value[idx];}
+
+    // *************************************************************************
+    // ***   SetValue function   ***********************************************
+    // *************************************************************************
+    Result SetValue(Parameters idx, int32_t value) {data.value[idx] = value; return WriteData();}
+
+    // *************************************************************************
     // ***   GetCtrlTx function   **********************************************
     // *************************************************************************
-    uint8_t GetCtrlTx() {return data.tx_ctrl;}
+    uint8_t GetCtrlTx() {return data.value[TX_CONTROL];}
 
     // *************************************************************************
     // ***   SetCtrlTx function   **********************************************
     // *************************************************************************
-    Result SetCtrlTx(uint8_t tx_ctrl) {data.tx_ctrl = tx_ctrl; return WriteData();}
+    Result SetCtrlTx(uint8_t tx_ctrl) {data.value[TX_CONTROL] = tx_ctrl; return WriteData();}
 
     // *************************************************************************
     // ***   GetDisplayInvert function   ***************************************
     // *************************************************************************
-    bool GetDisplayInvert() {return data.invert_display;}
+    bool GetDisplayInvert() {return data.value[SCREEN_INVERT];}
 
     // *************************************************************************
     // ***   SetDisplayInvert function   ***************************************
     // *************************************************************************
-    Result SetDisplayInvert(bool invert_display) {data.invert_display = invert_display; return WriteData();}
-
-    // *************************************************************************
-    // ***   GetProbeSearchFeed function   *************************************
-    // *************************************************************************
-    uint32_t GetProbeSearchFeed() {return data.search_feed;}
-
-    // *************************************************************************
-    // ***   SetProbeSearchFeed function   *************************************
-    // *************************************************************************
-    Result SetProbeSearchFeed(uint32_t feed) {data.search_feed = feed; return WriteData();}
-
-    // *************************************************************************
-    // ***   GetProbeLockFeed function   ***************************************
-    // *************************************************************************
-    uint32_t GetProbeLockFeed() {return data.lock_feed;}
-
-    // *************************************************************************
-    // ***   SetProbeLockFeed function   ***************************************
-    // *************************************************************************
-    Result SetProbeLockFeed(uint32_t feed) {data.lock_feed = feed; return WriteData();}
-
-    // *************************************************************************
-    // ***   GetProbeTipDiameter function   ************************************
-    // *************************************************************************
-    uint32_t GetProbeTipDiameter() {return data.ball_tip;}
-
-    // *************************************************************************
-    // ***   SetProbeTipDiameter function   ************************************
-    // *************************************************************************
-    Result SetProbeTipDiameter(uint32_t ball) {data.ball_tip = ball; return WriteData();}
+    Result SetDisplayInvert(bool invert_display) {data.value[SCREEN_INVERT] = invert_display; return WriteData();}
 
   private:
 
@@ -117,12 +108,14 @@ class NVM
     // Struct with all settings we want to store in EEPROM
     typedef struct
     {
-      uint8_t tx_ctrl = 2u; // Pin & Software command by default
-      uint8_t invert_display = false;
-      // Probing
-      uint32_t search_feed = 200u;
-      uint32_t lock_feed = 50u;
-      uint32_t ball_tip = 2000u;
+      int32_t value[MAX_VALUES] =
+      {
+        2,    // TX_CONTROL
+        0,    // SCREEN_INVERT
+        200,  // PROBE_SEARCH_FEED
+        50,   // PROBE_LOCK_FEED
+        2000  // PROBE_BALL_TIP
+      };
       // CRC
       uint32_t crc = 0u;
     } Nvm_t;

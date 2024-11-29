@@ -84,7 +84,8 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   radius_dw.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetUnitsPrecision());
   radius_dw.SetBorder(BORDER_W, COLOR_RED);
   radius_dw.SetDataFont(Font_8x12::GetInstance(), 2u);
-  radius_dw.SetNumber(0);
+  radius_dw.SetLimits(1, INT32_MAX);
+  radius_dw.SetNumber(1);
   radius_dw.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
   radius_dw.SetCallback(AppTask::GetCurrent());
   radius_dw.SetActive(true);

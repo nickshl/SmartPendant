@@ -78,11 +78,21 @@ class SettingsScr : public IScreen
 
   private:
     // Enum with menu items
+    // TODO: THIS MUST EXACT MATCHED TO NVM::Parameters - need to be fixed
     enum
     {
       TX_CONTROL,
       SCREEN_INVERT,
+      PROBE_SEARCH_FEED,
+      PROBE_LOCK_FEED,
+      PROBE_BALL_TIP,
       MAX_ITEMS
+    };
+
+    // Menu item strings. This array must match the enum above!
+    const char* const menu_strings[MAX_ITEMS] =
+    {
+      "MPG request", "Display Inversion", "Probe search speed", "Probe lock speed", "Probe ball tip"
     };
 
     // Strings
@@ -92,8 +102,13 @@ class SettingsScr : public IScreen
     // Menu object
     Menu menu;
 
+    // Object to change numerical parameters
+    ChangeValueBox& change_box;
+
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
+    // GRBL Communication Interface instance
+    GrblComm& grbl_comm = GrblComm::GetInstance();
     // NVM instance
     NVM& nvm = NVM::GetInstance();
 
@@ -110,7 +125,7 @@ class SettingsScr : public IScreen
     // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    SettingsScr() : menu(menu_items, NumberOf(menu_items)) {};
+    SettingsScr();
 };
 
 #endif

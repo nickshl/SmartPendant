@@ -1436,6 +1436,8 @@ void GrblComm::ParseData(void)
       {
         // Pins received
         pins = true;
+        // Probe temporary flag
+        bool probe_triggered = false;
         // Copy and check pins
         for(uint32_t i = 0u; i < NumberOf(grbl_pins); i++)
         {
@@ -1447,9 +1449,13 @@ void GrblComm::ParseData(void)
           if(grbl_pins[i] != line[3 + i]) grbl_changed.pins = true;
           // Copy character
           grbl_pins[i] = line[3 + i];
+          // Check probe and set local flag
+          if((grbl_pins[i] == 'P') || (grbl_pins[i] == 'p')) probe_triggered = true;
         }
         // If string longer than buffer - terminate it
         grbl_pins[NumberOf(grbl_pins) - 1u] = '\0';
+        // Set probe flag
+        grbl_probe_triggered = probe_triggered;
       }
       else if(!strncmp(line, "D:", 2))
       {
@@ -1507,6 +1513,9 @@ void GrblComm::ParseData(void)
     }
 
     if(!pins && (grbl_changed.pins = (grbl_pins[0] != '\0'))) grbl_pins[0] = '\0';
+
+    // Clear probe flag if no pins reported
+    if(!pins) grbl_probe_triggered = false;
   }
   else if(line[0] == '[')
   {
@@ -1541,19 +1550,18 @@ void GrblComm::PollSerial(void)
 {
   uint8_t c = 0u;
 
+#if defined(SEND_DATA_TO_USB)
+  // Buffer to send data to USB. At 115200 and 1 ms timer interval we could expect ~12 bytes.
+  static uint8_t usb_data[32u] = {0};
+  // Counter
+  uint16_t rx_usb_cnt = 0u;
+#endif
+
   while(uart->Read(c) == Result::RESULT_OK)
   {
     // If ASCII_CAN received or buffer is full
     if((c == 0x18u) || (rx_char_cnt >= NumberOf(rx_buf) - 3u)) //  minus one for null-terminator, minus 2 for \n\r for USB debug
     {
-#if defined(SEND_DATA_TO_USB)
-        // Send to USB
-        if(USBD_CDC_SetTxBuffer(&hUsbDeviceFS, rx_buf, rx_char_cnt) == USBD_OK)
-        {
-          // Send packet - no waiting
-          USBD_CDC_TransmitPacket(&hUsbDeviceFS);
-        }
-#endif
       rx_char_cnt = 0u;
     }
     else if(((c == '\n') || (c == '\r'))) // Line received
@@ -1561,18 +1569,6 @@ void GrblComm::PollSerial(void)
       // If we have at least one character
       if(rx_char_cnt > 0u)
       {
-#if defined(SEND_DATA_TO_USB)
-        // Add CR LF and null-terminator for USB
-        rx_buf[rx_char_cnt + 0u] = '\n';
-        rx_buf[rx_char_cnt + 1u] = '\r';
-        rx_buf[rx_char_cnt + 2u] = '\0';
-        // Send to USB
-        if(USBD_CDC_SetTxBuffer(&hUsbDeviceFS, rx_buf, strlen((char*)rx_buf)) == USBD_OK)
-        {
-          // Send packet - no waiting
-          USBD_CDC_TransmitPacket(&hUsbDeviceFS);
-        }
-#endif
         // End of line reached
         rx_buf[rx_char_cnt] = '\0';
 
@@ -1589,7 +1585,27 @@ void GrblComm::PollSerial(void)
     {
       rx_buf[rx_char_cnt++] = (char)c;
     }
+#if defined(SEND_DATA_TO_USB)
+    // Check just in case that we got less bytes than buffer size
+    if(rx_usb_cnt < NumberOf(usb_data))
+    {
+      usb_data[rx_usb_cnt++] = c;
+    }
+#endif
   }
+
+#if defined(SEND_DATA_TO_USB)
+  // Send data only if something was received
+  if(rx_usb_cnt > 0)
+  {
+    // Send to USB
+    if(USBD_CDC_SetTxBuffer(&hUsbDeviceFS, usb_data, rx_usb_cnt) == USBD_OK)
+    {
+      // Send packet - no waiting
+      USBD_CDC_TransmitPacket(&hUsbDeviceFS);
+    }
+  }
+#endif
 }
 
 // *****************************************************************************

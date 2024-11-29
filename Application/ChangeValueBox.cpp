@@ -25,14 +25,6 @@
 // *****************************************************************************
 Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, int32_t min, int32_t max, uint32_t point_pos, uint8_t title_scale)
 {
-  // Save min and max values to prevent select out of range
-  min_val = min;
-  max_val = max;
-
-  // Check range and correct value(if needed)
-  if(val < min_val) val = min_val;
-  if(val > max_val) val = max_val;
-
   // Width of box
   static const uint32_t width = display_drv.GetScreenW();
 
@@ -47,6 +39,7 @@ Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, 
   value_dw.SetParams(BORDER_W * 2, value_name.GetEndY() + BORDER_W*2, width - BORDER_W * 4,  Font_8x12::GetInstance().GetCharH() * 5u, 13u, point_pos);
   value_dw.SetBorder(BORDER_W, COLOR_GREEN);
   value_dw.SetDataFont(Font_8x12::GetInstance(), 2u);
+  value_dw.SetLimits(min, max);
   value_dw.SetNumber(val);
   value_dw.SetUnits(units, DataWindow::BOTTOM_RIGHT);
   value_dw.SetActive(false);
@@ -71,10 +64,12 @@ Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, 
     scale_btn[i].Show(1u);
   }
 
+  // Since we have 3 buttons, any point position greater than 2 should set highest button
+  if(point_pos > 2) point_pos = 2;
   // Set scale
-  scale = 100;
+  scale = Power(10, point_pos);
   // Set corresponded button pressed
-  scale_btn[2u].SetPressed(true);
+  scale_btn[point_pos].SetPressed(true);
 
   // Set box parameters
   box.SetParams(0, 0, width, scale_btn[0u].GetEndY() + BORDER_W*2, COLOR_BLACK, true);
@@ -177,13 +172,8 @@ Result ChangeValueBox::ProcessEncoderCallback(ChangeValueBox* obj_ptr, void* ptr
     // Process it
     if(enc_val != 0)
     {
-      // Calculate new value
-      int32_t new_number = ths.value_dw.GetNumber() + enc_val * ths.scale;
-      // Check range and correct value(if needed)
-      if(new_number < ths.min_val) new_number = ths.min_val;
-      if(new_number > ths.max_val) new_number = ths.max_val;
-      // Set new value number
-      ths.value_dw.SetNumber(new_number);
+      // Calculate & set new value number
+      ths.value_dw.SetNumber(ths.value_dw.GetNumber() + enc_val * ths.scale);
     }
     // Set ok result
     result = Result::RESULT_OK;

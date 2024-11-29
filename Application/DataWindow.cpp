@@ -151,11 +151,26 @@ void DataWindow::SetBorderColor(color_t cu, color_t cs)
 }
 
 // *****************************************************************************
+// ***   SetLimits   ***********************************************************
+// *****************************************************************************
+void DataWindow::SetLimits(int32_t min, int32_t max)
+{
+  // Set new limits
+  min_limit = min;
+  max_limit = max;
+  // Call SetNumber() function to correct value in case it out of boundaries
+  SetNumber(data);
+}
+
+// *****************************************************************************
 // ***   SetNumber   ***********************************************************
 // *****************************************************************************
 bool DataWindow::SetNumber(int32_t n)
 {
   bool chganged = false;
+  // Check input data
+  if(n < min_limit) n = min_limit;
+  if(n > max_limit) n = max_limit;
   // If data has changed
   if(n != data)
   {

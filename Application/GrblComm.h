@@ -414,6 +414,11 @@ class GrblComm : public AppTask
     inline int32_t ConvertMetricToUnits(int32_t metric) {return (IsMetric() ? metric : metric * 100 / 254);}
 
     // *************************************************************************
+    // ***   Public: ConvertUnitsToMetric function   ***************************
+    // *************************************************************************
+    inline int32_t ConvertUnitsToMetric(int32_t units) {return (IsMetric() ? units : units * 254 / 100);}
+
+    // *************************************************************************
     // ***   Public: GetMeasurementSystem function   ***************************
     // *************************************************************************
     uint8_t GetMeasurementSystem() {return measurement_system;}
@@ -462,6 +467,11 @@ class GrblComm : public AppTask
     // ***   Public: GetProbeMachinePosition function   ************************
     // *************************************************************************
     int32_t GetProbeMachinePosition(uint8_t axis);
+
+    // *************************************************************************
+    // ***   Public: IsProbeTriggered function   *******************************
+    // *************************************************************************
+    bool IsProbeTriggered() {return grbl_probe_triggered;}
 
     // *************************************************************************
     // ***   Public: GetProbePosition function   *******************************
@@ -783,6 +793,7 @@ class GrblComm : public AppTask
     bool      grbl_absDistance;
     bool      grbl_mpgMode;
     bool      grbl_xModeDiameter;
+    bool      grbl_probe_triggered = false;
     changes_t grbl_changed;
     changes_t grbl_received;
     uint8_t   grbl_alarm;

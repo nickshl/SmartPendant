@@ -96,10 +96,6 @@ class ChangeValueBox
     // ID for caller
     uint32_t id = 0u;
 
-    // Min and max values(range)
-    int32_t min_val = 0;
-    int32_t max_val = 0;
-
     // Scale to move axis
     int32_t scale = 10u;
 

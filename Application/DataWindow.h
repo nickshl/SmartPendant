@@ -76,6 +76,11 @@ class DataWindow : public VisObject
     void SetBorderColor(color_t cu, color_t cs = COLOR_GREEN);
 
     // *************************************************************************
+    // ***   SetLimits   *******************************************************
+    // *************************************************************************
+    void SetLimits(int32_t min, int32_t max);
+
+    // *************************************************************************
     // ***   SetNumber   *******************************************************
     // *************************************************************************
     bool SetNumber(int32_t n);
@@ -132,6 +137,10 @@ class DataWindow : public VisObject
     int32_t before_decimal = 1u;
     int32_t after_decimal = 0u;
     int32_t decimal_multiplier = 1u;
+
+    // Min & Max limits
+    int32_t min_limit = INT32_MIN;
+    int32_t max_limit = INT32_MAX;
 
     // Data
     int32_t data = -1;

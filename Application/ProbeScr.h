@@ -362,4 +362,116 @@ class CenterFinderTab : public IScreen
     CenterFinderTab() {};
 };
 
+// *****************************************************************************
+// *****************************************************************************
+// ***   EdgeFinderTab Class   *************************************************
+// *****************************************************************************
+// *****************************************************************************
+class EdgeFinderTab : public IScreen
+{
+  public:
+    // *************************************************************************
+    // ***   Get Instance   ****************************************************
+    // *************************************************************************
+    static EdgeFinderTab& GetInstance();
+
+    // *************************************************************************
+    // ***   Setup function   **************************************************
+    // *************************************************************************
+    virtual Result Setup(int32_t y, int32_t height);
+
+    // *************************************************************************
+    // ***   Public: Show   ****************************************************
+    // *************************************************************************
+    virtual Result Show();
+
+    // *************************************************************************
+    // ***   Public: Hide   ****************************************************
+    // *************************************************************************
+    virtual Result Hide();
+
+    // *************************************************************************
+    // ***   Public: TimerExpired   ********************************************
+    // *************************************************************************
+    virtual Result TimerExpired(uint32_t interval);
+
+    // *************************************************************************
+    // ***   Public: ProcessCallback   *****************************************
+    // *************************************************************************
+    virtual Result ProcessCallback(const void* ptr);
+
+  private:
+    static const uint8_t BORDER_W = 4u;
+
+    // Enum to track state
+    typedef enum
+    {
+      PROBE_START,
+      PROBE_MOVE,
+      PROBE_DIVE,
+      PROBE_FAST,
+      PROBE_FAST_RETURN,
+      PROBE_SLOW,
+      PROBE_RESULT_READY, // <- this state allow to replace safe_pos with calculated center for example
+      PROBE_SLOW_RETURN,
+      PROBE_ASCEND,
+      PROBE_RETURN,
+      PROBE_CNT
+    } probe_state_t;
+    // Current state
+    probe_state_t state = PROBE_CNT;
+
+    // Current probing axis
+    uint8_t axis = GrblComm::AXIS_CNT;
+    // Current probing direction(+1/-1)
+    int8_t dir = 0;
+    // Measured position
+    int32_t measured_pos = 0u;
+    // Safe position(from which probing started)
+    int32_t safe_pos = 0u;
+
+    // ID to track send message
+    uint32_t cmd_id = 0u;
+
+    // Current GRBL state to detect changes
+    GrblComm::state_t grbl_state = GrblComm::UNKNOWN;
+
+    // Data windows to show real position
+    DataWindow dw_real[GrblComm::AXIS_CNT];
+    // String for caption
+    String dw_real_name[NumberOf(dw_real)];
+
+    // Data windows for clearance
+    DataWindow dw_clearance;
+    String dw_clearance_name;
+    // Data windows for distance
+    DataWindow dw_tip_diameter;
+    String dw_tip_diameter_name;
+
+    // Buttons to select type of measurement
+    UiButton plus_btn;
+    UiButton minus_btn;
+
+    // Buttons to start movement
+    UiButton find_edge_btn;
+
+    // Display driver instance
+    DisplayDrv& display_drv = DisplayDrv::GetInstance();
+    // GRBL Communication Interface instance
+    GrblComm& grbl_comm = GrblComm::GetInstance();
+
+    // Encoder callback entry
+    InputDrv::CallbackListEntry enc_cble;
+
+    // *************************************************************************
+    // ***   Private: ProcessEncoderCallback function   ************************
+    // *************************************************************************
+    static Result ProcessEncoderCallback(EdgeFinderTab* obj_ptr, void* ptr);
+
+    // *************************************************************************
+    // ***   Private constructor   *********************************************
+    // *************************************************************************
+    EdgeFinderTab() {};
+};
+
 #endif

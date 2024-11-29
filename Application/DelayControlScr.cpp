@@ -79,6 +79,7 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
   dw_feed.SetParams(display_drv.GetScreenW() / 2, scale_btn[0].GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*2) / 2,  window_height, 4u, 0u);
   dw_feed.SetBorder(BORDER_W, COLOR_RED);
   dw_feed.SetDataFont(Font_8x12::GetInstance(), 2u);
+  dw_feed.SetLimits(1, 10000);
   dw_feed.SetNumber(300);
   dw_feed.SetUnits(grbl_comm.GetReportSpeedUnits(), DataWindow::BOTTOM_RIGHT);
   dw_feed.SetCallback(AppTask::GetCurrent());
@@ -344,12 +345,8 @@ Result DelayControlScr::ProcessEncoderCallback(DelayControlScr* obj_ptr, void* p
       }
       else // Change feed
       {
-        // Calculate new feed
-        int32_t new_number = ths.dw_feed.GetNumber() + enc_val;
-        // Feed can't be negative(and zero too, but whatever)
-        if(new_number < 0) new_number = 0;
         // Set new feed number
-        ths.dw_feed.SetNumber(new_number);
+        ths.dw_feed.SetNumber(ths.dw_feed.GetNumber() + enc_val);
       }
     }
     // Set ok result
