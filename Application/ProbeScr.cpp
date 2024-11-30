@@ -1395,7 +1395,7 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
         // Use probe command to move axis over the edge. Strict flag set to false
         // because we don't expect probe to be triggered, we using it as safety
         // to prevent probe damage in case clearance not big enough.
-        result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (dw_tip_diameter.GetNumber() * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
+        result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (dw_tip_diameter.GetNumber() / 2 * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
         // Probe max state - done sequence
         state = PROBE_RETURN;
       }
