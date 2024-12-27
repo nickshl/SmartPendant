@@ -286,6 +286,16 @@ Result ProgramSender::TimerExpired(uint32_t interval)
   }
   else
   {
+    // Safety measure: allow run program only from the beginning
+    // TODO: add dialog box "Are you sure you want to run program from current position?" instead
+    if(text_box.GetSelect() == 0)
+    {
+      left_btn.Enable();
+    }
+    else
+    {
+      left_btn.Disable();
+    }
     // If feed control enabled - disable it
     if(feed_dw.IsActive())
     {
