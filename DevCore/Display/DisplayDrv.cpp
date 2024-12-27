@@ -359,9 +359,6 @@ Result DisplayDrv::InvalidateArea(int16_t start_x, int16_t start_y, int16_t end_
   Result result = Result::ERR_BAD_PARAMETER;
   // Lock display line
   line_mutex.Lock();
-  // Area set exactly, we need +1 for end points
-  end_x++;
-  end_y++;
 #if defined(COLOR_3BIT)
   // In 3 bit mode each byte contains 2 pixels, so we
   // can't start or end at any odd number of pixels.
@@ -430,9 +427,6 @@ Result DisplayDrv::SetUpdateArea(uint16_t start_x, uint16_t start_y, uint16_t en
   Result result = Result::ERR_BAD_PARAMETER;
   // Lock display
   LockDisplay();
-  // Area set exactly, we need +1 for end points
-  end_x++;
-  end_y++;
   // Check end points - it can't be greater than screen size
   if(end_x >= width) end_x = width - 1;
   if(end_y >= height) end_y = height - 1;

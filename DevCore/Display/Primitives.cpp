@@ -128,22 +128,18 @@ void Box::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
       // If fill or first/last line - must be solid
       if(fill)
       {
-        // Prevent write in memory before buffer
-        if(start < 0) start = 0;
         // Prevent buffer overflow
         if(end >= n) end = n - 1;
-        // Fill the line
-        for(int32_t i = start; i <= end; i++) buf[i] = bg_color;
+        // Fill the line, start value can't be negative to prevent write in memory before buffer
+        for(int32_t i = (start < 0) ? 0 : start; i <= end; i++) buf[i] = bg_color;
       }
       // Fill top and bottom border lines (if border exist)
       if((line < y_start + border_width) || (line > y_end - border_width))
       {
-        // Prevent write in memory before buffer
-        if(start < 0) start = 0;
         // Prevent buffer overflow
         if(end >= n) end = n - 1;
-        // Fill the line
-        for(int32_t i = start; i <= end; i++) buf[i] = color;
+        // Fill the line, start value can't be negative to prevent write in memory before buffer
+        for(int32_t i = (start < 0) ? 0 : start; i <= end; i++) buf[i] = color;
       }
       else
       {

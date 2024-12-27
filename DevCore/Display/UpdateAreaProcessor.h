@@ -91,67 +91,29 @@ template <int N> class UpdateAreaProcessor
     // ***   Public: Push   ****************************************************
     // *************************************************************************
     bool Push(UpdateArea_t& value)
-    {
-      // False by default
-      bool result = false;
-
-      // Try to find filled spot
-      for(uint32_t idx = 0u; idx < N; idx++)
+{
+      // Find empty spot
+      uint32_t idx = GetFirstEmptySpot();
+      // Check if there an empty spot in the list
+      if(idx < N)
       {
-        if(!IsEmpty(idx))
-        {
-          // Check intersection
-          bool width_is_positive  = MIN(value.end_x, array[idx].end_x) > MAX(value.start_x, array[idx].start_x);
-          bool height_is_positive = MIN(value.end_y, array[idx].end_y) > MAX(value.start_y, array[idx].start_y);
-          // Merge areas if intersects
-          if(width_is_positive && height_is_positive)
-          {
-            // Add new area to existing one
-            if(value.start_x < array[idx].start_x) array[idx].start_x = value.start_x;
-            if(value.start_y < array[idx].start_y) array[idx].start_y = value.start_y;
-            if(value.end_x > array[idx].end_x) array[idx].end_x = value.end_x;
-            if(value.end_y > array[idx].end_y) array[idx].end_y = value.end_y;
-            // Set result
-            result = true;
-            // Already merged, break the cycle
-            break;
-          }
-        }
+        // Store new value in array
+        array[idx] = value;
       }
-      // If isn't intersect with any other areas
-      if(result == false)
+      else // otherwise
       {
-        // Find empty spot
-        uint32_t idx = GetFirstEmptySpot();
-        // Check if there an empty spot in the list
-        if(idx < N)
-        {
-          // Store new value in array
-          array[idx] = value;
-          // Set result
-          result = true;
-        }
-        else // otherwise
-        {
-          // Add new area to the first existing one
-          if(value.start_x < array[0].start_x) array[0].start_x = value.start_x;
-          if(value.start_y < array[0].start_y) array[0].start_y = value.start_y;
-          if(value.end_x > array[0].end_x) array[0].end_x = value.end_x;
-          if(value.end_y > array[0].end_y) array[0].end_y = value.end_y;
-          // Set result to try merge areas that can be in between
-          result = true;
-        }
+        // Add new area to the first existing one
+        if(value.start_x < array[0].start_x) array[0].start_x = value.start_x;
+        if(value.start_y < array[0].start_y) array[0].start_y = value.start_y;
+        if(value.end_x > array[0].end_x) array[0].end_x = value.end_x;
+        if(value.end_y > array[0].end_y) array[0].end_y = value.end_y;
       }
-      // If area was merged, try to re-merge other areas
-      if(result == true)
-      {
-        // Merge all areas
-        while(ReMerge());
-        // Move other records to beginning
-        Compact();
-      }
+      // Merge all areas
+      while(ReMerge());
+      // Eliminate empty spots between areas in list that can happen after the merge process
+      Compact();
       // Return result
-      return result;
+      return true;
     }
 
     // *************************************************************************
