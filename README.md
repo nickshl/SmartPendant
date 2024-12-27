@@ -25,7 +25,8 @@ This handwheel also works from 3.3V. STM321F411 pins handwheel connected to is 5
 
 ## Schematic
 
-![Image](https://github.com/Devtronic-US/SmartPendant/raw/main/Media/Schematic_Smart_Pendant_v1_1.png "Devtronic SmartPendant Schematic")
+Schematic vesion 1.3:
+![Image](https://github.com/Devtronic-US/SmartPendant/raw/main/Media/Schematic_Smart_Pendant_v1_3.png "Devtronic SmartPendant Schematic")
 
 # Precompiled Firmware
 
