@@ -1087,6 +1087,95 @@ Result GrblComm::ClearToolLengthOffset()
 }
 
 // *****************************************************************************
+// ***   Public: SetSpindleSpeed   *********************************************
+// *****************************************************************************
+Result GrblComm::SetSpindleSpeed(int32_t speed, bool dir_ccw)
+{
+  Result result = Result::ERR_BAD_PARAMETER;
+
+  // Reset axis possible only in Idle state
+  if(IsInControl() && (grbl_state == IDLE))
+  {
+    TaskQueueMsg msg;
+    // Set ID for command
+    msg.id = GetNextId();
+
+    // Create spindle run command
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sS%lu\r\n", dir_ccw ? "M4" : "M3", speed);
+
+    // Send message
+    result = SendTaskMessage(&msg);
+  }
+  else
+  {
+    result = Result::ERR_CANNOT_EXECUTE;
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Public: SetSpindleDirection   *****************************************
+// *****************************************************************************
+Result GrblComm::SetSpindleDirection(bool dir_ccw)
+{
+  Result result = Result::ERR_BAD_PARAMETER;
+
+  // Reset axis possible only in Idle state
+  if(IsInControl() && (grbl_state == IDLE))
+  {
+    // If spindle is running
+    if(IsSpindleRunning())
+    {
+      // Update actual speed
+      result = SetSpindleSpeed(GetSpindleSpeed(), dir_ccw);
+    }
+    else
+    {
+      // Otherwise update flag only
+      spindle_ccw = dir_ccw;
+    }
+  }
+  else
+  {
+    result = Result::ERR_CANNOT_EXECUTE;
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Public: StopSpindle   *************************************************
+// *****************************************************************************
+Result GrblComm::StopSpindle()
+{
+  Result result = Result::ERR_BAD_PARAMETER;
+
+  // Reset axis possible only in Idle state
+  if(IsInControl() && (grbl_state == IDLE))
+  {
+    TaskQueueMsg msg;
+    // Set ID for command
+    msg.id = GetNextId();
+
+    // Create spindle stop
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "M5\r\n");
+
+    // Send message
+    result = SendTaskMessage(&msg);
+  }
+  else
+  {
+    result = Result::ERR_CANNOT_EXECUTE;
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
 // ***   Public: ValueToString function   **************************************
 // *****************************************************************************
 char* GrblComm::ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t scaler)
@@ -1303,14 +1392,23 @@ void GrblComm::ParseFeedSpeed(char* data)
   char* next = nullptr;
 
   next = strchr(data, ','); // Find next comma
-  *next++ = '\0';           // And replace it with zero
+  *next = '\0';             // And replace it with zero
+  next++;                   // Move pointer after comma
 
   // Parse feed rate
   if(ParseDecimal(grbl_feed_rate, data)) grbl_changed.feed = true;
 
   data = next; // Update data pointer
   // Try to find next comma
-  if((next = strchr(data, ','))) *next++ = '\0';
+  if((next = strchr(data, ',')))
+  {
+    *next = '\0'; // And replace it with zero
+    next++;       // Move pointer after comma
+  }
+  else
+  {
+    spindle_rpm_actual = 0.0f; // If no actual set it to zero
+  }
 
   // Parse spindle programmed rpm
   if(ParseDecimal(spindle_rpm_programmed, data)) grbl_changed.rpm = true;
@@ -1358,6 +1456,24 @@ void GrblComm::ParseData(void)
           if(measurement_system != atoi(s))
           {
             measurement_system = atoi(s);
+            settings_changed = true;
+          }
+          break;
+
+        // *********************************************************************
+        case 30:
+          if(spindle_speed_max != atol(s))
+          {
+            spindle_speed_max = atol(s);
+            settings_changed = true;
+          }
+          break;
+
+        // *********************************************************************
+        case 31:
+          if(spindle_speed_min != atol(s))
+          {
+            spindle_speed_min = atol(s);
             settings_changed = true;
           }
           break;
@@ -1465,7 +1581,7 @@ void GrblComm::ParseData(void)
       else if(!strncmp(line, "A:", 2))
       {
         line = &line[2];
-        spindle_on = spindle_ccw = coolant_flood = coolant_mist = false;
+        spindle_on = coolant_flood = coolant_mist = false;
         grbl_changed.leds = true;
 
         while((c = *line++))

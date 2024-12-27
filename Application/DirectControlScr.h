@@ -81,9 +81,9 @@ class DirectControlScr : public IScreen
 
     // String for caption
     String version;
-
     // Jogging values
-    int32_t jog_val[GrblComm::AXIS_CNT] = {0};
+    int32_t axis_jog_val[GrblComm::AXIS_CNT] = {0};
+    int32_t jog_val = 0;
 
     // Current selected axis
     GrblComm::Axis_t axis = GrblComm::AXIS_CNT;
@@ -94,8 +94,8 @@ class DirectControlScr : public IScreen
     String axis_names[GrblComm::AXIS_CNT];
     // Data windows to show DRO
     DataWindow dw[GrblComm::AXIS_CNT];
-    // Buttons to set 0 or position
-    UiButton set_btn[GrblComm::AXIS_CNT];
+    // Buttons to set 0
+    UiButton zero_btn[GrblComm::AXIS_CNT];
     // Buttons to change Radius/Diameter in Lathe Mode
     UiButton x_mode_btn;
     // String for X axis mode(Radius/Diameter)
@@ -109,8 +109,14 @@ class DirectControlScr : public IScreen
     // Scale options(value)
     const uint32_t scale_val_metric[NumberOf(scale_btn)] = {1, 5, 10, 100};
     const uint32_t scale_val_imperial[NumberOf(scale_btn)] = {1, 2, 5, 50};
-    // Set buttons
-    UiButton set_mode_btn;
+
+    // Data windows to show spindle speed
+    DataWindow spindle_dw;
+    // String for spindle caption
+    String spindle_name;
+    // Buttons to on/off spindle
+    UiButton spindle_dir_btn;
+    UiButton spindle_ctrl_btn;
 
     // Soft Buttons
     UiButton& left_btn;

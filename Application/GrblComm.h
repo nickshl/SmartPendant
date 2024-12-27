@@ -504,6 +504,36 @@ class GrblComm : public AppTask
     bool GetCoolantMist() {return coolant_mist;}
 
     // *************************************************************************
+    // ***   Public: GetSpindleMaxSpeed function   *****************************
+    // *************************************************************************
+    uint16_t GetSpindleMaxSpeed() {return spindle_speed_max;}
+
+    // *************************************************************************
+    // ***   Public: GetSpindleMaxSpeed function   *****************************
+    // *************************************************************************
+    uint16_t GetSpindleMinSpeed() {return spindle_speed_min;}
+
+    // *************************************************************************
+    // ***   Public: IsSpindleRunning function   *******************************
+    // *************************************************************************
+    bool IsSpindleRunning() {return spindle_on;}
+
+    // *************************************************************************
+    // ***   Public: IsSpindleCCW function   ***********************************
+    // *************************************************************************
+    bool IsSpindleCCW() {return spindle_ccw;}
+
+    // *************************************************************************
+    // ***   Public: GetSpindleSpeed function   ********************************
+    // *************************************************************************
+    uint16_t GetSpindleSpeed() {return spindle_rpm_programmed;}
+
+    // *************************************************************************
+    // ***   Public: GetSpindleActualSpeed function   **************************
+    // *************************************************************************
+    uint16_t GetSpindleActualSpeed() {return spindle_rpm_actual;}
+
+    // *************************************************************************
     // ***   Public: IsLatheDiameterMode function   ****************************
     // *************************************************************************
     bool IsLatheDiameterMode() {return grbl_xModeDiameter;}
@@ -709,6 +739,21 @@ class GrblComm : public AppTask
     Result ClearToolLengthOffset();
 
     // *************************************************************************
+    // ***   Public: SetSpindleSpeed   *****************************************
+    // *************************************************************************
+    Result SetSpindleSpeed(int32_t speed, bool dir_ccw);
+
+    // *************************************************************************
+    // ***   Public: SetSpindleDirection   *************************************
+    // *************************************************************************
+    Result SetSpindleDirection(bool dir_ccw);
+
+    // *************************************************************************
+    // ***   Public: StopSpindle   *********************************************
+    // *************************************************************************
+    Result StopSpindle();
+
+    // *************************************************************************
     // ***   Public: ValueToString function   **********************************
     // *************************************************************************
     char* ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t scaler);
@@ -819,6 +864,8 @@ class GrblComm : public AppTask
     // Settings
     uint8_t measurement_system = MEASUREMENT_SYSTEM_METRIC;
     uint8_t mode_of_operation = MODE_OF_OPERATION_MILL;
+    uint16_t spindle_speed_max = 0u;
+    uint16_t spindle_speed_min = 0u;
 
     // Task queue message struct
     struct TaskQueueMsg
