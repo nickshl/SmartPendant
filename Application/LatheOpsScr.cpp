@@ -107,6 +107,15 @@ Result LatheOpsScr::Setup(int32_t y, int32_t height)
   // Set index
   tab_idx = 0u;
 
+  // Fill menu_items
+  for(uint32_t i = 0u; i < NumberOf(menu_items); i++)
+  {
+    menu_items[i].text = str[i];
+    menu_items[i].n = sizeof(str[i]);
+  }
+  // Setup menu
+  menu.Setup(0, y + 40, DisplayDrv::GetInstance().GetScreenW(), height - 40);
+
   // All good
   return Result::RESULT_OK;
 }
@@ -250,7 +259,8 @@ void LatheOpsScr::ChangeTab(uint8_t tabn)
 // *****************************************************************************
 // ***   Private constructor   *************************************************
 // *****************************************************************************
-LatheOpsScr::LatheOpsScr() : right_btn(Application::GetInstance().GetRightButton()) {};
+LatheOpsScr::LatheOpsScr() : menu(menu_items, NumberOf(menu_items)),
+                             right_btn(Application::GetInstance().GetRightButton()) {};
 
 // ******************************************************************************
 // ******************************************************************************
@@ -272,20 +282,6 @@ TurnGeneratorTab& TurnGeneratorTab::GetInstance()
 // ******************************************************************************
 Result TurnGeneratorTab::Setup(int32_t y, int32_t height)
 {
-  // Fill menu_items
-  for(uint32_t i = 0u; i < NumberOf(menu_items); i++)
-  {
-    menu_items[i].text = str[i];
-    menu_items[i].n = sizeof(str[i]);
-  }
-  // Set callback
-  menu.SetCallback(AppTask::GetCurrent(), this, reinterpret_cast<CallbackPtr>(ProcessMenuCallback), nullptr);
-  // Setup menu
-  menu.Setup(0, y, DisplayDrv::GetInstance().GetScreenW(), height);
-
-  // Create and set
-  UpdateStrings();
-
   // All good
   return Result::RESULT_OK;
 }
@@ -295,6 +291,12 @@ Result TurnGeneratorTab::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 Result TurnGeneratorTab::Show()
 {
+  // Create and set
+  UpdateStrings();
+  // Set number of items in menu
+  menu.SetCount(TURN_MAX_ITEMS);
+  // Set callback
+  menu.SetCallback(AppTask::GetCurrent(), this, reinterpret_cast<CallbackPtr>(ProcessMenuCallback), nullptr);
   // Show menu
   menu.Show(100);
 
@@ -369,9 +371,14 @@ Result TurnGeneratorTab::ProcessMenuCallback(TurnGeneratorTab* obj_ptr, void* pt
       units = ths.grbl_comm.GetReportUnits();
       precision = ths.grbl_comm.GetUnitsPrecision();
     }
-    else if((idx == TURN_SPEED) || (idx == TURN_FINE_SPEED))
+    else if((idx == TURN_FEED) || (idx == TURN_FINE_FEED))
     {
       units = ths.grbl_comm.GetReportSpeedUnits();
+      precision = 0;
+    }
+    else if((idx == TURN_SPEED) || (idx == TURN_FINE_SPEED))
+    {
+      units = "rpm";
       precision = 0;
     }
     else if(idx == TURN_GENERATE)
@@ -425,13 +432,15 @@ void TurnGeneratorTab::UpdateStrings(void)
 {
   char tmp_str[16u] = {0};
 
-  menu.CreateString(menu_items[TURN_LENGTH],     menu_strings[TURN_LENGTH],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_LENGTH],     grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[TURN_DIAMETER],   menu_strings[TURN_DIAMETER],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_DIAMETER],   grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[TURN_STEP],       menu_strings[TURN_STEP],       grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_STEP],       grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[TURN_SPEED],      menu_strings[TURN_SPEED],      grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_SPEED],      grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
-  menu.CreateString(menu_items[TURN_FINE_STEP],  menu_strings[TURN_FINE_STEP],  grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_FINE_STEP],  grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[TURN_FINE_SPEED], menu_strings[TURN_FINE_SPEED], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_FINE_SPEED], grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
-  menu.CreateString(menu_items[TURN_GENERATE],   menu_strings[TURN_GENERATE], "");
+  menu.CreateString(TURN_LENGTH,     menu_strings[TURN_LENGTH],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_LENGTH],     grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(TURN_DIAMETER,   menu_strings[TURN_DIAMETER],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_DIAMETER],   grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(TURN_STEP,       menu_strings[TURN_STEP],       grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_STEP],       grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(TURN_FEED,       menu_strings[TURN_FEED],       grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_FEED],       grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
+  menu.CreateString(TURN_SPEED,      menu_strings[TURN_SPEED],      grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_SPEED],      grbl_comm.GetSpeedScaler(), "rpm"));
+  menu.CreateString(TURN_FINE_STEP,  menu_strings[TURN_FINE_STEP],  grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_FINE_STEP],  grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(TURN_FINE_FEED,  menu_strings[TURN_FINE_FEED],  grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_FINE_FEED],  grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
+  menu.CreateString(TURN_FINE_SPEED, menu_strings[TURN_FINE_SPEED], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[TURN_FINE_SPEED], grbl_comm.GetSpeedScaler(), "rpm"));
+  menu.CreateString(TURN_GENERATE,   menu_strings[TURN_GENERATE], "");
 }
 
 // ******************************************************************************
@@ -477,29 +486,35 @@ Result TurnGeneratorTab::GenerateGcode()
 
     for(int32_t i = 0u; i < rough_pass_cnt; i++)
     {
+      // Set speed for the rough passes(if any)
+      if((i == 0u) && (values[TURN_SPEED] != 0)) PrintStr(txt, size, "M3 S%d", values[TURN_SPEED]);
       // Cutting radius
       x_position += is_outside ? -rough_pass_distance : rough_pass_distance;
       // Move tool to cut position
-      PrintCmdG1(txt, size, "X", x_position, values[TURN_SPEED]);
+      PrintCmdG1(txt, size, "X", x_position, values[TURN_FEED]);
       // Make a pass
-      PrintCmdG1(txt, size, "Z", end_z_position, values[TURN_SPEED]);
-      // Move tool away from part(1 mm clearence)
+      PrintCmdG1(txt, size, "Z", end_z_position, values[TURN_FEED]);
+      // Move tool away from part(1 mm clearance)
       PrintCmdG0(txt, size, "X", x_position + (is_outside ? 1000 : -1000));
       // Return tool to start point
       PrintCmdG0(txt, size, "Z", start_z_position);
     }
+    // Set speed for the final pass
+    if(values[TURN_FINE_SPEED] != 0)  PrintStr(txt, size, "M3 S%d", values[TURN_FINE_SPEED]);
     // Final pass
     x_position = values[TURN_DIAMETER] / 2;
     // Move tool to cut position
-    PrintCmdG1(txt, size, "X", x_position, values[TURN_FINE_SPEED]);
+    PrintCmdG1(txt, size, "X", x_position, values[TURN_FINE_FEED]);
     // Make a pass
-    PrintCmdG1(txt, size, "Z", end_z_position, values[TURN_FINE_SPEED]);
-    // Move tool away from part(1 mm clearence)
+    PrintCmdG1(txt, size, "Z", end_z_position, values[TURN_FINE_FEED]);
+    // Move tool away from part(1 mm clearance)
     PrintCmdG0(txt, size, "X", x_position + (is_outside ? 1000 : -1000));
     // Return tool to start point
     PrintCmdG0(txt, size, "Z", start_z_position);
     // Move tool to desired diameter
-    PrintCmdG1(txt, size, "X", x_position, values[TURN_FINE_SPEED]);
+    PrintCmdG1(txt, size, "X", x_position, values[TURN_FINE_FEED]);
+    // Stop spindle
+    PrintStr(txt, size, "M5");
 }
 
   return Result::RESULT_OK;
@@ -508,7 +523,8 @@ Result TurnGeneratorTab::GenerateGcode()
 // ******************************************************************************
 // ***   Private constructor   **************************************************
 // ******************************************************************************
-TurnGeneratorTab::TurnGeneratorTab() : menu(menu_items, NumberOf(menu_items)), change_box(Application::GetInstance().GetChangeValueBox()) {};
+TurnGeneratorTab::TurnGeneratorTab() : menu(LatheOpsScr::GetInstance().GetMenu()),
+                                       change_box(Application::GetInstance().GetChangeValueBox()) {};
 
 // ******************************************************************************
 // ******************************************************************************
@@ -530,19 +546,6 @@ FaceGeneratorTab& FaceGeneratorTab::GetInstance()
 // ******************************************************************************
 Result FaceGeneratorTab::Setup(int32_t y, int32_t height)
 {
-  // Fill menu_items
-  for(uint32_t i = 0u; i < NumberOf(menu_items); i++)
-  {
-    menu_items[i].text = str[i];
-    menu_items[i].n = sizeof(str[i]);
-  }
-  // Set callback
-  menu.SetCallback(AppTask::GetCurrent(), this, reinterpret_cast<CallbackPtr>(ProcessMenuCallback), nullptr);
-  // Setup menu
-  menu.Setup(0, y, DisplayDrv::GetInstance().GetScreenW(), height);
-
-  // Create and set
-  UpdateStrings();
 
   // All good
   return Result::RESULT_OK;
@@ -553,6 +556,12 @@ Result FaceGeneratorTab::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 Result FaceGeneratorTab::Show()
 {
+  // Create and set
+  UpdateStrings();
+  // Set number of items in menu
+  menu.SetCount(FACE_MAX_ITEMS);
+  // Set callback
+  menu.SetCallback(AppTask::GetCurrent(), this, reinterpret_cast<CallbackPtr>(ProcessMenuCallback), nullptr);
   // Show menu
   menu.Show(100);
 
@@ -627,9 +636,14 @@ Result FaceGeneratorTab::ProcessMenuCallback(FaceGeneratorTab* obj_ptr, void* pt
       units = ths.grbl_comm.GetReportUnits();
       precision = ths.grbl_comm.GetUnitsPrecision();
     }
-    else if((idx == FACE_SPEED) || (idx == FACE_FINE_SPEED))
+    else if((idx == FACE_FEED) || (idx == FACE_FINE_FEED))
     {
       units = ths.grbl_comm.GetReportSpeedUnits();
+      precision = 0;
+    }
+    else if((idx == FACE_SPEED) || (idx == FACE_FINE_SPEED))
+    {
+      units = "rpm";
       precision = 0;
     }
     else if(idx == FACE_GENERATE)
@@ -683,13 +697,15 @@ void FaceGeneratorTab::UpdateStrings(void)
 {
   char tmp_str[16u] = {0};
 
-  menu.CreateString(menu_items[FACE_LENGTH],     menu_strings[FACE_LENGTH],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_LENGTH],     grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[FACE_DIAMETER],   menu_strings[FACE_DIAMETER],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_DIAMETER],   grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[FACE_STEP],       menu_strings[FACE_STEP],       grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_STEP],       grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[FACE_SPEED],      menu_strings[FACE_SPEED],      grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_SPEED],      grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
-  menu.CreateString(menu_items[FACE_FINE_STEP],  menu_strings[FACE_FINE_STEP],  grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_FINE_STEP],  grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[FACE_FINE_SPEED], menu_strings[FACE_FINE_SPEED], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_FINE_SPEED], grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
-  menu.CreateString(menu_items[FACE_GENERATE],   menu_strings[FACE_GENERATE], "");
+  menu.CreateString(FACE_LENGTH,     menu_strings[FACE_LENGTH],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_LENGTH],     grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(FACE_DIAMETER,   menu_strings[FACE_DIAMETER],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_DIAMETER],   grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(FACE_STEP,       menu_strings[FACE_STEP],       grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_STEP],       grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(FACE_FEED,       menu_strings[FACE_FEED],       grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_FEED],       grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
+  menu.CreateString(FACE_SPEED,      menu_strings[FACE_SPEED],      grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_SPEED],      grbl_comm.GetSpeedScaler(), "rpm"));
+  menu.CreateString(FACE_FINE_STEP,  menu_strings[FACE_FINE_STEP],  grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_FINE_STEP],  grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(FACE_FINE_FEED,  menu_strings[FACE_FINE_FEED],  grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_FINE_FEED],  grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
+  menu.CreateString(FACE_FINE_SPEED, menu_strings[FACE_FINE_SPEED], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[FACE_FINE_SPEED], grbl_comm.GetSpeedScaler(), "rpm"));
+  menu.CreateString(FACE_GENERATE,   menu_strings[FACE_GENERATE], "");
 }
 
 // ******************************************************************************
@@ -728,29 +744,35 @@ Result FaceGeneratorTab::GenerateGcode()
 
     for(int32_t i = 0u; i < rough_pass_cnt; i++)
     {
+      // Set speed for the rough passes(if any)
+      if((i == 0u) && (values[FACE_SPEED] != 0)) PrintStr(txt, size, "M3 S%d", values[FACE_SPEED]);
       // Cutting radius
       z_position -= rough_pass_distance;
       // Move tool to cut position
-      PrintCmdG1(txt, size, "Z", z_position, values[FACE_SPEED]);
+      PrintCmdG1(txt, size, "Z", z_position, values[FACE_FEED]);
       // Make a pass
-      PrintCmdG1(txt, size, "X", end_x_position, values[FACE_SPEED]);
-      // Move tool away from part(1 mm clearence)
+      PrintCmdG1(txt, size, "X", end_x_position, values[FACE_FEED]);
+      // Move tool away from part(1 mm clearance)
       PrintCmdG0(txt, size, "Z", z_position + 1000);
       // Return tool to start point
       PrintCmdG0(txt, size, "X", start_x_position);
     }
+    // Set speed for the final pass
+    if(values[FACE_FINE_SPEED] != 0)  PrintStr(txt, size, "M3 S%d", values[FACE_FINE_SPEED]);
     // Final pass
     z_position = grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - values[FACE_LENGTH];
     // Move tool to cut position
-    PrintCmdG1(txt, size, "Z", z_position, values[FACE_FINE_SPEED]);
+    PrintCmdG1(txt, size, "Z", z_position, values[FACE_FINE_FEED]);
     // Make a pass
-    PrintCmdG1(txt, size, "X", end_x_position, values[FACE_FINE_SPEED]);
-    // Move tool away from part(1 mm clearence)
+    PrintCmdG1(txt, size, "X", end_x_position, values[FACE_FINE_FEED]);
+    // Move tool away from part(1 mm clearance)
     PrintCmdG0(txt, size, "Z", z_position + 1000);
     // Return tool to start point
     PrintCmdG0(txt, size, "X", start_x_position);
     // Move tool to desired diameter
-    PrintCmdG1(txt, size, "Z", z_position, values[FACE_FINE_SPEED]);
+    PrintCmdG1(txt, size, "Z", z_position, values[FACE_FINE_FEED]);
+    // Stop spindle
+    PrintStr(txt, size, "M5");
   }
 
   return Result::RESULT_OK;
@@ -759,7 +781,8 @@ Result FaceGeneratorTab::GenerateGcode()
 // ******************************************************************************
 // ***   Private constructor   **************************************************
 // ******************************************************************************
-FaceGeneratorTab::FaceGeneratorTab() : menu(menu_items, NumberOf(menu_items)), change_box(Application::GetInstance().GetChangeValueBox()) {};
+FaceGeneratorTab::FaceGeneratorTab() : menu(LatheOpsScr::GetInstance().GetMenu()),
+                                       change_box(Application::GetInstance().GetChangeValueBox()) {};
 
 // ******************************************************************************
 // ******************************************************************************
@@ -781,20 +804,6 @@ CutGeneratorTab& CutGeneratorTab::GetInstance()
 // ******************************************************************************
 Result CutGeneratorTab::Setup(int32_t y, int32_t height)
 {
-  // Fill menu_items
-  for(uint32_t i = 0u; i < NumberOf(menu_items); i++)
-  {
-    menu_items[i].text = str[i];
-    menu_items[i].n = sizeof(str[i]);
-  }
-  // Set callback
-  menu.SetCallback(AppTask::GetCurrent(), this, reinterpret_cast<CallbackPtr>(ProcessMenuCallback), nullptr);
-  // Setup menu
-  menu.Setup(0, y, DisplayDrv::GetInstance().GetScreenW(), height);
-
-  // Create and set
-  UpdateStrings();
-
   // All good
   return Result::RESULT_OK;
 }
@@ -804,6 +813,12 @@ Result CutGeneratorTab::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 Result CutGeneratorTab::Show()
 {
+  // Create and set
+  UpdateStrings();
+  // Set number of items in menu
+  menu.SetCount(CUT_MAX_ITEMS);
+  // Set callback
+  menu.SetCallback(AppTask::GetCurrent(), this, reinterpret_cast<CallbackPtr>(ProcessMenuCallback), nullptr);
   // Show menu
   menu.Show(100);
 
@@ -878,9 +893,14 @@ Result CutGeneratorTab::ProcessMenuCallback(CutGeneratorTab* obj_ptr, void* ptr)
       units = ths.grbl_comm.GetReportUnits();
       precision = ths.grbl_comm.GetUnitsPrecision();
     }
-    else if(idx == CUT_SPEED)
+    else if(idx == CUT_FEED)
     {
       units = ths.grbl_comm.GetReportSpeedUnits();
+      precision = 0;
+    }
+    else if(idx == CUT_SPEED)
+    {
+      units = "rpm";
       precision = 0;
     }
     else if(idx == CUT_GENERATE)
@@ -934,11 +954,12 @@ void CutGeneratorTab::UpdateStrings(void)
 {
   char tmp_str[16u] = {0};
 
-  menu.CreateString(menu_items[CUT_DIAMETER], menu_strings[CUT_DIAMETER], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[CUT_DIAMETER], grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[CUT_WIDTH],    menu_strings[CUT_WIDTH],    grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[CUT_WIDTH],    grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[CUT_STEP],     menu_strings[CUT_STEP],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[CUT_STEP],     grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
-  menu.CreateString(menu_items[CUT_SPEED],    menu_strings[CUT_SPEED],    grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[CUT_SPEED],    grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
-  menu.CreateString(menu_items[CUT_GENERATE], menu_strings[CUT_GENERATE], "");
+  menu.CreateString(CUT_DIAMETER, menu_strings[CUT_DIAMETER], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[CUT_DIAMETER], grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(CUT_WIDTH,    menu_strings[CUT_WIDTH],    grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[CUT_WIDTH],    grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(CUT_STEP,     menu_strings[CUT_STEP],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[CUT_STEP],     grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(CUT_FEED,     menu_strings[CUT_FEED],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[CUT_FEED],     grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
+  menu.CreateString(CUT_SPEED,    menu_strings[CUT_SPEED],    grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), values[CUT_SPEED],    grbl_comm.GetSpeedScaler(), "rpm"));
+  menu.CreateString(CUT_GENERATE, menu_strings[CUT_GENERATE], "");
 }
 
 // ******************************************************************************
@@ -973,12 +994,14 @@ Result CutGeneratorTab::GenerateGcode()
 
     for(int32_t i = 0u; i < pass_cnt; i++)
     {
+      // Set speed for the rough passes(if any)
+      if((i == 0) && (values[CUT_SPEED] != 0)) PrintStr(txt, size, "M3 S%d", values[CUT_SPEED]);
       // For each additional cut make fast dive(1 mm clearance) to save time
       if(i != 0) PrintCmdG0(txt, size, "X", current_x_position + 1000);
       // Cutting radius
       current_x_position -= pass_distance;
       // Make a pass
-      PrintCmdG1(txt, size, "X", current_x_position, values[CUT_SPEED]);
+      PrintCmdG1(txt, size, "X", current_x_position, values[CUT_FEED]);
       // Retract tool
       PrintCmdG0(txt, size, "X", start_x_position);
       // Second side pass only if width is set
@@ -989,13 +1012,15 @@ Result CutGeneratorTab::GenerateGcode()
         // For each additional cut make fast dive(1 mm clearance) to save time
         if(i != 0) PrintCmdG0(txt, size, "X", current_x_position + 1000);
         // Make a pass
-        PrintCmdG1(txt, size, "X", current_x_position, values[CUT_SPEED]);
+        PrintCmdG1(txt, size, "X", current_x_position, values[CUT_FEED]);
         // Retract tool
         PrintCmdG0(txt, size, "X", start_x_position);
         // Move tool to initial Z location
         PrintCmdG0(txt, size, "Z", z_position);
       }
     }
+    // Stop spindle
+    PrintStr(txt, size, "M5");
   }
 
   return Result::RESULT_OK;
@@ -1004,5 +1029,6 @@ Result CutGeneratorTab::GenerateGcode()
 // ******************************************************************************
 // ***   Private constructor   **************************************************
 // ******************************************************************************
-CutGeneratorTab::CutGeneratorTab() : menu(menu_items, NumberOf(menu_items)), change_box(Application::GetInstance().GetChangeValueBox()) {};
+CutGeneratorTab::CutGeneratorTab() : menu(LatheOpsScr::GetInstance().GetMenu()),
+                                     change_box(Application::GetInstance().GetChangeValueBox()) {};
 

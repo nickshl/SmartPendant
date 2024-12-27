@@ -757,4 +757,4 @@ Result ProgramSender::ProcessEncoderCallback(ProgramSender* obj_ptr, void* ptr)
 // ***   Private constructor   *************************************************
 // *****************************************************************************
 ProgramSender::ProgramSender() : left_btn(Application::GetInstance().GetLeftButton()),
-                                   right_btn(Application::GetInstance().GetRightButton()) {};
+                                 right_btn(Application::GetInstance().GetRightButton()) {};

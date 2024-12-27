@@ -113,6 +113,23 @@ Result Menu::CreateString(MenuItem& item, const char* str1, const char* str2)
   return Result::RESULT_OK;
 }
 
+// *************************************************************************
+// ***   Public: CreateString   ********************************************
+// *************************************************************************
+Result Menu::CreateString(int32_t item, const char* str1, const char* str2)
+{
+  Result result = Result::ERR_INVALID_ITEM;
+
+  // Check if requested item exists
+  if((item >= 0) && (item < cnt))
+  {
+    result = CreateString(ptr[item], str1, str2);
+  }
+
+  // Return result
+  return result;
+}
+
 // *****************************************************************************
 // ***   Public: Show   ********************************************************
 // *****************************************************************************
@@ -168,6 +185,14 @@ Result Menu::Hide()
     InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
     // Delete buttons callback handler
     InputDrv::GetInstance().DeleteButtonsCallbackHandler(btn_cble);
+
+    // Show selection box
+    box.Hide();
+    // Show all lines
+    for(int32_t i = 0u; i < cnt; i++)
+    {
+      ptr[i].str.Hide();
+    }
 
     // Hide list
     list.Hide();
