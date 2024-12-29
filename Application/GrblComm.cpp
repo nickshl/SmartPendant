@@ -209,6 +209,13 @@ Result GrblComm::ProcessMessage()
       // And delay a little bit to allow other task to work
       RtosTick::DelayMs(TASK_TIMER_PERIOD_MS);
     }
+    else // If it is not an real time command and we not in control - discard it
+    {
+      // Set ID
+      send_id = rcv_msg.id;
+      // Result ok, but not really
+      result = Result::RESULT_OK;
+    }
   }
   else
   {
