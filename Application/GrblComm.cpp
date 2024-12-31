@@ -1374,6 +1374,15 @@ void GrblComm::ParseData(void)
           }
           break;
 
+          // *********************************************************************
+          case 22:
+            if(homing != atoi(s))
+            {
+              homing = atoi(s);
+              settings_changed = true;
+            }
+            break;
+
         // *********************************************************************
         case 30:
           if(spindle_speed_max != atol(s))
