@@ -212,7 +212,7 @@ Result Application::ProcessCallback(const void* ptr)
       {
         grbl_comm.Unlock(); // Send Unlock command
       }
-      else if(grbl_comm.GetState() == GrblComm::UNKNOWN)
+      else if((grbl_comm.GetState() == GrblComm::UNKNOWN) || (grbl_comm.GetState() == GrblComm::HOME))
       {
         grbl_comm.Reset(); // Send Reset command
       }
@@ -231,13 +231,22 @@ Result Application::ProcessCallback(const void* ptr)
 // *****************************************************************************
 // ***   Public: InitSoftButtons function   ************************************
 // *****************************************************************************
-void Application::InitSoftButtons()
+void Application::InitSoftButtons(bool three_buttons)
 {
+  // Width depends how many buttons we have
+  int32_t btn_width = three_buttons ? ((display_drv.GetScreenW() - BORDER_W * 2) / 3) : (display_drv.GetScreenW() / 2 - BORDER_W);
+
   // Left soft button
-  left_btn.SetParams("", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, display_drv.GetScreenW() / 2 - BORDER_W, Font_8x12::GetInstance().GetCharH() * 3, true);
+  left_btn.SetParams("", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, btn_width, Font_8x12::GetInstance().GetCharH() * 3, true);
   left_btn.SetCallback(AppTask::GetCurrent());
+  // Middle button
+  if(three_buttons)
+  {
+    middle_btn.SetParams("", left_btn.GetEndX() + BORDER_W + 1, left_btn.GetStartY(), btn_width, left_btn.GetHeight(), true);
+    middle_btn.SetCallback(AppTask::GetCurrent());
+  }
   // Right soft button
-  right_btn.SetParams("", display_drv.GetScreenW() - left_btn.GetWidth(), left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
+  right_btn.SetParams("", display_drv.GetScreenW() - btn_width, left_btn.GetStartY(), btn_width, left_btn.GetHeight(), true);
   right_btn.SetCallback(AppTask::GetCurrent());
 }
 

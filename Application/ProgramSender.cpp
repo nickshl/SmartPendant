@@ -112,14 +112,6 @@ Result ProgramSender::Show()
   UpdateMemoryInfo();
   mem_info.Show(10000);
 
-  // Run button
-  left_btn.SetParams("Run", left_btn.GetStartX(), left_btn.GetStartY(), (display_drv.GetScreenW()- BORDER_W * 2) / 3, left_btn.GetHeight(), true);
-  // Stop button
-  right_btn.SetParams("Stop", right_btn.GetEndX() - left_btn.GetWidth() + 1, right_btn.GetStartY(), left_btn.GetWidth(), right_btn.GetHeight(), true);
-  // Open button
-  open_btn.SetParams("Open", left_btn.GetEndX() + BORDER_W + 1, left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
-  open_btn.SetCallback(AppTask::GetCurrent());
-
   // If text pointer exists
   if(text != nullptr)
   {
@@ -136,11 +128,17 @@ Result ProgramSender::Show()
     dw_real_name[i].Show(100);
   }
 
-  // Open button
-  open_btn.Show(102);
+  // Reinit all three Soft Buttons
+  Application::GetInstance().InitSoftButtons(true);
+
   // Run button
+  left_btn.SetString("Run");
   left_btn.Show(102);
+  // Open button
+  middle_btn.SetString("Open");
+  middle_btn.Show(102);
   // Stop button
+  right_btn.SetString("Stop");
   right_btn.Show(102);
 
   // Feed objects
@@ -180,10 +178,10 @@ Result ProgramSender::Hide()
   }
   // Go button
   left_btn.Hide();
+  // Open button
+  middle_btn.Hide();
   // Reset button
   right_btn.Hide();
-  // Open button
-  open_btn.Hide();
 
   // Feed objects
   feed_dw.Hide();
@@ -196,7 +194,7 @@ Result ProgramSender::Hide()
   mist_btn.Hide();
 
   // Reinit Soft Buttons to change their size back
-  Application::GetInstance().InitSoftButtons();
+  Application::GetInstance().InitSoftButtons(false);
 
   // All good
   return Result::RESULT_OK;
@@ -314,7 +312,7 @@ Result ProgramSender::TimerExpired(uint32_t interval)
     flood_btn.Disable();
     mist_btn.Disable();
     // Enable buttons back
-    open_btn.Enable();
+    middle_btn.Enable();
     // Enable screen change if program isn't running
     Application::GetInstance().EnableScreenChange();
     // Process it
@@ -477,10 +475,10 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
     ths.text_box.Show(100);
     // Left button
     ths.left_btn.Show(102);
+    // Open button
+    ths.middle_btn.Show(102);
     // Right button
     ths.right_btn.Show(102);
-    // Open button
-    ths.open_btn.Show(102);
 
     // Set ok result
     result = Result::RESULT_OK;
@@ -510,10 +508,10 @@ Result ProgramSender::ProcessMenuCancelCallback(ProgramSender* obj_ptr, void* pt
     ths.text_box.Show(100);
     // Run button
     ths.left_btn.Show(102);
+    // Open button
+    ths.middle_btn.Show(102);
     // Stop button
     ths.right_btn.Show(102);
-    // Open button
-    ths.open_btn.Show(102);
 
     // Set ok result
     result = Result::RESULT_OK;
@@ -552,7 +550,7 @@ Result ProgramSender::ProcessCallback(const void* ptr)
       flood_btn.Enable();
       mist_btn.Enable();
       // Disable buttons while program is running
-      open_btn.Disable();
+      middle_btn.Disable();
       // Disable screen change if program is running
       Application::GetInstance().DisableScreenChange();
     }
@@ -570,7 +568,7 @@ Result ProgramSender::ProcessCallback(const void* ptr)
     result = Result::ERR_UNHANDLED_REQUEST;
   }
   // Process Reset button
-  else if((ptr == &open_btn) && (open_btn.IsActive()))
+  else if((ptr == &middle_btn) && (middle_btn.IsActive()))
   {
     // Stop timer to prevent queue overflow since SD card operations can take some
     // time.
@@ -627,10 +625,10 @@ Result ProgramSender::ProcessCallback(const void* ptr)
     text_box.Hide();
     // Go button
     left_btn.Hide();
+    // Open button
+    middle_btn.Hide();
     // Reset button
     right_btn.Hide();
-    // Open button
-    open_btn.Hide();
 
     // Set menu items count
     menu.SetCount(idx);
@@ -757,4 +755,5 @@ Result ProgramSender::ProcessEncoderCallback(ProgramSender* obj_ptr, void* ptr)
 // ***   Private constructor   *************************************************
 // *****************************************************************************
 ProgramSender::ProgramSender() : left_btn(Application::GetInstance().GetLeftButton()),
+                                 middle_btn(Application::GetInstance().GetMiddleButton()),
                                  right_btn(Application::GetInstance().GetRightButton()) {};

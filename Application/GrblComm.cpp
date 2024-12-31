@@ -565,47 +565,6 @@ Result GrblComm::SendRealTimeCmd(uint8_t cmd)
 }
 
 // *****************************************************************************
-// ***   Public: Unlock   ******************************************************
-// *****************************************************************************
-Result GrblComm::Unlock()
-{
-  // Set Ok status to allow process unlock command
-  grbl_status = Status_OK;
-  // Command ID
-  uint32_t id = 0u;
-  // Command buffer
-  static const char cmd[] = {"$X\r\n"};
-  // Send command
-  return SendCmd(cmd, id);
-}
-
-// *****************************************************************************
-// ***   Public: RequestControllerSettings   ***********************************
-// *****************************************************************************
-Result GrblComm::RequestControllerSettings()
-{
-  // Command ID
-  uint32_t id = 0u;
-  // Command buffer
-  static const char cmd[] = {"$$\r\n"};
-  // Send command
-  return SendCmd(cmd, id);
-}
-
-// *****************************************************************************
-// ***   Public: RequestOffsets   **********************************************
-// *****************************************************************************
-Result GrblComm::RequestOffsets()
-{
-  // Command ID
-  uint32_t id = 0u;
-  // Command buffer
-  static const char cmd[] = {"$#\r\n"};
-  // Send command
-  return SendCmd(cmd, id);
-}
-
-// *****************************************************************************
 // ***   Public: Jog   *********************************************************
 // *****************************************************************************
 Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t feed_x100, bool is_absolute)
@@ -845,58 +804,6 @@ Result GrblComm::SetAxis(uint8_t axis, int32_t position)
 
   // Return result
   return result;
-}
-
-// *****************************************************************************
-// ***   Public: SetAbsoluteMode   *********************************************
-// *****************************************************************************
-Result GrblComm::SetAbsoluteMode()
-{
-  // Command ID
-  uint32_t id = 0u;
-  // Command buffer
-  static const char cmd[] = {"G90\r\n"};
-  // Send command
-  return SendCmd(cmd, id);
-}
-
-// *****************************************************************************
-// ***   Public: SetIncrementalMode   ******************************************
-// *****************************************************************************
-Result GrblComm::SetIncrementalMode()
-{
-  // Command ID
-  uint32_t id = 0u;
-  // Command buffer
-  static const char cmd[] = {"G91\r\n"};
-  // Send command
-  return SendCmd(cmd, id);
-}
-
-// *****************************************************************************
-// ***   Public: SetLatheRadiusMode   ******************************************
-// *****************************************************************************
-Result GrblComm::SetLatheRadiusMode()
-{
-  // Command ID
-  uint32_t id = 0u;
-  // Command buffer
-  static const char cmd[] = {"G8\r\n"};
-  // Send command
-  return SendCmd(cmd, id);
-}
-
-// *****************************************************************************
-// ***   Public: SetLatheDiameterMode   ****************************************
-// *****************************************************************************
-Result GrblComm::SetLatheDiameterMode()
-{
-  // Command ID
-  uint32_t id = 0u;
-  // Command buffer
-  static const char cmd[] = {"G7\r\n"};
-  // Send command
-  return SendCmd(cmd, id);
 }
 
 // *****************************************************************************

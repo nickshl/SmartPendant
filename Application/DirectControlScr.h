@@ -120,6 +120,7 @@ class DirectControlScr : public IScreen
 
     // Soft Buttons
     UiButton& left_btn;
+    UiButton& middle_btn;
     UiButton& right_btn;
 
     // Object to change numerical parameters

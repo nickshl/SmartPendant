@@ -122,11 +122,9 @@ class ProgramSender : public IScreen
     String mem_info;
     char mem_info_buf[32u];
 
-    // Buttons to open file
-    UiButton open_btn;
-
     // Soft Buttons
     UiButton& left_btn;
+    UiButton& middle_btn;
     UiButton& right_btn;
 
     // *************************************************************************

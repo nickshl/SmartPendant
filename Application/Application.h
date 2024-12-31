@@ -90,7 +90,7 @@ class Application : public AppTask
     // *************************************************************************
     // ***   Public: InitSoftButtons function   ********************************
     // *************************************************************************
-    void InitSoftButtons();
+    void InitSoftButtons(bool three_buttons = false);
 
     // *************************************************************************
     // ***   Public: GetRightButton function   *********************************
@@ -101,6 +101,11 @@ class Application : public AppTask
     // ***   Public: GetLeftButton function   **********************************
     // *************************************************************************
     UiButton& GetLeftButton() {return left_btn;}
+
+    // *************************************************************************
+    // ***   Public: GetMiddleButton function   ********************************
+    // *************************************************************************
+    UiButton& GetMiddleButton() {return middle_btn;}
 
     // *************************************************************************
     // ***   Public: GetChangeValueBox function   ******************************
@@ -169,6 +174,7 @@ class Application : public AppTask
 
     // Soft Buttons
     UiButton left_btn;
+    UiButton middle_btn;
     UiButton right_btn;
 
     // Object to change numerical parameters

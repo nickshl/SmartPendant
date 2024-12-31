@@ -148,6 +148,15 @@ Result DirectControlScr::Show()
   spindle_dir_btn.Show(100);
   spindle_ctrl_btn.Show(100);
 
+  if(grbl_comm.IsHomingEnabled())
+  {
+    // Reinit all three Soft Buttons if we have Homing enabled
+    Application::GetInstance().InitSoftButtons(true);
+    // Show Home button
+    middle_btn.SetString("Home");
+    middle_btn.Show(102);
+  }
+
   // Soft Buttons
   left_btn.Show(102);
   right_btn.Show(102);
@@ -199,7 +208,11 @@ Result DirectControlScr::Hide()
 
   // Soft Buttons
   left_btn.Hide();
+  middle_btn.Hide();
   right_btn.Hide();
+
+  // Reinit Soft Buttons to change their size back
+  Application::GetInstance().InitSoftButtons(false);
 
   // All good
   return Result::RESULT_OK;
@@ -362,6 +375,10 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
   {
     result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
   }
+  else if(ptr == &middle_btn)
+  {
+    grbl_comm.Homing();
+  }
   // Process X button
   else if(ptr == &x_mode_btn)
   {
@@ -503,5 +520,6 @@ Result DirectControlScr::ProcessEncoderCallback(DirectControlScr* obj_ptr, void*
 // ***   Private constructor   *********************************************
 // *************************************************************************
 DirectControlScr::DirectControlScr() : left_btn(Application::GetInstance().GetLeftButton()),
+                                       middle_btn(Application::GetInstance().GetMiddleButton()),
                                        right_btn(Application::GetInstance().GetRightButton()),
                                        change_box(Application::GetInstance().GetChangeValueBox()){};
