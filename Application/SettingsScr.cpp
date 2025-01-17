@@ -77,6 +77,9 @@ Result SettingsScr::Hide()
   // Hide menu
   menu.Hide();
 
+  // Save data into EEPROM after exit the screen
+  nvm.WriteData();
+
   // All good
   return Result::RESULT_OK;
 }

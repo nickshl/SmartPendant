@@ -55,6 +55,9 @@ Result NVM::ReadData()
   // Read all NVM content
   result = eep->Read(0u, (uint8_t*)&data, sizeof(data));
 
+  // Save CRC of read data to determinate later if settings was changed
+  eep_crc = data.crc;
+
   if(result.IsGood())
   {
     // Calculate CRC32(without stored CRC)
@@ -83,8 +86,18 @@ Result NVM::WriteData(void)
   // Calculate CRC32(without stored CRC)
   data.crc = Crc32((uint8_t*)&data, sizeof(data) - sizeof(data.crc));
 
-  // Write all into EEPROM
-  result = eep->Write(0u, (uint8_t*)&data, sizeof(data));
+  // If data actually changed
+  if(data.crc != eep_crc)
+  {
+    // Write all into EEPROM
+    result = eep->Write(0u, (uint8_t*)&data, sizeof(data));
+    // If write is successful
+    if(result.IsGood())
+    {
+      // Update CRC to match actual data in EEPROM
+      eep_crc = data.crc;
+    }
+  }
 
   // Return result
   return result;

@@ -1290,6 +1290,9 @@ Result EdgeFinderTab::Hide()
   // Find Center button
   find_edge_btn.Hide();
 
+  // To update probe tip diameter
+  NVM::GetInstance().WriteData();
+
   // All good
   return Result::RESULT_OK;
 }

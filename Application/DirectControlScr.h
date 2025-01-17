@@ -130,8 +130,6 @@ class DirectControlScr : public IScreen
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // GRBL Communication Interface instance
     GrblComm& grbl_comm = GrblComm::GetInstance();
-    // NVM instance
-    NVM& nvm = NVM::GetInstance();
 
     // Encoder callback entry
     InputDrv::CallbackListEntry enc_cble;

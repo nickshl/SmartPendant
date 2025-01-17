@@ -78,7 +78,7 @@ class NVM
     // *************************************************************************
     // ***   SetValue function   ***********************************************
     // *************************************************************************
-    Result SetValue(Parameters idx, int32_t value) {data.value[idx] = value; return WriteData();}
+    void SetValue(Parameters idx, int32_t value) {data.value[idx] = value;}
 
     // *************************************************************************
     // ***   GetCtrlTx function   **********************************************
@@ -88,7 +88,7 @@ class NVM
     // *************************************************************************
     // ***   SetCtrlTx function   **********************************************
     // *************************************************************************
-    Result SetCtrlTx(uint8_t tx_ctrl) {data.value[TX_CONTROL] = tx_ctrl; return WriteData();}
+    void SetCtrlTx(uint8_t tx_ctrl) {data.value[TX_CONTROL] = tx_ctrl;}
 
     // *************************************************************************
     // ***   GetDisplayInvert function   ***************************************
@@ -98,7 +98,7 @@ class NVM
     // *************************************************************************
     // ***   SetDisplayInvert function   ***************************************
     // *************************************************************************
-    Result SetDisplayInvert(bool invert_display) {data.value[SCREEN_INVERT] = invert_display; return WriteData();}
+    void SetDisplayInvert(bool invert_display) {data.value[SCREEN_INVERT] = invert_display;}
 
   private:
 
@@ -121,6 +121,9 @@ class NVM
     } Nvm_t;
     // Data
     Nvm_t data;
+
+    // CRC of data in EEPROM. Used to track if settings was changed.
+    uint32_t eep_crc = 0u;
 
     // *************************************************************************
     // ***   Private constructor   *********************************************
