@@ -307,6 +307,11 @@ Result ToolOffsetTab::Show()
   // Request offsets to show it
   grbl_comm.RequestOffsets();
 
+  // Clear cmd
+  cmd_id = 0u;
+  // Clear state
+  state = PROBE_CNT;
+
   // All good
   return Result::RESULT_OK;
 }
@@ -358,11 +363,27 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
     dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
   }
 
-  // If we send command and this command executed successfully
-  if(cmd_id && (grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK))
+  // If we in ptrobing cycle
+  if(state != PROBE_CNT)
   {
-    // Check if command end executing
-    if(grbl_comm.GetState() == GrblComm::IDLE)
+    // No comand sent yet - start probing
+    if(cmd_id == 0u)
+    {
+      // Try to probe Z axis -1 meter at feed 100 mm/min
+      result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
+      // Check result
+      if(result == Result::ERR_CANNOT_EXECUTE)
+      {
+        // Clear cmd
+        cmd_id = 0u;
+        // Clear state
+        state = PROBE_CNT;
+        // Set ok result since we cancelled probing
+        result = Result::RESULT_OK;
+      }
+    }
+    // If we send probing command and this command executed successfully
+    else if((grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK) && (grbl_comm.GetState() == GrblComm::IDLE))
     {
       // Get probe Z position
       int32_t probe_pos = grbl_comm.GetProbeMachinePosition(GrblComm::AXIS_Z);
@@ -385,16 +406,20 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
       {
         // Move Z axis to the point before probing at feed 500 mm/min
         grbl_comm.JogInMachineCoodinates(GrblComm::AXIS_Z, z_position, grbl_comm.ConvertMetricToUnits(500u));
-        // Clear cmd if
+        // Clear cmd
         cmd_id = 0u;
         // Clear state
         state = PROBE_CNT;
       }
     }
+    else
+    {
+      ; // Do nothing
+    }
   }
 
-  // Return ok - we don't check semaphore give error, because we don't need to.
-  return Result::RESULT_OK;
+  // Return result
+  return result;
 }
 
 // *****************************************************************************
@@ -402,34 +427,31 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
 // *****************************************************************************
 Result ToolOffsetTab::ProcessCallback(const void* ptr)
 {
+  Result result = Result::RESULT_OK;
+
   // We can start probing only in IDLE state and if probing isn't started yet
   if((grbl_comm.GetState() == GrblComm::IDLE) && (state == PROBE_CNT))
   {
     // Check buttons
-    if((ptr == &get_base_btn) || (ptr == &get_offset_btn))
+    if((ptr == &get_base_btn) || (ptr == &get_offset_btn) || (ptr == &clear_offset_btn))
     {
-      // Set current state
-      if(ptr == &get_base_btn) state = PROBE_BASE;
-      else                     state = PROBE_TOOL;
+      // Get current Z position to restore it after tool length offset clear and to return Z axis back after probing
+      int32_t z_pos = grbl_comm.GetAxisPosition(GrblComm::AXIS_Z);
       // Clear tool length offset
-      grbl_comm.ClearToolLengthOffset();
+      result |= grbl_comm.ClearToolLengthOffset();
       // Request offsets to show it
-      grbl_comm.RequestOffsets();
-      // Get current Z position in machine coordinates to return Z axis back after probing
-      z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
-      // Try to probe Z axis -1 meter at feed 100 mm/min
-      grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
-    }
-    else if(ptr == &clear_offset_btn)
-    {
-      // Clear tool length offset
-      grbl_comm.ClearToolLengthOffset();
-      // Request offsets to show it
-      grbl_comm.RequestOffsets();
-    }
-    else
-    {
-      ; // Do nothing - MISRA rule
+      result |= grbl_comm.RequestOffsets();
+      // Restore axis position
+      result |= grbl_comm.SetAxisPosition(GrblComm::AXIS_Z, z_pos);
+      // Set state for probing only if result is good for previous commands
+      if(result.IsGood() && ((ptr == &get_base_btn) || (ptr == &get_offset_btn)))
+      {
+        // Get current Z position to return Z axis back after probing
+        z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
+        // Set current state
+        if(ptr == &get_base_btn) state = PROBE_BASE;
+        else                     state = PROBE_TOOL;
+      }
     }
   }
 

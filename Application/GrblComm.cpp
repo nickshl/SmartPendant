@@ -770,9 +770,9 @@ Result GrblComm::ZeroAxis(uint8_t axis)
 }
 
 // *****************************************************************************
-// ***   Public: SetAxis   *****************************************************
+// ***   Public: SetAxisPosition   *********************************************
 // *****************************************************************************
-Result GrblComm::SetAxis(uint8_t axis, int32_t position)
+Result GrblComm::SetAxisPosition(uint8_t axis, int32_t position)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
