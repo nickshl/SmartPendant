@@ -54,6 +54,8 @@ Result ProgramSender::Setup(int32_t y, int32_t height)
   menu.Setup(menu_items, NumberOf(menu_items), 0, y, display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2);
   // Setup text box
   text_box.Setup(0, y, display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2 - CTRL_HEIGHT);
+  // Set empty string
+  text_box.SetText("");
 
   // Fill all windows
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
@@ -170,12 +172,14 @@ Result ProgramSender::Hide()
   menu.Hide();
   // Hide text box
   text_box.Hide();
+
   // Axis data
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
   {
     dw_real[i].Hide();
     dw_real_name[i].Hide();
   }
+
   // Go button
   left_btn.Hide();
   // Open button
@@ -455,7 +459,11 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
         // And null-terminator to it
         ths.text[wbytes] = 0x00;
         // Set text to text box
-        ths.text_box.SetText(ths.text);
+        if(!ths.text_box.SetText(ths.text))
+        {
+          // If memory allocation operation isn't successful set text
+          ths.text_box.SetText("; Program contain lines longer\n\r; than 80 characters");
+        }
       }
       else
       {
@@ -504,6 +512,8 @@ Result ProgramSender::ProcessMenuCancelCallback(ProgramSender* obj_ptr, void* pt
 
     // Hide the menu
     ths.menu.Hide();
+    // Set cancel text
+    ths.text_box.SetText("; Cancel pressed in open dialog");
     // And show textbox
     ths.text_box.Show(100);
     // Run button

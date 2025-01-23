@@ -57,7 +57,12 @@ class TextBox : public VisList
     // *************************************************************************
     // ***   Public: SetText   *************************************************
     // *************************************************************************
-    void SetText(const char* text);
+    bool SetText(const char* text);
+
+    // *************************************************************************
+    // ***   Public: GetNumberOfLines   ****************************************
+    // *************************************************************************
+    int32_t GetNumberOfLines() {return lines_cnt;}
 
     // *************************************************************************
     // ***   Public: GetSelectedStringText   ***********************************
@@ -87,10 +92,12 @@ class TextBox : public VisList
   private:
     // Pointer to text
     const char* p_text = nullptr;
+    // Pointer to current scroll position
+    const char* p_scroll = nullptr;
 
     // Strings to show text
-    String str[32];
-    char str_text[32][32];
+    String str[16];
+    char str_text[16][80 + 2 + 1] = {0}; // One 80 characters line + CR + LF + \0
     // Visible lines count
     uint32_t visible_cnt = 0u;
 

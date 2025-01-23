@@ -62,6 +62,7 @@ Result TextBox::Show(uint32_t z)
   // Show all lines
   for(uint32_t i = 0u; i < visible_cnt; i++)
   {
+    str[i].SetString(str_text[i]);
     str[i].Show(1);
   }
   // Set selection box parameters
@@ -92,26 +93,37 @@ Result TextBox::Hide()
 // *****************************************************************************
 // ***   Public: SetText   *****************************************************
 // *****************************************************************************
-void TextBox::SetText(const char* text)
+bool TextBox::SetText(const char* text)
 {
-  // Save text pointer
-  p_text = text;
+  bool lines_fit = true;
   // Clear lines counter
   lines_cnt = 0;
+  // Save text pointer
+  p_text = text;
+  // Clear scroll counter
+  scroll_pos = 0;
+  // Set scroll pointer
+  p_scroll = text;
   // Pointer to text
   const char *ptr = p_text;
   // Count how many lines text have
   while(*ptr != '\0')
   {
+    // Save pointer to calculate line length
+    const char *start_ptr = ptr;
     // Increase lines count
     lines_cnt++;
     // Skip all characters until end of line or end of string
     while((*ptr != '\n') && (*ptr != '\r') && (*ptr != '\0')) ptr++;
     // Skip all CR LF symbols TODO:: handle multiple(empty lines)!
     while((*ptr == '\n') || (*ptr == '\r')) ptr++;
+    // Check length, if line will not fit completley into line buffer - clear flag
+    if((uint32_t)(ptr - start_ptr) > (NumberOf(str_text[0u]) - 1)) lines_fit = false;
   }
   // Select and scroll to first line
   Select(0);
+  // Return flag
+  return lines_fit;
 }
 
 // *****************************************************************************
@@ -128,7 +140,7 @@ Result TextBox::Select(int32_t n)
     select_pos = n;
 
     // If selected position before scroll position - scroll to show selection
-    if(select_pos < scroll_pos)
+    if((select_pos < scroll_pos) || (select_pos == 0))
     {
       Scroll(select_pos);
     }
@@ -157,55 +169,87 @@ Result TextBox::Scroll(int32_t n)
 {
   Result result = Result::ERR_INVALID_ITEM;
 
-  // Scroll pos can't be negative
-  if(n < 0) n = 0;
-  // Save requested scroll value
-  scroll_pos = n;
-
-  // Pointer to text
-  const char *ptr = p_text;
-  // Index of line
-  uint32_t idx = 0u;
-
-  // Show all lines
-  for(; idx < visible_cnt;)
+  // We really need to scroll only if scroll position is different or if it zero
+  if((scroll_pos != n) || (n == 0))
   {
-    // Skip CR LF TODO:: handle multiple(empty lines)!
-    while((*ptr == '\n') || (*ptr == '\r')) ptr++;
-    // If reached end of string - break the cycle
-    if(*ptr == 0) break;
-    // Skip first n lines
-    if(n)
+    // Scroll position can be in range 0 ... lines_cnt - 1
+    if(n >= lines_cnt) n = lines_cnt - 1;
+    if(n <= 0) n = 0;
+    // Calculate difference, if requested line is 0, the difference should be 0 too
+    int32_t scroll_diff = n ? (n - scroll_pos) : 0;
+
+    // Pointer to text
+    const char *ptr = p_scroll;
+
+    // Search first scrolled line forward
+    if(scroll_diff > 0)
     {
-      // Decrease remaining lines counter
-      n--;
-      // Find next line
-      while((*ptr != '\n') && (*ptr != '\r') && (*ptr != 0)) ptr++;
-      // Continue cycle
-      continue;
+      // Count how many lines text have
+      while(scroll_diff && (*ptr != '\0'))
+      {
+        // Decrease scroll difference
+        scroll_diff--;
+        // Skip all characters until end of line or end of string
+        while((*ptr != '\n') && (*ptr != '\r') && (*ptr != '\0')) ptr++;
+        // Skip all CR LF symbols TODO:: handle multiple(empty lines)!
+        while((*ptr == '\n') || (*ptr == '\r')) ptr++;
+      }
     }
-    // Copy text
-    ptr = &ptr[Strncpy(str_text[idx], ptr, NumberOf(str_text[idx]))];
-    // Update string for recalculate size and update on the display
-    str[idx].SetString(str_text[idx], true);
-    // Increase line index
-    idx++;
+    else if(scroll_diff < 0) // Search first scrolled line backward
+    {
+      // Find CR or LF character of previous line
+      while((*ptr != '\n') && (*ptr != '\r') && (ptr > p_text)) ptr--;
+      // Count how many lines text have
+      while(scroll_diff && (ptr > p_text))
+      {
+        // Increase scroll difference
+        scroll_diff++;
+        // Skip all CR LF symbols TODO:: handle multiple(empty lines)!
+        while(((*ptr == '\n') || (*ptr == '\r')) && (ptr > p_text)) ptr--;
+        // Skip all characters until end of line or end of string
+        while(((*ptr != '\n') && (*ptr != '\r')) && (ptr > p_text)) ptr--;
+      }
+      // Since we ended up search on previous line CR or LF character - increase pointer by one
+      if(ptr != p_text) ptr++;
+    }
+    else // if(scroll_diff == 0)
+    {
+      // Set scroll pointer to the text itself
+      ptr = p_text;
+    }
+    // Update scroll pointer
+    p_scroll = ptr;
+    // Save requested scroll value
+    scroll_pos = n;
+
+    // Index of line
+    uint32_t idx = 0u;
+    // Copy text to all visible lines
+    for(; idx < visible_cnt;)
+    {
+      // Skip CR LF TODO:: handle multiple(empty lines)!
+      while((*ptr == '\n') || (*ptr == '\r')) ptr++;
+      // If reached end of string - break the cycle
+      if(*ptr == 0) break;
+      // Copy text
+      ptr = &ptr[Strncpy(str_text[idx], ptr, NumberOf(str_text[idx]))];
+      // Increase line index
+      idx++;
+      // If we set at least one string
+      result = Result::RESULT_OK;
+    }
+    // Clear remaining lines
+    for(; idx < visible_cnt; idx++)
+    {
+      str_text[idx][0] = '\0';
+    }
+    // Invalidate area to update all strings on the display
+    InvalidateObjArea();
+  }
+  else
+  {
     // If we set at least one string
     result = Result::RESULT_OK;
-  }
-  // Clear remaining lines
-  for(; idx < visible_cnt; idx++)
-  {
-    // No string
-    str_text[idx][0] = '\0';
-    // Update string for recalculate size and update on the display
-    str[idx].SetString(str_text[idx], true);
-  }
-  // If we requested more lines that we have
-  if(n)
-  {
-    // Correct current scroll pos
-    scroll_pos -= n;
   }
 
   // Return result
