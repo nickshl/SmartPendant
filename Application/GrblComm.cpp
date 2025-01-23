@@ -81,7 +81,7 @@ Result GrblComm::TimerExpired()
   // If SW command used to gain control, MPG control requested and MPG isn't in control
   if(((NVM::GetInstance().GetCtrlTx() == CTRL_SW_COMMAND) || (NVM::GetInstance().GetCtrlTx() == CTRL_PIN_AND_SW_CMD)) && mpg_mode_request && !IsInControl())
   {
-    // If mpg state received(not in control) or if last status was received a while ago
+    // If MPG state received(not in control) or if last status was received a while ago
     if(grbl_received.mpg || (RtosTick::GetTimeMs() - status_rx_timestamp > 300u))
     {
       // Send command again
@@ -107,6 +107,7 @@ Result GrblComm::TimerExpired()
   // Request status if previous one received and more than 100 ms passed since last request
   if(IsInControl() && status_received && (RtosTick::GetTimeMs() - status_tx_timestamp > 100u) && (uart->IsTxComplete()))
   {
+    // Save status request timestamp
     status_tx_timestamp = RtosTick::GetTimeMs();
     // Status received flag
     status_received = false;
@@ -141,10 +142,29 @@ Result GrblComm::ProcessMessage()
     // can be executed regardless who is in control
     if(rcv_msg.id == 0u)
     {
-      // Copy command from message to transmit buffer
-      strncpy((char*)tx_buf, (const char*)rcv_msg.cmd, NumberOf(tx_buf));
-      // Send command
-      result = uart->Write(tx_buf, strlen((char*)tx_buf));
+      if((tx_buf[0u] == CMD_STATUS_REPORT_LEGACY) && (status_received == false))
+      {
+        // UpdateStatus() function stuck until status_received become true,
+        // it mean that new status was requested after UpdateStatus() function
+        // called, so discharge request.
+        result = Result::RESULT_OK;
+      }
+      else if(tx_buf[0u] == CMD_STATUS_REPORT_LEGACY)
+      {
+        // Save status request timestamp
+        status_tx_timestamp = RtosTick::GetTimeMs();
+        // Status received flag
+        status_received = false;
+        // Request status
+        result = uart->Write(tx_buf, 1u);
+      }
+      else
+      {
+        // Copy command from message to transmit buffer
+        strncpy((char*)tx_buf, (const char*)rcv_msg.cmd, NumberOf(tx_buf));
+        // Send command
+        result = uart->Write(tx_buf, strlen((char*)tx_buf));
+      }
 
 #if defined(SEND_DATA_TO_USB)
       // Send to USB
@@ -562,6 +582,28 @@ Result GrblComm::SendRealTimeCmd(uint8_t cmd)
 
   // Send the message as priority since it is real-time command
   return SendTaskMessage(&msg, true);
+}
+
+// *****************************************************************************
+// ***   Public: UpdateStatus function   ***************************************
+// *****************************************************************************
+void GrblComm::UpdateStatus()
+{
+  // If we already requested status, we have to wait until it received before request another one
+  while(status_received == false)
+  {
+    RtosTick::DelayMs(1u);
+  }
+
+  // Save status request timestamp
+  uint32_t prev_status_rx_timestamp = status_rx_timestamp;
+  // Send status report request
+  SendRealTimeCmd(CMD_STATUS_REPORT_LEGACY);
+  // Wait until report request received
+  while(prev_status_rx_timestamp == status_rx_timestamp)
+  {
+    RtosTick::DelayMs(1u);
+  }
 }
 
 // *****************************************************************************

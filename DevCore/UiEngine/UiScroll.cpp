@@ -30,7 +30,7 @@ UiScroll::UiScroll(int32_t x, int32_t y, int32_t w, int32_t h, int32_t n, int32_
 }
 
 // *****************************************************************************
-// ***   SetParams   *********************************************************
+// ***   SetParams   ***********************************************************
 // *****************************************************************************
 void UiScroll::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, int32_t n, int32_t bar,
                          bool is_vertical, bool is_has_buttons, bool is_active)
@@ -68,6 +68,50 @@ void UiScroll::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, int32_t n, 
   bar_len   = (total_len * bar_cnt) / total_cnt;   // Bar length
   if(bar_len == 0) bar_len = 1; // Bar height can't be less than 1
   empty_len = total_len - bar_len; // Empty length available for bar moving
+}
+
+// *****************************************************************************
+// ***   Set total number of lines   *******************************************
+// *****************************************************************************
+void UiScroll::SetTotal(int32_t val)
+{
+  // Update only if there change
+  if(val != total_cnt)
+  {
+    // If new total value less than existing scroll position - update it first
+    if(cnt > val) SetScrollPos(val);
+    // Update bar first since we don't use semaphores
+    if(bar_cnt > total_cnt) SetBar(val);
+    // Update total
+    total_cnt = val;
+  }
+}
+
+// *****************************************************************************
+// ***   Set bar width/height in scroll lines   ********************************
+// *****************************************************************************
+void UiScroll::SetBar(int32_t val)
+{
+  if((val != bar_cnt) && (val <= total_cnt))
+  {
+    bar_cnt = val;
+    if(bar_cnt > total_cnt) bar_cnt = total_cnt; // Bar can't be greater total len
+    bar_len   = (total_len * bar_cnt) / total_cnt;   // Bar length
+    if(bar_len == 0) bar_len = 1; // Bar height can't be less than 1
+    empty_len = total_len - bar_len; // Empty length available for bar moving
+  }
+}
+
+// *****************************************************************************
+// ***   Return End Y coordinate   *********************************************
+// *****************************************************************************
+void UiScroll::SetScrollPos(int32_t pos)
+{
+  if(pos != cnt)
+  {
+    cnt = pos;
+    InvalidateObjArea();
+  }
 }
 
 // *****************************************************************************

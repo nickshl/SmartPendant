@@ -574,6 +574,11 @@ class GrblComm : public AppTask
     inline Result SendCmd(const char* cmd) {uint32_t id = 0u; return SendCmd(cmd, id);} // TODO: remove! All callers have to receive ID... or may be not
 
     // *************************************************************************
+    // ***   Public: UpdateStatus function   ***********************************
+    // *************************************************************************
+    void UpdateStatus();
+
+    // *************************************************************************
     // ***   Public: Run   *****************************************************
     // *************************************************************************
     inline Result Run() {return SendRealTimeCmd(CMD_CYCLE_START);}
