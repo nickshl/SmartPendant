@@ -218,15 +218,17 @@ void String::SetString(char* buf, uint32_t len, const char* format, ...)
 // *****************************************************************************
 void String::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
 {
+  // Pointer to string. Will increment for get characters. Placed there because
+  // of SetStringPtr() function existence.
+  register const char* str = string;
+
   // Draw only if needed
-  if((line >= y_start) && (line <= y_end) && (string != nullptr) && (font_ptr != nullptr))
+  if((line >= y_start) && (line <= y_end) && (str != nullptr) && (font_ptr != nullptr))
   {
     // Current symbol X position
     int32_t x = x_start - start_x;
     // Number of bytes need skipped for draw line
     uint32_t skip_bytes = ((line - y_start) / scale) * GetFontBytePerChar() / GetFontH();
-    // Pointer to string. Will increment for get characters.
-    const char* str = string;
 
     // While we have symbols
     while(*str != '\0')
@@ -276,8 +278,11 @@ void String::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
 // *****************************************************************************
 void String::DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y)
 {
+  // Pointer to string
+  register const char* str = string;
+
   // Draw only if needed
-  if((row >= x_start) && (row <= x_end) && (string != nullptr) && (font_ptr != nullptr))
+  if((row >= x_start) && (row <= x_end) && (str != nullptr) && (font_ptr != nullptr))
   {
     // Find line in symbol
     int16_t start = y_start - start_y;
@@ -287,7 +292,7 @@ void String::DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y)
     if(line >= 0)
     {
       // Get symbol
-      uint8_t c = string[line / GetFontW()];
+      uint8_t c = str[line / GetFontW()];
       // Get pointer to character data
       const uint8_t* char_ptr = font_ptr->GetCharGataPtr(c);
       // Find line in symbol

@@ -54,8 +54,6 @@ Result ProgramSender::Setup(int32_t y, int32_t height)
   menu.Setup(menu_items, NumberOf(menu_items), 0, y, display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2);
   // Setup text box
   text_box.Setup(0, y, display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2 - CTRL_HEIGHT);
-  // Set empty string
-  text_box.SetText("");
 
   // Fill all windows
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
@@ -114,12 +112,6 @@ Result ProgramSender::Show()
   UpdateMemoryInfo();
   mem_info.Show(10000);
 
-  // If text pointer exists
-  if(text != nullptr)
-  {
-    // Set it to text_box to recalculate number of lines
-    text_box.SetText(text);
-  }
   // Show text box
   text_box.Show(100);
 
@@ -172,6 +164,13 @@ Result ProgramSender::Hide()
   menu.Hide();
   // Hide text box
   text_box.Hide();
+
+  // We may have file open, close it and clear text box
+  if(p_text == nullptr)
+  {
+    f_close(&SDFile);
+    text_box.SetText(nullptr);
+  }
 
   // Axis data
   for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
@@ -259,13 +258,62 @@ Result ProgramSender::TimerExpired(uint32_t interval)
           if(grbl_comm.SendCmd(cmd, id) == Result::RESULT_OK)
           {
             int32_t select = text_box.GetSelect();
-            // Go to next line
-            text_box.Select(select + 1);
-            // Can't go further - end of program
-            if(select == text_box.GetSelect())
+            int32_t scroll = text_box.GetScroll();
+            // Load next string for SD streamed programs
+            if(p_text == nullptr)
             {
-              // Set finished flag
-              finished = true;
+              // If we did not passed half the screen or if file closed
+              // and we need to finish remaining lines
+              if((select < text_box.GetNumberOfVisibleLines() / 2) || f_eof(&SDFile))
+              {
+                // Go to next line
+                text_box.Select(select + 1);
+                // Can't go further - end of program
+                if(select == text_box.GetSelect())
+                {
+                  // Set finished flag
+                  finished = true;
+                }
+              }
+              else
+              {
+                // Buffer to read string 80 + 2 + 1
+                char str[128] = {0};
+                // Read line from file
+                if(f_gets(str, NumberOf(str), &SDFile) != nullptr)
+                {
+                  // Null-terminate just in case
+                  str[NumberOf(str) - 1] = '\0';
+                  // If we read line longer than 80 characters + possible CR & LF characters
+                  if(strlen(str) > 80 + 2)
+                  {
+                    // Rewind to the end of file
+                    f_lseek(&SDFile, SDFile.obj.objsize);
+                  }
+                  else
+                  {
+                    // Set this line to text_box
+                    text_box.AddLine(str);
+                  }
+                }
+              }
+            }
+            else
+            {
+              // If we half past screen
+              if(select - scroll >= text_box.GetNumberOfVisibleLines() / 2)
+              {
+                // Scroll to to see next lines to see what will send next
+                text_box.Scroll(scroll + 1);
+              }
+              // Go to next line
+              text_box.Select(select + 1);
+              // Can't go further - end of program
+              if(select == text_box.GetSelect())
+              {
+                // Set finished flag
+                finished = true;
+              }
             }
           }
         }
@@ -285,6 +333,11 @@ Result ProgramSender::TimerExpired(uint32_t interval)
       // In case of any unexpected error - stop the program
       run = false;
     }
+  }
+  else if(grbl_comm.GetState() == GrblComm::RUN) // If we finished program, but controller still running
+  {
+    // Process speed & feed change
+    ProcessSpeedFeed();
   }
   else
   {
@@ -319,16 +372,17 @@ Result ProgramSender::TimerExpired(uint32_t interval)
     middle_btn.Enable();
     // Enable screen change if program isn't running
     Application::GetInstance().EnableScreenChange();
-    // Process it
-    if(enc_val != 0)
+    // If encoder turned and we have program in memory
+    if((enc_val != 0) && (p_text != nullptr))
     {
-      // Set text to text box
-      //text_box.Scroll(text_box.GetScroll() + enc_val);
+      // Select line
       text_box.Select(text_box.GetSelect() + enc_val);
+      //text_box.Scroll(text_box.GetScroll() + enc_val);
       // Clear encoder value
       enc_val = 0;
     }
   }
+
   // Return ok - we don't check semaphore give error, because we don't need to.
   return Result::RESULT_OK;
 }
@@ -450,25 +504,53 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
       // Allocate memory for data
       ths.AllocateDataBuffer(fsize);
       // Check if allocation was successful
-      if(ths.text != nullptr)
+      if(ths.p_text != nullptr)
       {
         // Read bytes
         UINT wbytes = 0u;
         // Read text
-        fres = f_read(&SDFile, ths.text, fsize, &wbytes);
+        fres = f_read(&SDFile, ths.p_text, fsize, &wbytes);
         // And null-terminator to it
-        ths.text[wbytes] = 0x00;
+        ths.p_text[wbytes] = 0x00;
         // Set text to text box
-        if(!ths.text_box.SetText(ths.text))
+        if(!ths.text_box.SetText(ths.p_text))
         {
-          // If memory allocation operation isn't successful set text
+          // If program contains lines longer than 80 characters - show message
           ths.text_box.SetText("; Program contain lines longer\n\r; than 80 characters");
         }
+        // Close file
+        fres = f_close(&SDFile);
       }
       else
       {
-        // If memory allocation operation isn't successful set text
-        ths.text_box.SetText("; Program is too big!");
+        // Clear text buffer to switch into line mode
+        ths.text_box.SetText(nullptr);
+
+        // Buffer to read string
+        char str[128] = {0};
+        // Fill all visible lines
+        for(int32_t i = 0; i < ths.text_box.GetNumberOfVisibleLines(); i++)
+        {
+          // Read line from file
+          f_gets(str, NumberOf(str), &SDFile);
+          // Null-terminate just in case
+          str[NumberOf(str) - 1] = '\0';
+          // If we read line longer than 80 characters + possible CR & LF characters
+          if(strlen(str) > 80 + 2)
+          {
+            // Close file - we can't continue
+            f_close(&SDFile);
+            // If beginning of program contains lines longer than 80 characters - show message
+            ths.text_box.SetText("; Program contain lines longer\n\r; than 80 characters");
+            // Break the cycle
+            break;
+          }
+          else
+          {
+            // Set this line to text_box
+            ths.text_box.AddLine(str);
+          }
+        }
       }
     }
     else
@@ -476,8 +558,6 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
       // If memory allocation operation isn't successful set text
       ths.text_box.SetText("; Error open file!");
     }
-    // Close file
-    if(fres == FR_OK) fres = f_close(&SDFile);
 
     // And show it
     ths.text_box.Show(100);
@@ -584,6 +664,10 @@ Result ProgramSender::ProcessCallback(const void* ptr)
     // time.
     AppTask::GetCurrent()->StopTimer();
 
+    // Clear text box
+    text_box.SetText(nullptr);
+    // We may have file open - close it
+    f_close(&SDFile);
     // Clear current data to show available memory
     ReleaseDataPointer();
 
@@ -594,14 +678,10 @@ Result ProgramSender::ProcessCallback(const void* ptr)
     FRESULT res = f_mount(&SDFatFS, (TCHAR const*)SDPath, 0);
     DIR dir;
 
-    uint32_t time_ms = 0;
-
     // Open the directory
     if(res == FR_OK)
     {
-      time_ms = RtosTick::GetTimeMs();
       res = f_opendir(&dir, "/");
-      time_ms = RtosTick::GetTimeMs() - time_ms;
     }
 
     uint32_t idx = 0u;
@@ -683,19 +763,19 @@ char* ProgramSender::AllocateDataBuffer(uint32_t size)
   // Always release data buffer before allocate it again
   ReleaseDataPointer();
   // Allocate memory for data
-  text = new char[size];
+  p_text = new char[size];
   // If allocation is successful
-  if(text != nullptr)
+  if(p_text != nullptr)
   {
     // Add null-terminator to the first element
-    text[0] = '\0';
-    // And set buffer to textbox
-    text_box.SetText(text);
+    p_text[0] = '\0';
   }
+  // Set buffer(or nullptr) to textbox
+  text_box.SetText(p_text);
   // Update free memory info
   UpdateMemoryInfo();
   // Return result
-  return text;
+  return p_text;
 }
 
 // *****************************************************************************
@@ -704,17 +784,17 @@ char* ProgramSender::AllocateDataBuffer(uint32_t size)
 void ProgramSender::ReleaseDataPointer()
 {
   // If buffer was previously allocated
-  if(text != nullptr)
+  if(p_text != nullptr)
   {
     // Hide text box before delete buffer
     text_box.Hide();
-    // Set empty string to avoid read data from released pointer
-    text_box.SetText("");
     // Delete previously allocated buffer
-    delete [] text;
+    delete [] p_text;
     // Set text to nullptr
-    text = nullptr;
+    p_text = nullptr;
   }
+  // Set null data pointer
+  text_box.SetText(nullptr);
   // Update free memory info
   UpdateMemoryInfo();
 }

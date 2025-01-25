@@ -60,14 +60,24 @@ class TextBox : public VisList
     bool SetText(const char* text);
 
     // *************************************************************************
+    // ***   Public: AddLine   *************************************************
+    // *************************************************************************
+    Result AddLine(const char* text);
+
+    // *************************************************************************
     // ***   Public: GetNumberOfLines   ****************************************
     // *************************************************************************
     int32_t GetNumberOfLines() {return lines_cnt;}
 
     // *************************************************************************
+    // ***   Public: GetNumberOfVisibleLines   *********************************
+    // *************************************************************************
+    int32_t GetNumberOfVisibleLines() {return visible_cnt;}
+
+    // *************************************************************************
     // ***   Public: GetSelectedStringText   ***********************************
     // *************************************************************************
-    const char* GetSelectedStringText() {return str_text[select_pos - scroll_pos];}
+    const char* GetSelectedStringText() {return str[select_pos - scroll_pos].GetString();}
 
     // *************************************************************************
     // ***   Public: GetSelect   ***********************************************
@@ -99,16 +109,16 @@ class TextBox : public VisList
     String str[16];
     char str_text[16][80 + 2 + 1] = {0}; // One 80 characters line + CR + LF + \0
     // Visible lines count
-    uint32_t visible_cnt = 0u;
+    int32_t visible_cnt = 0;
 
     // Selection box
     Box box;
     // Current TextBox scroll position
-    int32_t scroll_pos = 0u;
+    int32_t scroll_pos = 0;
     // Current TextBox select position
-    int32_t select_pos = 0u;
+    int32_t select_pos = 0;
     // Number of lines in text
-    int32_t lines_cnt = 0u;
+    int32_t lines_cnt = 0;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();

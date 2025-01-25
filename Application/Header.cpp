@@ -134,6 +134,21 @@ void Header::SetCallback(AppTask* task, CallbackPtr func, void* param)
 }
 
 // *****************************************************************************
+// ***   Public: ResizeButtons   ***********************************************
+// *****************************************************************************
+void Header::ResizeButtons()
+{
+  int32_t button_h = (box.GetHeight() / pages_cnt);
+
+  // Show header
+  for(uint32_t i = 0; i < pages_cnt; i++)
+  {
+    // Button for fast select
+    button[i].SetPosition(height, 4 + box.GetStartY() + (button_h * i), width - (height * 2), button_h - 8);
+  }
+}
+
+// *****************************************************************************
 // ***   Show   ****************************************************************
 // *****************************************************************************
 Result Header::Show(uint32_t z)

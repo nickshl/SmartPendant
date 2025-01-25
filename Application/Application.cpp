@@ -481,6 +481,8 @@ void Application::InitHeader()
   scr[scr_cnt++] = &SettingsScr::GetInstance();
   // Pages for screens(second call to resize to actual numbers of pages)
   header.SetParams(0, 0, display_drv.GetScreenW(), 40, scr_cnt);
+  // Resize buttons to occupy all available space
+  header.ResizeButtons();
   // Set callback
   header.SetCallback(this);
   header.Show(2000);

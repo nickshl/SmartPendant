@@ -85,7 +85,7 @@ class ProgramSender : public IScreen
     // *************************************************************************
     // ***   Public: GetDataBufferPtr   ****************************************
     // *************************************************************************
-    char* GetDataBufferPtr() {return text;}
+    char* GetDataBufferPtr() {return p_text;}
 
     // *************************************************************************
     // ***   Public: ReleaseDataPointer   **************************************
@@ -103,6 +103,9 @@ class ProgramSender : public IScreen
     // Current cmd ID
     uint32_t id = 0u;
 
+    // Pointer to text buffer used if program loaded completely
+    char* p_text = nullptr;
+
     // Strings
     char str[32u][32u + 1u] = {0};
     // menu items
@@ -110,7 +113,7 @@ class ProgramSender : public IScreen
     // Menu object
     Menu menu;
 
-    char* text = nullptr;
+    // Text box for program
     TextBox text_box;
 
     // Data windows to show real position

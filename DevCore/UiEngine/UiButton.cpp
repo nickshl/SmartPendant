@@ -61,6 +61,27 @@ void UiButton::SetParams(const char* str_in, int32_t x, int32_t y, int32_t w, in
 }
 
 // *****************************************************************************
+// ***   SetPosition   *********************************************************
+// *****************************************************************************
+void UiButton::SetPosition(int32_t x, int32_t y, int32_t w, int32_t h)
+{
+  // VisObject variables
+  x_start = x;
+  y_start = y;
+  x_end = x + w - 1;
+  y_end = y + h - 1;
+  width = w;
+  height = h;
+  // Set string params
+  string.SetParams(str, x, y, color, Font_8x12::GetInstance());
+  string.Move(x + (w - string.GetWidth()) / 2, y + (h - string.GetHeight()) / 2);
+  string.SetAlignment(MultiLineString::CENTER);
+  // Set shadow string params
+  string_shadow.SetParams(str, string.GetStartX() + 1, string.GetStartY() + 1, COLOR_WHITE, Font_8x12::GetInstance());
+  string_shadow.SetAlignment(MultiLineString::CENTER);
+}
+
+// *****************************************************************************
 // ***   SetString   ***********************************************************
 // *****************************************************************************
 void UiButton::SetString(const char* str_in)
