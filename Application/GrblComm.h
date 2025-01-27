@@ -596,7 +596,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: Reset   ***************************************************
     // *************************************************************************
-    inline Result Reset() {respond_pending = false; send_id = next_id; return SendRealTimeCmd(CMD_RESET);}
+    inline Result Reset() {grbl_status = Status_OK; respond_pending = false; send_id = next_id; return SendRealTimeCmd(CMD_RESET);}
 
     // *************************************************************************
     // ***   Public: FeedReset   ***********************************************
@@ -661,7 +661,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: Unlock   **************************************************
     // *************************************************************************
-    inline Result Unlock() {grbl_status = Status_OK; respond_pending = false; send_id = next_id; return SendCmd("$X\r\n");}
+    inline Result Unlock() {grbl_status = Status_OK; respond_pending = false; send_id = next_id; return SendCmd("$X\r");}
 
     // *************************************************************************
     // ***   Public: RequestControllerSettings   *******************************

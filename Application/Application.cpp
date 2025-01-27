@@ -210,7 +210,14 @@ Result Application::ProcessCallback(const void* ptr)
     {
       if(grbl_comm.GetState() == GrblComm::ALARM)
       {
-        grbl_comm.Unlock(); // Send Unlock command
+        if(grbl_comm.GetStatusCode() == GrblComm::Status_NotAllowedCriticalEvent)
+        {
+          grbl_comm.Reset(); // Send Reset command
+        }
+        else
+        {
+          grbl_comm.Unlock(); // Send Unlock command
+        }
       }
       else if((grbl_comm.GetState() == GrblComm::UNKNOWN) || (grbl_comm.GetState() == GrblComm::HOME))
       {
@@ -290,9 +297,16 @@ void Application::UpdateRightButtonText()
   // Update right button text
   if(grbl_comm.GetState() == GrblComm::ALARM)
   {
-    right_btn.SetString("Unlock");
+    if(grbl_comm.GetStatusCode() == GrblComm::Status_NotAllowedCriticalEvent)
+    {
+      right_btn.SetString("Reset");
+    }
+    else
+    {
+      right_btn.SetString("Unlock");
+    }
   }
-  else if(grbl_comm.GetState() == GrblComm::UNKNOWN)
+  else if((grbl_comm.GetState() == GrblComm::UNKNOWN) || (grbl_comm.GetState() == GrblComm::HOME))
   {
     right_btn.SetString("Reset");
   }
