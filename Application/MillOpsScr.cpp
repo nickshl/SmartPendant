@@ -39,14 +39,13 @@ static void PrintStr(char*& buf, int32_t& len, const char* format, ...)
   size_t n = strlen(buf);
   buf += n;
   len -= n;
-  // Add \r\n to the end
-  if(len > 2)
+  // Add \r to the end
+  if(len > 1)
   {
     buf[0] = '\r';
-    buf[1] = '\n';
-    buf[2] = '\0';
-    buf += 2;
-    len -= 2;
+    buf[1] = '\0';
+    buf++;
+    len--;
   }
 }
 
@@ -68,9 +67,6 @@ Result MillOpsScr::Setup(int32_t y, int32_t height)
   tabs.SetParams(0, y, display_drv.GetScreenW(), 40, Tabs::MAX_TABS);
   // Screens & Captions
   tabs_cnt = 0u; // Clear tabs since Setup() can be called multiple times
-//  // Fill tabs
-//  tabs.SetText(tabs_cnt, "Drill", nullptr, Font_10x18::GetInstance());
-//  tab[tabs_cnt++] = &DrillTab::GetInstance();
   // Fill tabs
   tabs.SetText(tabs_cnt, "Drill", nullptr, Font_10x18::GetInstance());
   tab[tabs_cnt++] = &DrillGeneratorTab::GetInstance();
@@ -389,7 +385,10 @@ Result DrillGeneratorTab::Hide()
 Result DrillGeneratorTab::TimerExpired(uint32_t interval)
 {
   // Left soft button text
-  Application::GetInstance().UpdateLeftButtonIdleText("Generate");
+  if((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
+  {
+    Application::GetInstance().UpdateLeftButtonIdleText("Generate");
+  }
 
   // Return ok - we don't check semaphore give error, because we don't need to.
   return Result::RESULT_OK;
@@ -406,18 +405,17 @@ Result DrillGeneratorTab::ProcessCallback(const void* ptr)
   // button, we have to check if Run button is active.
   if(ptr == &left_btn)
   {
-    // If we already run program
-    // We can start probing only in IDLE state and if probing isn't started yet
-    if(grbl_comm.GetState() != GrblComm::IDLE)
-    {
-      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
-    }
-    else
+    // We can start generate program only in IDLE or UNKNOWN state
+    if((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
     {
       // Generate GCode for ProgramSender
       GenerateGcode();
       // Switch to the Program Sender screen
       Application::GetInstance().ChangeScreen(ProgramSender::GetInstance());
+    }
+    else
+    {
+      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
     }
   }
   else if(ptr == &dw_drill_distance)
@@ -762,7 +760,10 @@ Result EnlargeGeneratorTab::Hide()
 Result EnlargeGeneratorTab::TimerExpired(uint32_t interval)
 {
   // Left soft button text
-  Application::GetInstance().UpdateLeftButtonIdleText("Generate");
+  if((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
+  {
+    Application::GetInstance().UpdateLeftButtonIdleText("Generate");
+  }
 
   // Return ok - we don't check semaphore give error, because we don't need to.
   return Result::RESULT_OK;
@@ -779,18 +780,17 @@ Result EnlargeGeneratorTab::ProcessCallback(const void* ptr)
   // button, we have to check if Run button is active.
   if(ptr == &left_btn)
   {
-    // If we already run program
-    // We can start probing only in IDLE state and if probing isn't started yet
-    if((grbl_comm.GetState() != GrblComm::IDLE) && (grbl_comm.GetState() != GrblComm::UNKNOWN))
-    {
-      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
-    }
-    else
+    // We can start generate program only in IDLE or UNKNOWN state
+    if((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
     {
       // Generate GCode for ProgramSender
       GenerateGcode();
       // Switch to the Program Sender screen
       Application::GetInstance().ChangeScreen(ProgramSender::GetInstance());
+    }
+    else
+    {
+      result = Result::ERR_UNHANDLED_REQUEST; // For Application to handle it
     }
   }
   else if(ptr == &dw_hole_diameter)

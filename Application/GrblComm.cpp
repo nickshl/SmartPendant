@@ -630,7 +630,7 @@ Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t feed_x100, bool is
       ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
       ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
       // Create jog string
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%sF%s\r\n", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91", axis_str[axis], distance_str, feed_str);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%sF%s\r", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91", axis_str[axis], distance_str, feed_str);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -667,7 +667,7 @@ Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t
       // Convert distance value to string
       ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
       // Create jog string
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%sG53G90%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%sG53G90%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -708,7 +708,7 @@ Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t dis
     ValueToString(distance_z_str, NumberOf(distance_z_str), distance_z, GetUnitsScaler());
     ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
     // Create jog string
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%s%s%s%s%sF%s\r\n", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91",
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%s%s%s%s%sF%s\r", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91",
                                                 axis_str[AXIS_X], distance_x_str, axis_str[AXIS_Y], distance_y_str,
                                                 axis_str[AXIS_Z], distance_z_str, feed_str);
 
@@ -763,7 +763,7 @@ Result GrblComm::JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t feed_x100,
     ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
 
     // Create Jog command
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG17%s%s%s%s%s%sR%sF%s\r\n", GetMeasurementSystemGcode(),
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG17%s%s%s%s%s%sR%sF%s\r", GetMeasurementSystemGcode(),
                                                 is_absolute ? "G90" : "G91", direction ? "G02" : "G03",
                                                 axis_str[AXIS_X], x_str, axis_str[AXIS_Y], y_str, r_str, feed_str);
 
@@ -796,7 +796,7 @@ Result GrblComm::ZeroAxis(uint8_t axis)
       // Set ID for command
       msg.id = GetNextId();
       // Create Zero Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90G10L20P0%s0\r\n", axis_str[axis]); // G90G10L20P0X0
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90G10L20P0%s0\r", axis_str[axis]); // G90G10L20P0X0
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -833,7 +833,7 @@ Result GrblComm::SetAxisPosition(uint8_t axis, int32_t position)
       // Convert distance value to string
       ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG90G10L20P0%s%s\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG90G10L20P0%s%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -875,11 +875,11 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, ui
       // Create move command(zero feed mean rapid)
       if(feed_x100)
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG1%s%sF%s\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed_str);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG1%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed_str);
       }
       else
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG0%s%s\r\n", GetMeasurementSystemGcode(), axis_str[axis], distance_str);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG0%s%s\r", GetMeasurementSystemGcode(), axis_str[axis], distance_str);
       }
 
       // Send message
@@ -921,11 +921,11 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
       // Create Set Axis command. Strict uses .2 to produce alarm, non-strict uses .3 to avoid alarm.
       if(strict)
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.2%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.2%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
       }
       else
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.3%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.3%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
       }
 
       // Send message
@@ -965,7 +965,7 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint
       // Convert distance value to string
       ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.4%s%sF%lu\r\n", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.4%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -1001,7 +1001,7 @@ Result GrblComm::SetToolLengthOffset(int32_t offset)
     // Convert distance value to string
     ValueToString(offset_str, NumberOf(offset_str), offset, GetUnitsScaler());
     // Create Set Axis command
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG43.1Z%s\r\n", GetMeasurementSystemGcode(), offset_str);
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG43.1Z%s\r", GetMeasurementSystemGcode(), offset_str);
 
     // Send message
     result = SendTaskMessage(&msg);
@@ -1029,7 +1029,7 @@ Result GrblComm::ClearToolLengthOffset()
     // Set ID for command
     msg.id = GetNextId();
     // Create Set Axis command
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G49\r\n");
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G49\r");
     // Send message
     result = SendTaskMessage(&msg);
   }
@@ -1057,7 +1057,7 @@ Result GrblComm::SetSpindleSpeed(int32_t speed, bool dir_ccw)
     msg.id = GetNextId();
 
     // Create spindle run command
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sS%lu\r\n", dir_ccw ? "M4" : "M3", speed);
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sS%lu\r", dir_ccw ? "M4" : "M3", speed);
 
     // Send message
     result = SendTaskMessage(&msg);
@@ -1117,7 +1117,7 @@ Result GrblComm::StopSpindle()
     msg.id = GetNextId();
 
     // Create spindle stop
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "M5\r\n");
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "M5\r");
 
     // Send message
     result = SendTaskMessage(&msg);

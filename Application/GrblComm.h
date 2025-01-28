@@ -666,37 +666,37 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: RequestControllerSettings   *******************************
     // *************************************************************************
-    inline Result RequestControllerSettings() {return SendCmd("$$\r\n");}
+    inline Result RequestControllerSettings() {return SendCmd("$$\r");}
 
     // *************************************************************************
     // ***   Public: RequestOffsets   ******************************************
     // *************************************************************************
-    inline Result RequestOffsets()  {return SendCmd("$#\r\n");}
+    inline Result RequestOffsets()  {return SendCmd("$#\r");}
 
     // *************************************************************************
     // ***   Public: Homing   **************************************************
     // *************************************************************************
-    inline Result Homing() {return SendCmd("$H\r\n");}
+    inline Result Homing() {return SendCmd("$H\r");}
 
     // *************************************************************************
     // ***   Public: SetAbsoluteMode   *****************************************
     // *************************************************************************
-    inline Result SetAbsoluteMode() {return SendCmd("G90\r\n");}
+    inline Result SetAbsoluteMode() {return SendCmd("G90\r");}
 
     // *************************************************************************
     // ***   Public: SetIncrementalMode   **************************************
     // *************************************************************************
-    inline Result SetIncrementalMode() {return SendCmd("G91\r\n");}
+    inline Result SetIncrementalMode() {return SendCmd("G91\r");}
 
     // *************************************************************************
     // ***   Public: SetLatheRadiusMode   **************************************
     // *************************************************************************
-    inline Result SetLatheRadiusMode() {return SendCmd("G8\r\n");}
+    inline Result SetLatheRadiusMode() {return SendCmd("G8\r");}
 
     // *************************************************************************
     // ***   Public: SetLatheDiameterMode   ************************************
     // *************************************************************************
-    inline Result SetLatheDiameterMode() {return SendCmd("G7\r\n");}
+    inline Result SetLatheDiameterMode() {return SendCmd("G7\r");}
 
     // *************************************************************************
     // ***   Public: Jog   *****************************************************

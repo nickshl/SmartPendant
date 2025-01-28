@@ -279,7 +279,7 @@ void Application::UpdateLeftButtonText()
 void Application::UpdateLeftButtonIdleText(const char* str)
 {
   // Update left button text
-  if((grbl_comm.GetState() == GrblComm::IDLE) && (str != nullptr))
+  if(((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::UNKNOWN)) && (str != nullptr))
   {
     left_btn.SetString(str);
   }

@@ -21,6 +21,6 @@
 // *****************************************************************************
 // ***   Version TODO: DON'T FORGET TO CHANGE IT!   ****************************
 // *****************************************************************************
-static constexpr char VERSION[] = "SmartPendant ver: 0.018.1";
+static constexpr char VERSION[] = "SmartPendant ver: 0.019.0";
 
 #endif

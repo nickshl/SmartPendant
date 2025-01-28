@@ -39,14 +39,13 @@ static void PrintStr(char*& buf, int32_t& len, const char* format, ...)
   size_t n = strlen(buf);
   buf += n;
   len -= n;
-  // Add \r\n to the end
-  if(len > 2)
+  // Add \r to the end
+  if(len > 1)
   {
     buf[0] = '\r';
-    buf[1] = '\n';
-    buf[2] = '\0';
-    buf += 2;
-    len -= 2;
+    buf[1] = '\0';
+    buf++;
+    len--;
   }
 }
 

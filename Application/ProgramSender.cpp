@@ -112,6 +112,8 @@ Result ProgramSender::Show()
   UpdateMemoryInfo();
   mem_info.Show(10000);
 
+  // Update text - in case it is generated, we have to count lines
+  text_box.SetText(p_text);
   // Show text box
   text_box.Show(100);
 
@@ -169,7 +171,6 @@ Result ProgramSender::Hide()
   if(p_text == nullptr)
   {
     f_close(&SDFile);
-    text_box.SetText(nullptr);
   }
 
   // Axis data
@@ -252,8 +253,8 @@ Result ProgramSender::TimerExpired(uint32_t interval)
         {
           // Buffer for command
           char cmd[128u];
-          // Since all program commands have striped out CR LF, we have to add it
-          snprintf(cmd, NumberOf(cmd), "%s\r\n", text_box.GetSelectedStringText());
+          // Since all program commands have striped out CR and LF, we have to add it
+          snprintf(cmd, NumberOf(cmd), "%s\r", text_box.GetSelectedStringText());
           // Send new command
           if(grbl_comm.SendCmd(cmd, id) == Result::RESULT_OK)
           {
