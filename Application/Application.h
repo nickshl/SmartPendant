@@ -93,6 +93,16 @@ class Application : public AppTask
     void InitSoftButtons(bool three_buttons = false);
 
     // *************************************************************************
+    // ***   Public: GetScreenStartY function   *********************************
+    // *************************************************************************
+    inline int32_t GetScreenStartY() {return 40;}
+
+    // *************************************************************************
+    // ***   Public: GetScreenEndY function   **********************************
+    // *************************************************************************
+    inline int32_t GetScreenEndY() {return status_box.GetStartY() - 1;}
+
+    // *************************************************************************
     // ***   Public: GetRightButton function   *********************************
     // *************************************************************************
     UiButton& GetRightButton() {return right_btn;}
@@ -106,6 +116,16 @@ class Application : public AppTask
     // ***   Public: GetMiddleButton function   ********************************
     // *************************************************************************
     UiButton& GetMiddleButton() {return middle_btn;}
+
+    // *************************************************************************
+    // ***   Public: GetRealDataWindow function   ******************************
+    // *************************************************************************
+    inline DataWindow& GetRealDataWindow(uint32_t axis) {return dw_real[axis];}
+
+    // *************************************************************************
+    // ***   Public: GetRealDataWindowNameString function   ********************
+    // *************************************************************************
+    inline String& GetRealDataWindowNameString(uint32_t axis) {return dw_real_name[axis];}
 
     // *************************************************************************
     // ***   Public: GetChangeValueBox function   ******************************
@@ -171,6 +191,11 @@ class Application : public AppTask
     String state_str;
     String status_str;
     String pins_str;
+
+    // Data windows to show real position
+    DataWindow dw_real[GrblComm::AXIS_CNT];
+    // String for caption
+    String dw_real_name[NumberOf(dw_real)];
 
     // Soft Buttons
     UiButton left_btn;

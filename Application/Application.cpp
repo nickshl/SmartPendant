@@ -73,7 +73,7 @@ Result Application::Setup()
   // Setup all screens
   for(uint32_t i = 0u; i < scr_cnt; i++)
   {
-    scr[i]->Setup(40, status_box.GetStartY() - 40);
+    scr[i]->Setup(GetScreenStartY(), status_box.GetStartY() - GetScreenStartY());
   }
 
   // Set index
@@ -83,6 +83,12 @@ Result Application::Setup()
 
   // Set callback handler for left and right buttons
   input_drv.AddButtonsCallbackHandler(this, reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_USR | InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
+
+  // Init axis data windows
+  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  {
+    dw_real[i].SetNumber(0);
+  }
 
   // All good
   return Result::RESULT_OK;
@@ -97,6 +103,12 @@ Result Application::TimerExpired()
   state_str.SetString(grbl_comm.GetCurrentStateName());
   status_str.SetString(grbl_comm.GetCurrentStatusName());
   pins_str.SetString(grbl_comm.GetPinsStr(), grbl_comm.IsPinsStrChanged());
+
+  // Update numbers with current position and position difference
+  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  {
+    dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
+  }
 
   // If button pressed - we requested control
   if(mpg_btn.GetPressed())

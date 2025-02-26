@@ -59,6 +59,18 @@ void DataWindow::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t 
     snprintf(format_str_buf, NumberOf(format_str_buf), "%%%luld", before_decimal);
   }
 
+  // Add one to account for '.'
+  if(ths) len++;
+  // Check if current string length not equal one we expect
+  if(strlen(data_str_buf) != len)
+  {
+    // Clear data buffer - fill with spaces to calculate string dimensions.
+    for(uint32_t i = 0u; i < NumberOf(data_str_buf); i++)
+    {
+      data_str_buf[i] = (i < len) ? ' ' : '\0';
+    }
+  }
+
   // Set box parameters
   box.SetParams(0, 0, w, h, COLOR_BLACK, true);
   // Set data string parameters

@@ -127,11 +127,6 @@ class RotaryTableScr : public IScreen
     // String for caption (only X and Y for center)
     String center;
 
-    // Data windows to show real position
-    DataWindow dw_real[2u];
-    // String for caption (only X and Y for center)
-    String dw_real_name[2u];
-
     // String for caption (only X and Y for center)
     String center_axis_name[2u];
     // Data windows to show DRO (only X and Y for center)

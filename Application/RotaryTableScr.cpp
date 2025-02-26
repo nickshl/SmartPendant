@@ -20,6 +20,8 @@
 // *****************************************************************************
 #include "RotaryTableScr.h"
 
+#include "Application.h"
+
 #include <cmath>
 
 // *****************************************************************************
@@ -114,19 +116,6 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   // Arc caption
   arc_name.SetParams("ARC LENGTH", arc_dw.GetStartX() + BORDER_W*2, arc_dw.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
-  // X & Y real position
-  for(uint32_t i = 0u; i < NumberOf(center_dw); i++)
-  {
-    dw_real[i].SetParams(BORDER_W / 2 + (display_drv.GetScreenW() / 2) * i, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3 + BORDER_W / 2, (display_drv.GetScreenW() - BORDER_W*2) / 2, Font_8x12::GetInstance().GetCharH() * 3 - BORDER_W, 14u, grbl_comm.GetUnitsPrecision());
-    dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
-    dw_real[i].SetDataFont(Font_8x12::GetInstance());
-    dw_real[i].SetNumber(0);
-    dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
-    // Axis Name
-    dw_real_name[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_10x18::GetInstance());
-    dw_real_name[i].Move(dw_real[i].GetStartX() + BORDER_W, dw_real[i].GetStartY() + (dw_real[i].GetHeight() - dw_real_name[i].GetHeight()) / 2);
-  }
-
   // All good
   return Result::RESULT_OK;
 }
@@ -180,10 +169,21 @@ Result RotaryTableScr::Show()
   arc_name.Show(100);
 
   // Real X & Y axis data
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < 2u; i++)
   {
-    dw_real[i].Show(100);
-    dw_real_name[i].Show(100);
+    DataWindow& dw_real = Application::GetInstance().GetRealDataWindow(i);
+    String& dw_real_name = Application::GetInstance().GetRealDataWindowNameString(i);
+
+    dw_real.SetParams(BORDER_W / 2 + (display_drv.GetScreenW() / 2) * i, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3 + BORDER_W / 2, (display_drv.GetScreenW() - BORDER_W*2) / 2, Font_8x12::GetInstance().GetCharH() * 3 - BORDER_W, 14u, grbl_comm.GetUnitsPrecision());
+    dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
+    dw_real.SetDataFont(Font_8x12::GetInstance());
+    dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
+    // Axis Name
+    dw_real_name.SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_10x18::GetInstance());
+    dw_real_name.Move(dw_real.GetStartX() + BORDER_W, dw_real.GetStartY() + (dw_real.GetHeight() - dw_real_name.GetHeight()) / 2);
+
+    dw_real.Show(100);
+    dw_real_name.Show(100);
   }
 
   // Set encoder callback handler
@@ -233,10 +233,10 @@ Result RotaryTableScr::Hide()
   arc_name.Hide();
 
   // Real X & Y axis data
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
   {
-    dw_real[i].Hide();
-    dw_real_name[i].Hide();
+    Application::GetInstance().GetRealDataWindow(i).Hide();
+    Application::GetInstance().GetRealDataWindowNameString(i).Hide();
   }
 
   // All good
@@ -259,11 +259,6 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
   // Convert feed from um/sec to mm*100/min
   feed = feed * 60u / 10u;
 
-  // Real X & Y axis data
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
-  {
-    dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
-  }
   // Update numbers with current position
   z_axis_dw.SetNumber(grbl_comm.GetAxisPosition(GrblComm::AXIS_Z));
 

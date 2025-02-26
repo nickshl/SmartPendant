@@ -192,11 +192,6 @@ class ToolOffsetTab : public IScreen
     // Data windows to show tool offset
     DataWindow dw_base;
 
-    // Data windows to show real position
-    DataWindow dw_real[GrblComm::AXIS_CNT];
-    // String for caption
-    String dw_real_name[NumberOf(dw_real)];
-
     // Buttons to measure offset
     UiButton get_offset_btn;
     // Buttons to clear offset
@@ -306,7 +301,7 @@ class CenterFinderTab : public IScreen
     GrblComm::state_t grbl_state = GrblComm::UNKNOWN;
 
     // Data windows to show real position
-    DataWindow dw_real[GrblComm::AXIS_CNT];
+    DataWindow dw_real[3u];
     // String for caption
     String dw_real_name[NumberOf(dw_real)];
 
@@ -437,7 +432,7 @@ class EdgeFinderTab : public IScreen
     GrblComm::state_t grbl_state = GrblComm::UNKNOWN;
 
     // Data windows to show real position
-    DataWindow dw_real[GrblComm::AXIS_CNT];
+    DataWindow dw_real[3u];
     // String for caption
     String dw_real_name[NumberOf(dw_real)];
 

@@ -116,11 +116,6 @@ class ProgramSender : public IScreen
     // Text box for program
     TextBox text_box;
 
-    // Data windows to show real position
-    DataWindow dw_real[GrblComm::AXIS_CNT];
-    // String for caption
-    String dw_real_name[NumberOf(dw_real)];
-
     // Memory info
     String mem_info;
     char mem_info_buf[32u];

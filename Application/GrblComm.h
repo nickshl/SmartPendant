@@ -77,9 +77,9 @@ class GrblComm : public AppTask
        AXIS_X = 0,
        AXIS_Y = 1,
        AXIS_Z = 2,
-//       AXIS_A = 3,
-//       AXIS_B = 4,
-//       AXIS_C = 5,
+       AXIS_A = 3,
+       AXIS_B = 4,
+       AXIS_C = 5,
        AXIS_CNT
     } Axis_t;
 
@@ -337,6 +337,16 @@ class GrblComm : public AppTask
     // ***   Public: GetMpgModeRequest function   ******************************
     // *************************************************************************
     bool GetMpgModeRequest() {return mpg_mode_request;}
+
+    // *************************************************************************
+    // ***   Public: GetNumberOfAxis function   ********************************
+    // *************************************************************************
+    uint32_t GetNumberOfAxis() {return number_of_axis;}
+
+    // *************************************************************************
+    // ***   Public: GetLimitedNumberOfAxis function   *************************
+    // *************************************************************************
+    uint32_t GetLimitedNumberOfAxis(uint32_t n) {return (((uint32_t)number_of_axis < n) ? number_of_axis : n);}
 
     // *************************************************************************
     // ***   Public: GetAxisName function   ************************************
@@ -664,6 +674,11 @@ class GrblComm : public AppTask
     inline Result Unlock() {grbl_status = Status_OK; respond_pending = false; send_id = next_id; return SendCmd("$X\r");}
 
     // *************************************************************************
+    // ***   Public: RequestControllerParameters   *****************************
+    // *************************************************************************
+    inline Result RequestControllerParameters() {return SendCmd("$I\r");}
+
+    // *************************************************************************
     // ***   Public: RequestControllerSettings   *******************************
     // *************************************************************************
     inline Result RequestControllerSettings() {return SendCmd("$$\r");}
@@ -876,6 +891,9 @@ class GrblComm : public AppTask
     // Flag to show that settings changed
     bool settings_changed = false;
 
+    // Number of axis
+    int32_t number_of_axis = 3;
+
     // Settings
     uint8_t measurement_system = MEASUREMENT_SYSTEM_METRIC;
     uint8_t mode_of_operation = MODE_OF_OPERATION_MILL;
@@ -897,8 +915,7 @@ class GrblComm : public AppTask
     RtosMutex mutex;
 
     // Axis definition. This array must match the Axis_t enum
-    const char* const axis_str[AXIS_CNT + 1u] = {"X", "Y", "Z", "*"};
-//    const char* const axis_str[AXIS_CNT + 1u] = {"X", "Y", "Z", "A", "B", "C", "*"};
+    const char* const axis_str[AXIS_CNT + 1u] = {"X", "Y", "Z", "A", "B", "C", "*"};
 
     // This array must match the grbl_state_t enum!
     const char* const grbl_state_str[STATE_CNT] =

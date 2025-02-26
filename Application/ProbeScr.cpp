@@ -260,20 +260,6 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   get_base_btn.SetParams("MEASURE BASE", BORDER_W, dw_base.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
   get_base_btn.SetCallback(AppTask::GetCurrent());
 
-  // Fill all windows
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
-  {
-    // Real position
-    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, y + height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 7u, grbl_comm.GetUnitsPrecision());
-    dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
-    dw_real[i].SetDataFont(Font_8x12::GetInstance());
-    dw_real[i].SetNumber(0);
-    dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
-    // Axis Name
-    dw_real_name[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
-    dw_real_name[i].Move(dw_real[i].GetStartX() + BORDER_W, dw_real[i].GetStartY() + BORDER_W);
-  }
-
   // All good
   return Result::RESULT_OK;
 }
@@ -290,11 +276,23 @@ Result ToolOffsetTab::Show()
   name_base.Show(100);
   dw_base.Show(100);
 
-  // Axis data
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  // Fill all windows
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(3u); i++)
   {
-    dw_real[i].Show(100);
-    dw_real_name[i].Show(100);
+    DataWindow& dw_real = Application::GetInstance().GetRealDataWindow(i);
+    String& dw_real_name = Application::GetInstance().GetRealDataWindowNameString(i);
+
+    // Real position
+    dw_real.SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, Application::GetInstance().GetScreenEndY() - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 7u, grbl_comm.GetUnitsPrecision());
+    dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
+    dw_real.SetDataFont(Font_8x12::GetInstance());
+    dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
+    // Axis Name
+    dw_real_name.SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
+    dw_real_name.Move(dw_real.GetStartX() + BORDER_W, dw_real.GetStartY() + BORDER_W);
+
+    dw_real.Show(100);
+    dw_real_name.Show(100);
   }
 
   // Measure offset button
@@ -330,10 +328,10 @@ Result ToolOffsetTab::Hide()
   dw_base.Hide();
 
   // Axis data
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
   {
-    dw_real[i].Hide();
-    dw_real_name[i].Hide();
+    Application::GetInstance().GetRealDataWindow(i).Hide();
+    Application::GetInstance().GetRealDataWindowNameString(i).Hide();
   }
 
   // Measure offset button
@@ -356,12 +354,6 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
 
   // Set actual tool offset
   dw_tool.SetNumber(grbl_comm.GetToolLengthOffset());
-
-  // Update numbers with current position and position difference
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
-  {
-    dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
-  }
 
   // If we in ptrobing cycle
   if(state != PROBE_CNT)
@@ -482,7 +474,7 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   int32_t start_y = y + BORDER_W;
 
   // Fill all windows
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
     // Real position
     dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 7u, grbl_comm.GetUnitsPrecision());
@@ -554,7 +546,7 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
 Result CenterFinderTab::Show()
 {
   // Axis data
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
     dw_real[i].Show(100);
     dw_real_name[i].Show(100);
@@ -639,7 +631,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
   Result result = Result::RESULT_OK;
 
   // Update numbers with current position and position difference
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
     dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
   }
@@ -1189,7 +1181,7 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   int32_t start_y = y + BORDER_W;
 
   // Fill all windows
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
     // Real position
     dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 7u, grbl_comm.GetUnitsPrecision());
@@ -1253,7 +1245,7 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
 Result EdgeFinderTab::Show()
 {
   // Axis data
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
     dw_real[i].Show(100);
     dw_real_name[i].Show(100);
@@ -1293,7 +1285,7 @@ Result EdgeFinderTab::Hide()
   InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
 
   // Axis data
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
     dw_real[i].Hide();
     dw_real_name[i].Hide();
@@ -1328,7 +1320,7 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
   Result result = Result::RESULT_OK;
 
   // Update numbers with current position and position difference
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
     dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
   }

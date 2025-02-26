@@ -91,8 +91,6 @@ class DelayControlScr : public IScreen
     String axis_names[GrblComm::AXIS_CNT];
     // Data windows to show DRO
     DataWindow dw[GrblComm::AXIS_CNT];
-    // Data windows to show real position
-    DataWindow dw_real[GrblComm::AXIS_CNT];
     // Data windows to show difference in position
     DataWindow dw_diff[GrblComm::AXIS_CNT];
 

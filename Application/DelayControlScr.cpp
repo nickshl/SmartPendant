@@ -38,26 +38,23 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
 {
   int32_t start_y = y + BORDER_W;
   // Data window height
-  uint32_t window_height = Font_8x12::GetInstance().GetCharH() * 5u;
+  uint32_t window_height = (height / (grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)) + 2)) - BORDER_W*2;
+  // Check if windows is too large
+  if(window_height > Font_8x12::GetInstance().GetCharH() * 5u) window_height = Font_8x12::GetInstance().GetCharH() * 5u;
+
   // Fill all windows
-  for(uint32_t i = 0u; i < NumberOf(dw); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
   {
     // Axis position
     dw[i].SetParams(display_drv.GetScreenW() / 6, start_y + (window_height + BORDER_W*2) * i, (display_drv.GetScreenW() - BORDER_W*2) / 2, window_height, 7u, grbl_comm.GetUnitsPrecision());
     dw[i].SetBorder(BORDER_W, COLOR_RED);
     dw[i].SetDataFont(Font_8x12::GetInstance(), 2u);
     dw[i].SetNumber(grbl_comm.GetAxisPosition(i)); // Get current position at startup
-    dw[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::BOTTOM_RIGHT);
+    dw[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
     dw[i].SetCallback(AppTask::GetCurrent());
     dw[i].SetActive(true);
-    // Real position
-    dw_real[i].SetParams(dw[i].GetEndX() + BORDER_W, dw[i].GetStartY(), display_drv.GetScreenW() - dw[i].GetEndX() - BORDER_W * 2, (window_height - BORDER_W) / 2, 7u, grbl_comm.GetUnitsPrecision());
-    dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
-    dw_real[i].SetDataFont(Font_8x12::GetInstance());
-    dw_real[i].SetNumber(0);
-    dw_real[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
     // Position difference
-    dw_diff[i].SetParams(dw_real[i].GetStartX(), dw[i].GetEndY() - dw_real[i].GetHeight(), dw_real[i].GetWidth(), dw_real[i].GetHeight(), 7u, grbl_comm.GetUnitsPrecision());
+    dw_diff[i].SetParams(dw[i].GetEndX() + BORDER_W, dw[i].GetEndY() - (window_height - BORDER_W) / 2, display_drv.GetScreenW() - dw[i].GetEndX() - BORDER_W * 2, (window_height - BORDER_W) / 2, 8u, grbl_comm.GetUnitsPrecision());
     dw_diff[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_diff[i].SetDataFont(Font_8x12::GetInstance());
     dw_diff[i].SetNumber(0);
@@ -70,24 +67,24 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
   // Scale buttons
   for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
   {
-    scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], i*(display_drv.GetScreenW() / 3) + BORDER_W, dw[NumberOf(dw) - 1u].GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 3 - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
+    scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], i*(display_drv.GetScreenW() / 3) + BORDER_W, dw[grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)) - 1u].GetEndY() + BORDER_W*2, display_drv.GetScreenW() / 3 - BORDER_W*2, window_height, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent());
     scale_btn[i].SetSpacing(3u);
   }
 
   // Feed position
-  dw_feed.SetParams(display_drv.GetScreenW() / 2, scale_btn[0].GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*2) / 2,  window_height, 4u, 0u);
+  dw_feed.SetParams(Font_12x16::GetInstance().GetCharW()*5*2 + BORDER_W*3, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - Font_12x16::GetInstance().GetCharW()*5*2 - BORDER_W*4,  window_height, 5u, 0u);
   dw_feed.SetBorder(BORDER_W, COLOR_RED);
   dw_feed.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_feed.SetLimits(1, 10000);
   dw_feed.SetNumber(300);
-  dw_feed.SetUnits(grbl_comm.GetReportSpeedUnits(), DataWindow::BOTTOM_RIGHT);
+  dw_feed.SetUnits(grbl_comm.GetReportSpeedUnits(), DataWindow::RIGHT);
   dw_feed.SetCallback(AppTask::GetCurrent());
   dw_feed.SetActive(true);
   // Feed caption
   feed_name.SetParams("FEED:", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
   feed_name.SetScale(2u);
-  feed_name.Move((display_drv.GetScreenW() / 2 - dw_feed.GetWidth()) / 2, (dw_feed.GetStartY() + dw_feed.GetHeight() / 2) - (feed_name.GetHeight() / 2));
+  feed_name.Move(BORDER_W, (dw_feed.GetStartY() + dw_feed.GetHeight() / 2) - (feed_name.GetHeight() / 2));
 
   // Set scale 0.01 mm
   scale = 10;
@@ -107,10 +104,18 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
 Result DelayControlScr::Show()
 {
   // Axis data
-  for(uint32_t i = 0u; i < NumberOf(dw); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
   {
+    DataWindow& dw_real = Application::GetInstance().GetRealDataWindow(i);
+
+    // Real position
+    dw_real.SetParams(dw_diff[i].GetStartX(), dw[i].GetStartY(), dw_diff[i].GetWidth(), dw_diff[i].GetHeight(), 8u, grbl_comm.GetUnitsPrecision());
+    dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
+    dw_real.SetDataFont(Font_8x12::GetInstance());
+    dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
+
     dw[i].Show(100);
-    dw_real[i].Show(100);
+    dw_real.Show(100);
     dw_diff[i].Show(100);
     axis_names[i].Show(100);
   }
@@ -150,7 +155,7 @@ Result DelayControlScr::Hide()
   for(uint32_t i = 0u; i < NumberOf(dw); i++)
   {
     dw[i].Hide();
-    dw_real[i].Hide();
+    Application::GetInstance().GetRealDataWindow(i).Hide();
     dw_diff[i].Hide();
     axis_names[i].Hide();
   }
@@ -203,7 +208,7 @@ Result DelayControlScr::TimerExpired(uint32_t interval)
       // since we limited by discrete steps. In this case window will stay
       // yellow even axis will not move after hit Go button. To fix that
       // we have reset all data windows after jog is complete.
-      for(uint32_t i = 0u; i < NumberOf(dw); i++)
+      for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
       {
         dw[i].SetNumber(grbl_comm.GetAxisPosition(i));
       }
@@ -220,10 +225,9 @@ Result DelayControlScr::TimerExpired(uint32_t interval)
   bool changed = false;
 
   // Update numbers with current position and position difference
-  for(uint32_t i = 0u; i < NumberOf(dw); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_diff)); i++)
   {
-    changed |= dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
-    changed |= dw_diff[i].SetNumber(dw[i].GetNumber() - dw_real[i].GetNumber());
+    changed |= dw_diff[i].SetNumber(dw[i].GetNumber() - grbl_comm.GetAxisPosition(i));
   }
 
   // If data changed
@@ -277,7 +281,7 @@ Result DelayControlScr::ProcessCallback(const void* ptr)
     if(grbl_comm.GetState() == GrblComm::IDLE)
     {
       // Reset numbers with current position
-      for(uint32_t i = 0u; i < NumberOf(dw); i++)
+      for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
       {
         // Clear reset selected data window
         if(dw[i].IsSelected())

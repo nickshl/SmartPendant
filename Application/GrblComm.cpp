@@ -98,6 +98,8 @@ Result GrblComm::TimerExpired()
   // If SmarpPendant is in control and request_settings flag is set
   if(IsInControl() && (request_settings))
   {
+    // Request controller parameters(like number of axis)
+    RequestControllerParameters();
     // Request settings from the controller
     RequestControllerSettings();
     // And clear the request flag
@@ -350,7 +352,7 @@ void GrblComm::ReleaseControl()
 const char* const GrblComm::GetAxisName(uint8_t axis)
 {
   // Prevent out of boundaries
-  if(axis > AXIS_CNT) axis = AXIS_CNT;
+  if(axis >= number_of_axis) axis = AXIS_CNT;
   // Return result
   return axis_str[axis];
 }
@@ -391,7 +393,7 @@ int32_t GrblComm::GetAxisMachinePosition(uint8_t axis)
   // Return value - zero by default. Non existent axis always 0.
   int32_t value = 0;
   // Check parameter
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
@@ -412,7 +414,7 @@ int32_t GrblComm::GetAxisPosition(uint8_t axis)
   // Return value - zero by default. Non existent axis always 0.
   int32_t value = 0;
   // Check parameter
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
@@ -433,7 +435,7 @@ int32_t GrblComm::GetProbeMachinePosition(uint8_t axis)
   // Return value - zero by default. Non existent axis always 0.
   int32_t value = 0;
   // Check parameter
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
@@ -454,7 +456,7 @@ int32_t GrblComm::GetProbePosition(uint8_t axis)
   // Return value - zero by default. Non existent axis always 0.
   int32_t value = 0;
   // Check parameter
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
@@ -613,7 +615,7 @@ Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t feed_x100, bool is
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Jogging possible only in Idle or Jog states
     if(IsInControl() && ((grbl_state == IDLE) || (grbl_state == JOG)))
@@ -652,7 +654,7 @@ Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Jogging possible only in Idle or Jog states
     if(IsInControl() && ((grbl_state == IDLE) || (grbl_state == JOG)))
@@ -786,7 +788,7 @@ Result GrblComm::ZeroAxis(uint8_t axis)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Reset axis possible only in Idle state
     if(IsInControl() && (grbl_state == IDLE))
@@ -818,7 +820,7 @@ Result GrblComm::SetAxisPosition(uint8_t axis, int32_t position)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Reset axis possible only in Idle state
     if(IsInControl() && (grbl_state == IDLE))
@@ -855,7 +857,7 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, ui
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Move possible only in Idle state
     if(IsInControl() && (grbl_state == IDLE))
@@ -904,7 +906,7 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Reset axis possible only in Idle state
     if(IsInControl() && (grbl_state == IDLE))
@@ -950,7 +952,7 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
-  if(axis < AXIS_CNT)
+  if(axis < number_of_axis)
   {
     // Reset axis possible only in Idle state
     if(IsInControl() && (grbl_state == IDLE))
@@ -1274,7 +1276,7 @@ bool GrblComm::ParseAxisData(char* data, float (&axis)[AXIS_CNT])
   bool changed = false;
 
   // Cycle for all axis
-  for(uint32_t i = 0u; i < AXIS_CNT; i++)
+  for(int32_t i = 0u; i < number_of_axis; i++)
   {
     // Parse probe value
     if(ParseDecimal(axis[i], data)) changed = true;
@@ -1610,6 +1612,19 @@ void GrblComm::ParseData(void)
       // Tool Length Offset
       grbl_changed.tlo = ParseAxisData(line + 1 + 4, grbl_tool_length_offset);
     }
+    if(!strncmp(&line[1], "AXS:", 4))
+    {
+      // Parse probe value
+      ParseInt(number_of_axis, line + 1 + 4);
+      // Can't be less than 3
+      if(number_of_axis < 3) number_of_axis = 3;
+      // Should be less than AXIS_CNT
+      if(number_of_axis >= AXIS_CNT) number_of_axis = AXIS_CNT - 1;
+    }
+    else
+    {
+      ; // Do nothing - MISRA rule
+    }
   }
   else if(!strncmp(line, "error:", 6))
   {
@@ -1621,6 +1636,10 @@ void GrblComm::ParseData(void)
   {
     grbl_alarm = (uint8_t)atoi(line + 6);
     grbl_changed.alarm = true;
+  }
+  else
+  {
+    ; // Do nothing - MISRA rule
   }
 }
 

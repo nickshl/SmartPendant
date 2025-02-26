@@ -40,12 +40,15 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
 {
   int32_t start_y = y + BORDER_W;
   // Data window height
-  uint32_t window_height = Font_8x12::GetInstance().GetCharH() * 5u;
+  uint32_t window_height = (height - Font_8x12::GetInstance().GetCharH() - BORDER_W) / (grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)) + 2) - BORDER_W*2;
+  // Check if windows is too large
+  if(window_height > Font_8x12::GetInstance().GetCharH() * 5u) window_height = Font_8x12::GetInstance().GetCharH() * 5u;
+
   // Fill all windows
-  for(uint32_t i = 0u; i < NumberOf(dw); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
   {
     // Axis position
-    dw[i].SetParams(display_drv.GetScreenW() / 6, start_y + (window_height + BORDER_W*2) * i, (display_drv.GetScreenW() - BORDER_W*2) * 4 / 6,  window_height, 7u, grbl_comm.GetUnitsPrecision());
+    dw[i].SetParams(display_drv.GetScreenW() / 6, start_y + (window_height + BORDER_W*2) * i, (display_drv.GetScreenW() - BORDER_W*2) * 4 / 6,  window_height, 8u, grbl_comm.GetUnitsPrecision());
     dw[i].SetBorder(BORDER_W, COLOR_RED);
     dw[i].SetDataFont(Font_8x12::GetInstance(), 2u);
     dw[i].SetNumber(0);
@@ -65,7 +68,7 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
     // Calculate scale button width
     uint32_t scale_btn_w = (display_drv.GetScreenW() - BORDER_W * (NumberOf(scale_btn) + 1u)) / NumberOf(scale_btn);
     // Set scale button parameters
-    scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], BORDER_W + i * (scale_btn_w + BORDER_W), dw[NumberOf(dw) - 1u].GetEndY() + BORDER_W*2, scale_btn_w, window_height, true);
+    scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], BORDER_W + i * (scale_btn_w + BORDER_W), dw[grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)) - 1u].GetEndY() + BORDER_W*2, scale_btn_w, window_height, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent());
     scale_btn[i].SetSpacing(3u);
   }
@@ -116,7 +119,7 @@ Result DirectControlScr::Show()
   version.Show(1);
 
   // Axis data
-  for(uint32_t i = 0u; i < NumberOf(dw); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
   {
     dw[i].Show(100);
     axis_names[i].Show(100);
@@ -236,7 +239,7 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
   }
 
   // Update numbers with current position
-  for(uint32_t i = 0u; i < NumberOf(dw); i++)
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
   {
     dw[i].SetNumber(grbl_comm.GetAxisPosition(i));
   }

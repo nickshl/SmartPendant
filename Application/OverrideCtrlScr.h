@@ -78,11 +78,6 @@ class OverrideCtrlScr : public IScreen
   private:
     static const uint8_t BORDER_W = 4u;
 
-    // Data windows to show real position
-    DataWindow dw_real[GrblComm::AXIS_CNT];
-    // String for caption
-    String dw_real_name[NumberOf(dw_real)];
-
     // String for caption
     String feed_name;
     // Data windows to show current value
