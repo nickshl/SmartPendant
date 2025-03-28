@@ -89,6 +89,21 @@ class Tabs : public VisObject
     Result Hide();
 
     // *************************************************************************
+    // ***   Public: Enable   **************************************************
+    // *************************************************************************
+    inline Result Enable() {return shadowbox.Hide();}
+
+    // *************************************************************************
+    // ***   Public: Disable   *************************************************
+    // *************************************************************************
+    inline Result Disable() {return shadowbox.Show(UINT32_MAX);}
+
+    // *************************************************************************
+    // ***   Public: IsEnabled   ***********************************************
+    // *************************************************************************
+    inline bool IsEnabled() {return !shadowbox.IsShow();}
+
+    // *************************************************************************
     // ***   Public: Put line in buffer   **************************************
     // *************************************************************************
     virtual void DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t y = 0);
@@ -135,6 +150,9 @@ class Tabs : public VisObject
     String tab_cap[MAX_TABS][2];
     // Selected tab object
     Box tab;
+
+    // Box to disable tabs
+    ShadowBox shadowbox;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();

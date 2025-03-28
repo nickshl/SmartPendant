@@ -212,6 +212,29 @@ void UiButton::SetCallback(AppTask* task, CallbackPtr func, void* param)
 }
 
 // *****************************************************************************
+// ***   Send callback function   **********************************************
+// *****************************************************************************
+void UiButton::SendCallback()
+{
+  // If AppTask pointer provided
+  if(callback_task != nullptr)
+  {
+    // Call it to pass callback call to another task
+    callback_task->Callback(callback_func, callback_param, this);
+  }
+  // If AppTask pointer is not provided, but callback function pointer provided
+  else if(callback_func != nullptr)
+  {
+    // Call it in Display task(mutex may be needed inside callback!)
+    callback_func(callback_param, this);
+  }
+  else
+  {
+    ; // Do nothing - MISRA rule
+  }
+}
+
+// *****************************************************************************
 // ***   Put line in buffer   **************************************************
 // *****************************************************************************
 void UiButton::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
@@ -302,22 +325,8 @@ void UiButton::Action(VisObject::ActionType action, int32_t tx, int32_t ty, int3
       draw_pressed = false;
       // Set string params
       string.SetColor(color);
-      // If AppTask pointer provided
-      if(callback_task != nullptr)
-      {
-        // Call it to pass callback call to another task
-        callback_task->Callback(callback_func, callback_param, this);
-      }
-      // If AppTask pointer is not provided, but callback function pointer provided
-      else if(callback_func != nullptr)
-      {
-        // Call it in Display task(mutex may be needed inside callback!)
-        callback_func(callback_param, this);
-      }
-      else
-      {
-        ; // Do nothing - MISRA rule
-      }
+      // Send callback
+      SendCallback();
       // Invalidate area
       InvalidateObjArea();
       break;

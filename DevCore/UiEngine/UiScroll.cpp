@@ -134,7 +134,7 @@ void UiScroll::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x
     if(end > n) end = n;
 
     // Have sense draw only if end pointer in buffer
-    if(x_end > 0)
+    if(x_end > start_x)
     {
       // Draw border of scroll
       if((line == y_start) || (line == y_end))
@@ -148,8 +148,9 @@ void UiScroll::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x
       }
       else
       {
-        if(x_start >= 0) buf[x_start] = color;
-        if(x_end   <  n) buf[x_end]   = color;
+        if((x_start - start_x >= 0) && (start < n)) buf[start] = color;
+        if((x_end - start_x   <  n) && (end   > 0)) buf[end]   = color;
+
         if(has_buttons && !vertical)
         {
           if(x_start + height >= 0) buf[x_start + height] = color;
@@ -173,7 +174,7 @@ void UiScroll::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x
       {
         if((line != y_start) && (line != y_end))
         {
-          bar_start += x_start;
+          bar_start += x_start - start_x;
           // Prevent write in memory before buffer
           if(bar_start < 0) bar_start = 0;
           // Find start x position

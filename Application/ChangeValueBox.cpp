@@ -249,15 +249,11 @@ Result ChangeValueBox::ProcessButtonCallback(ChangeValueBox* obj_ptr, void* ptr)
         // If button pressed
         if(btn.state == true)
         {
-          // Change color to indicate press
-          ths.box.SetColor(COLOR_GREEN);
           // Press "Enter" button on the screen
           ths.left_btn.SetPressed(true);
         }
         else // Released
         {
-          // Change color back
-          ths.box.SetColor(COLOR_BLUE);
           // Release "Enter" button on the screen
           ths.left_btn.SetPressed(false);
           // And call callback
@@ -270,15 +266,11 @@ Result ChangeValueBox::ProcessButtonCallback(ChangeValueBox* obj_ptr, void* ptr)
         // If button pressed
         if(btn.state == true)
         {
-          // Change color to indicate press
-          ths.box.SetColor(COLOR_RED);
           // Press "Enter" button on the screen
           ths.right_btn.SetPressed(true);
         }
         else // Released
         {
-          // Change color back
-          ths.box.SetColor(COLOR_BLUE);
           // Release "Cancel" button on the screen
           ths.right_btn.SetPressed(false);
           // And call callback

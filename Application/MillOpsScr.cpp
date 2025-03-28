@@ -385,10 +385,7 @@ Result DrillGeneratorTab::Hide()
 Result DrillGeneratorTab::TimerExpired(uint32_t interval)
 {
   // Left soft button text
-  if((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
-  {
-    Application::GetInstance().UpdateLeftButtonIdleText("Generate");
-  }
+  Application::GetInstance().UpdateLeftButtonIdleText("Generate");
 
   // Return ok - we don't check semaphore give error, because we don't need to.
   return Result::RESULT_OK;
@@ -760,10 +757,7 @@ Result EnlargeGeneratorTab::Hide()
 Result EnlargeGeneratorTab::TimerExpired(uint32_t interval)
 {
   // Left soft button text
-  if((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::UNKNOWN))
-  {
-    Application::GetInstance().UpdateLeftButtonIdleText("Generate");
-  }
+  Application::GetInstance().UpdateLeftButtonIdleText("Generate");
 
   // Return ok - we don't check semaphore give error, because we don't need to.
   return Result::RESULT_OK;

@@ -97,6 +97,10 @@ void Tabs::SetParams(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t n)
   tab.SetParams(1, 1, tab_w - 2, height - 1, selected_tab_color, true);
   // Show selected tabs. It will not show on display until list show.
   tab.Show(1);
+
+  // Shadow box for tabs
+  shadowbox.SetParams(x, y, w, h);
+  shadowbox.SetActive(true); // To cover active elements
 }
 
 // *****************************************************************************

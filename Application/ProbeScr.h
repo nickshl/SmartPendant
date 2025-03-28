@@ -78,6 +78,16 @@ class ProbeScr : public IScreen
     // *************************************************************************
     virtual Result ProcessCallback(const void* ptr);
 
+    // *************************************************************************
+    // ***   Public: EnableScreenChange function   *****************************
+    // *************************************************************************
+    void EnableScreenChange();
+
+    // *************************************************************************
+    // ***   Public: DisableScreenChange function   ****************************
+    // *************************************************************************
+    void DisableScreenChange();
+
   private:
     static const uint8_t BORDER_W = 4u;
 
@@ -91,7 +101,8 @@ class ProbeScr : public IScreen
     // Current screen index
     uint32_t tab_idx = 0u;
 
-    // Soft Button
+    // Soft Buttons
+    UiButton& left_btn;
     UiButton& right_btn;
 
     // Display driver instance
@@ -320,9 +331,6 @@ class CenterFinderTab : public IScreen
     UiButton inside_btn;
     UiButton outside_btn;
 
-    // Buttons to start movement
-    UiButton find_center_btn;
-
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // GRBL Communication Interface instance
@@ -330,6 +338,11 @@ class CenterFinderTab : public IScreen
 
     // Encoder callback entry
     InputDrv::CallbackListEntry enc_cble;
+
+    // *************************************************************************
+    // ***   Private: ResetProbeSequence function   ****************************
+    // *************************************************************************
+    void ResetProbeSequence();
 
     // *************************************************************************
     // ***   Private: ProcessEncoderCallback function   ************************
@@ -447,9 +460,6 @@ class EdgeFinderTab : public IScreen
     UiButton plus_btn;
     UiButton minus_btn;
 
-    // Buttons to start movement
-    UiButton find_edge_btn;
-
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // GRBL Communication Interface instance
@@ -457,6 +467,11 @@ class EdgeFinderTab : public IScreen
 
     // Encoder callback entry
     InputDrv::CallbackListEntry enc_cble;
+
+    // *************************************************************************
+    // ***   Private: ResetProbeSequence function   ****************************
+    // *************************************************************************
+    void ResetProbeSequence();
 
     // *************************************************************************
     // ***   Private: ProcessEncoderCallback function   ************************

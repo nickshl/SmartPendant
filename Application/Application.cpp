@@ -258,15 +258,18 @@ void Application::InitSoftButtons(bool three_buttons)
   // Left soft button
   left_btn.SetParams("", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, btn_width, Font_8x12::GetInstance().GetCharH() * 3, true);
   left_btn.SetCallback(AppTask::GetCurrent());
+  left_btn.Enable();
   // Middle button
   if(three_buttons)
   {
     middle_btn.SetParams("", left_btn.GetEndX() + BORDER_W + 1, left_btn.GetStartY(), btn_width, left_btn.GetHeight(), true);
     middle_btn.SetCallback(AppTask::GetCurrent());
+    middle_btn.Enable();
   }
   // Right soft button
   right_btn.SetParams("", display_drv.GetScreenW() - btn_width, left_btn.GetStartY(), btn_width, left_btn.GetHeight(), true);
   right_btn.SetCallback(AppTask::GetCurrent());
+  right_btn.Enable();
 }
 
 // *****************************************************************************
@@ -407,8 +410,8 @@ Result Application::ProcessButtonCallback(Application* obj_ptr, void* ptr)
       {
         // Release button on the screen
         ui_btn->SetPressed(false);
-        // And call callback
-        ths.ProcessCallback(ui_btn);
+        // And call callback for this button
+        ui_btn->SendCallback();
       }
     }
 

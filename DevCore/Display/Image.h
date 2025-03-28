@@ -113,7 +113,7 @@ class Image : public VisObject
 
   protected:
     // Bits per pixel
-    uint8_t bits_per_pixel = 0U;
+    uint8_t bits_per_pixel = 0u;
     // Pointer to the image
     const void* img = nullptr;
     // Pointer to the palette

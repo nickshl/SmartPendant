@@ -914,8 +914,8 @@ class GrblComm : public AppTask
     // Mutex for synchronize when reads data
     RtosMutex mutex;
 
-    // Axis definition. This array must match the Axis_t enum
-    const char* const axis_str[AXIS_CNT + 1u] = {"X", "Y", "Z", "A", "B", "C", "*"};
+    // Axis definition. This array must match the Axis_t enum plus one for unknown axis
+    char axis_str[AXIS_CNT + 1u][2u] = {"X", "Y", "Z", "A", "B", "C", "*"};
 
     // This array must match the grbl_state_t enum!
     const char* const grbl_state_str[STATE_CNT] =

@@ -172,12 +172,12 @@ class Line : public VisObject
     // ***   Put line in buffer   **********************************************
     // *************************************************************************
     virtual void DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t y = 0);
-    
+
     // *************************************************************************
     // ***   Put line in buffer   **********************************************
     // *************************************************************************
     virtual void DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t x = 0);
-    
+
   private:
     // Line color
     color_t color = COLOR_BLACK;
@@ -221,6 +221,11 @@ class Circle : public VisObject
     int16_t radius = 0;
     // Is box fill ?
     bool fill = false;
+
+    // *************************************************************************
+    // ***   Place line or two dots in buffer   ********************************
+    // *************************************************************************
+    void UpdateBuffer(color_t* buf, int32_t n, int32_t xl, int32_t xr);
 };
 
 // *****************************************************************************
@@ -248,12 +253,12 @@ class Triangle : public VisObject
     // ***   Put line in buffer   **********************************************
     // *************************************************************************
     virtual void DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t y = 0);
-    
+
     // *************************************************************************
     // ***   Put line in buffer   **********************************************
     // *************************************************************************
     virtual void DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t x = 0);
-    
+
   private:
     // Struct for store lines
     struct Line

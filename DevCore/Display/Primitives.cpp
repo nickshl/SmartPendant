@@ -495,59 +495,88 @@ void Circle::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
   // Draw only if needed
   if((line >= y_start) && (line <= y_end))
   {
-    int32_t x = 0;
-    int32_t y = radius;
+    // We draw circle with center in 0,0 coordinates, those two variables to
+    // calculate actual position
     int32_t x0 = x_start + radius - start_x;
     int32_t y0 = y_start + radius;
-    int32_t delta = 1 - 2 * radius;
-    int32_t error = 0;
-    bool line_drawed = false;
+    // Variable for calculations, both for two branches
+    int32_t t1 = radius >> 4;
 
-    while(y >= 0) 
+    // Calculate point to chose algorithm. In this point X equal Y(if circle
+    // center in 0,0 point). To calculate it we can use formula: Y = R / sqrt(2);
+    // To avoid square root calculations we can precalculate it: Y = R / 1.4142;
+    // We can replace division by multiplication on 1 / 1.4142: Y = R * 0.7071;
+    // We also need point coordinate from the top of the circle, not from center,
+    // so we need multiply R by 1 - 0.7071: Y = R * 0.2929;
+    // Integer operations calculates faster than float point one, so we can
+    // multiply radius by 2929 instead and then divide it by 10000:
+    // int32_t shift = (radius * 2928) / 10000;
+    // However, we can do better than that. We don't need to use base 10, we can
+    // use base 2. In this case we can multiply radius by 0.2929 * 16384,
+    // or ~4799, then we can divide result by 16384. But because it is power
+    // of 2 number, we can replace division operation by shift operation:
+    int32_t shift = (radius * 4799) >> 14;
+
+    // Top and bottom half of circle(on Y axis)
+    if((line <= y_start + shift) || (line >= y_end - shift))
     {
-      if( (y0 + y == line) || (y0 - y == line) )
+      // X and Y variables
+      int32_t x = 0;
+      int32_t y = radius;
+      // Flag to break the cycle when no more new dots draw
+      bool line_drawed = false;
+      // Calculate cycle
+      while(y >= x)
       {
-        if(fill)
+        if((y0 + y == line) || (y0 - y == line))
         {
-          int32_t i = x0 - x;
-          if(i < 0) i = 0;
-          if(x0 + x < n) n = x0 + x;
-          for(;i < n; i++)
-          {
-            buf[i] = color;
-          }
-          break;
+          // Update buffer
+          UpdateBuffer(buf, n, x0 - x, x0 + x);
+          // We need this flag because for non-filled circle we draw one pixel
+          // at a time and we may enter this section again and again until we
+          // move to the next line ...
+          line_drawed = true;
         }
         else
         {
-          int32_t xl = x0 - x;
-          int32_t xr = x0 + x;
-          if((xl > 0) && (xl < n)) buf[xl] = color;
-          if((xr > 0) && (xr < n)) buf[xr] = color;
+          // ... at which point we have to break the cycle
+          if(line_drawed == true) break;
         }
-        line_drawed = true;
+        // Circle calculation: Jesko's Method
+        x++;
+        t1 += x;
+        int32_t t2 = t1 - y;
+        if(t2 >= 0)
+        {
+          t1 = t2;
+          y--;
+        }
       }
-      else
+    }
+    else // Two middle half of circle(on Y axis)
+    {
+      int32_t x = radius;
+      int32_t y = 0;
+      // Calculate cycle
+      while(x >= y)
       {
-        if(line_drawed == true) break;
+        if((y0 + y == line) || (y0 - y == line))
+        {
+          // Update buffer
+          UpdateBuffer(buf, n, x0 - x, x0 + x);
+          // We know for sure, that Y will change at this point, so just break the cycle
+          break;
+        }
+        // Circle calculation: Jesko's Method
+        y++;
+        t1 += y;
+        int32_t t2 = t1 - x;
+        if(t2 >= 0)
+        {
+          t1 = t2;
+          x--;
+        }
       }
-      error = 2 * (delta + y) - 1;
-      if(delta < 0 && error <= 0)
-      {
-        ++x;
-        delta += 2 * x + 1;
-        continue;
-      }
-      error = 2 * (delta - x) - 1;
-      if(delta > 0 && error > 0)
-      {
-        --y;
-        delta += 1 - 2 * y;
-        continue;
-      }
-      ++x;
-      delta += 2 * (x - y);
-      --y;
     }
   }
 }
@@ -576,8 +605,29 @@ void Circle::DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y)
 }
 
 // *****************************************************************************
+// ***   Place line or two dots in buffer   ************************************
 // *****************************************************************************
-// ***   Triangle   ****************************************************************
+void Circle::UpdateBuffer(color_t* buf, int32_t n, int32_t xl, int32_t xr)
+{
+  if(fill)
+  {
+    if(xl < 0) xl = 0;
+    if(xr < n) n = xr;// + 1 ???
+    for(;xl < n; xl++)
+    {
+      buf[xl] = color;
+    }
+  }
+  else
+  {
+    if((xl > 0) && (xl < n)) buf[xl] = color;
+    if((xr > 0) && (xr < n)) buf[xr] = color;
+  }
+}
+
+// *****************************************************************************
+// *****************************************************************************
+// ***   Triangle   ************************************************************
 // *****************************************************************************
 // *****************************************************************************
 
@@ -654,7 +704,7 @@ void Triangle::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x
         int32_t y = lines[i].y1;
 
         int32_t end_x = lines[i].x2 - start_x;
-        // Go trought cycle until reach end of line or current line
+        // Go trough cycle until reach end of line or current line
         while((x != end_x || y != lines[i].y2) && (y != line))
         {
           const int32_t error2 = error * 2;

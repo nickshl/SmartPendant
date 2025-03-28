@@ -1524,12 +1524,12 @@ void GrblComm::ParseData(void)
         // Copy and check pins
         for(uint32_t i = 0u; i < NumberOf(grbl_pins); i++)
         {
+          // Check if sting changed and set flag
+          if(grbl_pins[i] != line[3 + i]) grbl_changed.pins = true;
           // Terminate string
           grbl_pins[i] = '\0';
           // If we reach end of sting or closing bracket - break the cycle
           if((line[3 + i] == '\0') || (line[3 + i] == '>')) break;
-          // Check if sting changed and set flag
-          if(grbl_pins[i] != line[3 + i]) grbl_changed.pins = true;
           // Copy character
           grbl_pins[i] = line[3 + i];
           // Check probe and set local flag
@@ -1614,12 +1614,20 @@ void GrblComm::ParseData(void)
     }
     if(!strncmp(&line[1], "AXS:", 4))
     {
+      // Move line pointer to number of axis
+      line += 4 + 1;
       // Parse probe value
-      ParseInt(number_of_axis, line + 1 + 4);
-      // Can't be less than 3
-      if(number_of_axis < 3) number_of_axis = 3;
+      ParseInt(number_of_axis, line);
       // Should be less than AXIS_CNT
       if(number_of_axis >= AXIS_CNT) number_of_axis = AXIS_CNT - 1;
+
+      // Find line where axis names are
+      line = strchr(line, ':') + 1;
+      // Fill axis names array
+      for(int32_t i = 0; i < number_of_axis; i++)
+      {
+        axis_str[i][0] = line[i];
+      }
     }
     else
     {

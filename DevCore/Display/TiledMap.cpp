@@ -52,25 +52,20 @@ void TiledMap::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x
   // Draw only if needed
   if((line >= y_start) && (line <= y_end))
   {
-    int32_t start_offset = 0;
     // Find start x position
     int32_t start = x_start - start_x;
     // Prevent write in memory before buffer
-    if(start < 0)
-    {
-      start_offset = -start;
-      start = 0;
-    }
+    if(start < 0) start = 0;
     // Find end x position
     int32_t end = x_end - start_x;
     // Prevent buffer overflow
-    if(end >= n) end = n - 1;
+    if(end > n) end = n;
 
     // Find start tile index and offsets
-    int32_t x_tile_idx = (x_pos + start_x + start_offset) / tile_width;
+    int32_t x_tile_idx = (x_pos + start_x) / tile_width;
     int32_t y_tile_idx = (y_pos + line - y_start) / tile_height;
     int32_t tile_idx = y_tile_idx * map_width + x_tile_idx;
-    int32_t x_tile_offset = (x_pos  + start_x + start_offset) % tile_width;
+    int32_t x_tile_offset = (x_pos  + start_x) % tile_width;
     int32_t y_tile_offset = ((y_pos + line - y_start) % tile_height) * tile_width;
 
     // If default color is 0 or greater
@@ -96,6 +91,7 @@ void TiledMap::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x
         pix_idx += tile_width - tile_pix_idx;
         tile_idx++;
         tile_pix_idx = 0;
+        tile_val = tiles_map[tile_idx] & tile_bitmask;
         continue;
       }
       // Get pointer to the current tile image
@@ -105,7 +101,7 @@ void TiledMap::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x
       // Get transparent color
       const int32_t transparent_color = tiles_img[tile_val].transparent_color;
       // Draw tile
-      for(;(tile_pix_idx < (int32_t)tile_width) && (pix_idx <= end); tile_pix_idx++)
+      for(;(tile_pix_idx < (int32_t)tile_width) && (pix_idx < end); tile_pix_idx++)
       {
         // Get pixel data
         color_t data = palette_ptr[tile_ptr[tile_pix_idx]];
@@ -170,7 +166,7 @@ int32_t TiledMap::GetLvlIdxByXY(uint32_t x, uint32_t y)
 // *****************************************************************************
 int8_t TiledMap::GetLvlDataByXY(uint32_t x, uint32_t y)
 {
-  uint32_t result = 0U;
+  uint32_t result = 0u;
   // Calculate tiles indexes
   uint32_t x_tile = x/tile_width;
   uint32_t y_tile = y/tile_height;

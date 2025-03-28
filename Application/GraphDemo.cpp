@@ -337,7 +337,7 @@ void SoundControlBox::Action(VisObject::ActionType action, int32_t tx, int32_t t
         SetImage(mute_img[1], true); // Don't take semaphore - already taken
       }
       break;
-  
+
     // Untouch action 
     case VisObject::ACT_UNTOUCH:
       break;

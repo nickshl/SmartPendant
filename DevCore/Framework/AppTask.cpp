@@ -35,9 +35,10 @@ Result AppTask::Callback(const CallbackPtr func_ptr, void* obj_ptr, void* ptr)
   Result result = Result::ERR_NULL_PTR;
 
   // If callback call happens in the same task - no need to send it via queue,
-  // call it right away. If queue doesn't exist we have to call callback anyway.
-  // Use mutex inside callback.
-  if((this == GetCurrent()) || (ctrl_queue.GetQueueLen() == 0u))
+  // call it right away. If timer period is zero and task queue doesn't exist, we
+  // couldn't send callback via queue, so execute it in current task. Use mutex
+  // inside callback in this case.
+  if((this == GetCurrent()) || ((timer.GetTimerPeriod() == 0u) && (task_queue.GetQueueLen() == 0u)))
   {
     // If callback function pointer set
     if(func_ptr != nullptr)

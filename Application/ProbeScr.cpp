@@ -41,12 +41,12 @@ Result ProbeScr::Setup(int32_t y, int32_t height)
   // Screens & Captions
   tabs_cnt = 0u; // Clear tabs since Setup() can be called multiple times
   // Fill tabs
-  tabs.SetText(tabs_cnt, "Tool", "Offset", Font_10x18::GetInstance());
-  tab[tabs_cnt++] = &ToolOffsetTab::GetInstance();
   tabs.SetText(tabs_cnt, "Center", "Finder", Font_10x18::GetInstance());
   tab[tabs_cnt++] = &CenterFinderTab::GetInstance();
   tabs.SetText(tabs_cnt, "Edge", "Finder", Font_10x18::GetInstance());
   tab[tabs_cnt++] = &EdgeFinderTab::GetInstance();
+  tabs.SetText(tabs_cnt, "Tool", "Offset", Font_10x18::GetInstance());
+  tab[tabs_cnt++] = &ToolOffsetTab::GetInstance();
   // Tabs for screens(second call to resize to actual numbers of pages)
   tabs.SetParams(0, y, display_drv.GetScreenW(), 40, tabs_cnt);
   // Set callback
@@ -73,7 +73,8 @@ Result ProbeScr::Show()
   // Show tabs
   tabs.Show(2000);
 
-  // Stop button
+  // Soft Buttons
+  left_btn.Show(102);
   right_btn.Show(102);
 
   // Set callback handler for left and right buttons
@@ -97,7 +98,8 @@ Result ProbeScr::Hide()
   // Show tabs
   tabs.Hide();
 
-  // Reset button
+  // Soft Buttons
+  left_btn.Hide();
   right_btn.Hide();
 
   // Hide screen
@@ -149,6 +151,24 @@ Result ProbeScr::ProcessCallback(const void* ptr)
 }
 
 // *****************************************************************************
+// ***   Public: EnableScreenChange function   *********************************
+// *****************************************************************************
+void ProbeScr::EnableScreenChange()
+{
+  tabs.Enable();
+  Application::GetInstance().EnableScreenChange();
+}
+
+// *****************************************************************************
+// ***   Public: DisableScreenChange function   ********************************
+// *****************************************************************************
+void ProbeScr::DisableScreenChange()
+{
+  tabs.Disable();
+  Application::GetInstance().DisableScreenChange();
+}
+
+// *****************************************************************************
 // ***   Private: ProcessButtonCallback function   *****************************
 // *****************************************************************************
 Result ProbeScr::ProcessButtonCallback(ProbeScr* obj_ptr, void* ptr)
@@ -164,18 +184,22 @@ Result ProbeScr::ProcessButtonCallback(ProbeScr* obj_ptr, void* ptr)
     // Get pressed button
     InputDrv::ButtonCallbackData btn = *((InputDrv::ButtonCallbackData*)ptr);
 
-    // Buttons to switch tabs
-    if(btn.btn == InputDrv::BTN_LEFT_DOWN)
+    // Change tab on button release only
+    if((ths.tabs.IsEnabled()) && (btn.state == false))
     {
-      if(ths.tab_idx > 0u) ths.ChangeTab(ths.tab_idx - 1u);
-    }
-    else if(btn.btn == InputDrv::BTN_RIGHT_DOWN)
-    {
-      if(ths.tab_idx < ths.tab_idx - 1u) ths.ChangeTab(ths.tab_idx + 1u);
-    }
-    else
-    {
-      ; // Do nothing - MISRA rule
+      // Buttons to switch tabs
+      if(btn.btn == InputDrv::BTN_LEFT_DOWN)
+      {
+        if(ths.tab_idx > 0u) ths.ChangeTab(ths.tab_idx - 1u);
+      }
+      else if(btn.btn == InputDrv::BTN_RIGHT_DOWN)
+      {
+        if(ths.tab_idx < ths.tabs_cnt - 1u) ths.ChangeTab(ths.tab_idx + 1u);
+      }
+      else
+      {
+        ; // Do nothing - MISRA rule
+      }
     }
 
     // Set ok result
@@ -204,7 +228,8 @@ void ProbeScr::ChangeTab(uint8_t tabn)
 // *****************************************************************************
 // ***   Private constructor   *************************************************
 // *****************************************************************************
-ProbeScr::ProbeScr() : right_btn(Application::GetInstance().GetRightButton()) {};
+ProbeScr::ProbeScr() : left_btn(Application::GetInstance().GetLeftButton()),
+                       right_btn(Application::GetInstance().GetRightButton()) {};
 
 // *****************************************************************************
 // *****************************************************************************
@@ -305,10 +330,8 @@ Result ToolOffsetTab::Show()
   // Request offsets to show it
   grbl_comm.RequestOffsets();
 
-  // Clear cmd
-  cmd_id = 0u;
-  // Clear state
-  state = PROBE_CNT;
+  // Hide Left Soft button since it doesn't used on this screen
+  Application::GetInstance().GetLeftButton().Hide();
 
   // All good
   return Result::RESULT_OK;
@@ -341,6 +364,9 @@ Result ToolOffsetTab::Hide()
   // Measure base button
   get_base_btn.Hide();
 
+  // Show Left Soft button because we hided it earlier
+  Application::GetInstance().GetLeftButton().Show();
+
   // All good
   return Result::RESULT_OK;
 }
@@ -355,10 +381,10 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
   // Set actual tool offset
   dw_tool.SetNumber(grbl_comm.GetToolLengthOffset());
 
-  // If we in ptrobing cycle
+  // If we in probing cycle
   if(state != PROBE_CNT)
   {
-    // No comand sent yet - start probing
+    // No command sent yet - start probing
     if(cmd_id == 0u)
     {
       // Try to probe Z axis -1 meter at feed 100 mm/min
@@ -366,16 +392,18 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
       // Check result
       if(result == Result::ERR_CANNOT_EXECUTE)
       {
-        // Clear cmd
+        // Clear cmd id
         cmd_id = 0u;
         // Clear state
         state = PROBE_CNT;
+        // Enable screen change
+        ProbeScr::GetInstance().EnableScreenChange();
         // Set ok result since we cancelled probing
         result = Result::RESULT_OK;
       }
     }
     // If we send probing command and this command executed successfully
-    else if((grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK) && (grbl_comm.GetState() == GrblComm::IDLE))
+    else if((grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK) && (grbl_comm.IsStatusReceivedAfterCmd(cmd_id)) && (grbl_comm.GetState() == GrblComm::IDLE))
     {
       // Get probe Z position
       int32_t probe_pos = grbl_comm.GetProbeMachinePosition(GrblComm::AXIS_Z);
@@ -402,12 +430,32 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
         cmd_id = 0u;
         // Clear state
         state = PROBE_CNT;
+        // Enable screen change
+        ProbeScr::GetInstance().EnableScreenChange();
       }
+    }
+    // Error check - if command was sent, but not accepted by controller TODO: do we need this?
+    else if(cmd_id && (grbl_comm.GetCmdResult(cmd_id) != GrblComm::Status_Cmd_Not_Executed_Yet) && (grbl_comm.GetCmdResult(cmd_id) != GrblComm::Status_OK))
+    {
+      // Set error to stop sequence
+      result = Result::ERR_CANNOT_EXECUTE;
     }
     else
     {
       ; // Do nothing
     }
+  }
+
+  if(result.IsBad())
+  {
+    // Send Stop command
+    grbl_comm.Stop();
+    // Clear cmd
+    cmd_id = 0u;
+    // Clear state
+    state = PROBE_CNT;
+    // Enable screen change
+    ProbeScr::GetInstance().EnableScreenChange();
   }
 
   // Return result
@@ -443,6 +491,8 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
         // Set current state
         if(ptr == &get_base_btn) state = PROBE_BASE;
         else                     state = PROBE_TOOL;
+        // Disable screen change
+        ProbeScr::GetInstance().DisableScreenChange();
       }
     }
   }
@@ -526,14 +576,10 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   // Radius caption
   dw_distance_name.SetParams("DISTANCE", dw_distance.GetStartX() + BORDER_W*2, dw_distance.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
-  // Find Center button
-  find_center_btn.SetParams("FIND CENTER", BORDER_W, y + height - Font_8x12::GetInstance().GetCharH() * 5 - BORDER_W, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
-  find_center_btn.SetCallback(AppTask::GetCurrent());
-
   // For diameter data
   for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
   {
-    diameter_str[i].SetParams("", BORDER_W, find_center_btn.GetEndY() + BORDER_W + Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
+    diameter_str[i].SetParams("", BORDER_W, dw_distance.GetEndY() + BORDER_W + Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
   }
 
   // All good
@@ -571,14 +617,26 @@ Result CenterFinderTab::Show()
     dw_distance_name.Show(100);
   }
 
-  // Find Center button
-  find_center_btn.Show(102);
+  // Set "Find Center" text to the Left Soft button
+  Application::GetInstance().GetLeftButton().SetString("FIND CENTER");
 
   // Request offsets to show it
   grbl_comm.RequestOffsets();
 
   // Set encoder callback handler
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
+
+  // Enable or disable Find button
+  if(dw_real[GrblComm::AXIS_X].IsSelected() || dw_real[GrblComm::AXIS_Y].IsSelected())
+  {
+    // Enable Left Soft button
+    Application::GetInstance().GetLeftButton().Enable();
+  }
+  else
+  {
+    // Disable Left Soft button
+    Application::GetInstance().GetLeftButton().Disable();
+  }
 
   // All good
   return Result::RESULT_OK;
@@ -615,8 +673,8 @@ Result CenterFinderTab::Hide()
   dw_distance.Hide();
   dw_distance_name.Hide();
 
-  // Find Center button
-  find_center_btn.Hide();
+  // Enable Left Soft button because we may disable it earlier
+  Application::GetInstance().GetLeftButton().Enable();
 
   // All good
   return Result::RESULT_OK;
@@ -639,12 +697,8 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
   // Error check - if state isn't IDLE or RUN, we should abort probing sequence
   if((grbl_comm.GetState() != GrblComm::IDLE) && (grbl_comm.GetState() != GrblComm::RUN) && (grbl_comm.GetState() != GrblComm::HOLD))
   {
-    // Clear state
-    state = PROBE_CNT;
-    // Clear line state
-    line_state = PROBE_LINE_CNT;
-    // Clear CMD ID
-    cmd_id = 0u;
+    // We should abort probing sequence
+    ResetProbeSequence();
   }
 
   // If we send command and this command executed successfully
@@ -758,9 +812,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
       else if(state == PROBE_DONE)
       {
         // Done probing
-        state = PROBE_CNT;
-        // Clear CMD ID
-        cmd_id = 0u;
+        ResetProbeSequence();
       }
       else
       {
@@ -783,12 +835,8 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
   {
     // Send Stop command
     grbl_comm.Stop();
-    // Clear state
-    state = PROBE_CNT;
-    // Clear line state
-    line_state = PROBE_LINE_CNT;
-    // Clear CMD ID
-    cmd_id = 0u;
+    // Stop probing
+    ResetProbeSequence();
   }
 
   // Return ok - we don't check semaphore give error, because we don't need to.
@@ -805,15 +853,18 @@ Result CenterFinderTab::ProcessCallback(const void* ptr)
   {
     // We can start probing only in IDLE state and if probing isn't started yet
     // Check button
-    if(ptr == &find_center_btn)
+    if(ptr == &Application::GetInstance().GetLeftButton())
     {
       if(grbl_comm.GetState() == GrblComm::IDLE)
       {
         // Start probing only if at least one data window is selected
         if(dw_real[GrblComm::AXIS_X].IsSelected() || dw_real[GrblComm::AXIS_Y].IsSelected())
         {
+          // Start probe sequence
           state = PROBE_START;
           line_state = PROBE_LINE_START;
+          // Disable screen change
+          ProbeScr::GetInstance().DisableScreenChange();
         }
       }
     }
@@ -865,25 +916,42 @@ Result CenterFinderTab::ProcessCallback(const void* ptr)
     {
       ; // Do nothing - MISRA rule
     }
-  }
 
-  // Enable or disable Find button
-  if(dw_real[GrblComm::AXIS_X].IsSelected() || dw_real[GrblComm::AXIS_Y].IsSelected())
-  {
-    find_center_btn.Enable();
-  }
-  else
-  {
-    find_center_btn.Disable();
+    // Enable or disable Find button
+    if(dw_real[GrblComm::AXIS_X].IsSelected() || dw_real[GrblComm::AXIS_Y].IsSelected())
+    {
+      // Enable Left Soft button
+      Application::GetInstance().GetLeftButton().Enable();
+    }
+    else
+    {
+      // Disable Left Soft button
+      Application::GetInstance().GetLeftButton().Disable();
+    }
   }
 
   // Always good
   return Result::RESULT_OK;
 }
 
-// *************************************************************************
-// ***   Private: ProcessEncoderCallback function   ************************
-// *************************************************************************
+// *****************************************************************************
+// ***   Private: ResetProbeSequence function   ********************************
+// *****************************************************************************
+void CenterFinderTab::ResetProbeSequence()
+{
+  // Clear state
+  state = PROBE_CNT;
+  // Clear line state
+  line_state = PROBE_LINE_CNT;
+  // Clear CMD ID
+  cmd_id = 0u;
+  // Enable screen change
+  ProbeScr::GetInstance().EnableScreenChange();
+}
+
+// *****************************************************************************
+// ***   Private: ProcessEncoderCallback function   ****************************
+// *****************************************************************************
 Result CenterFinderTab::ProcessEncoderCallback(CenterFinderTab* obj_ptr, void* ptr)
 {
   Result result = Result::ERR_NULL_PTR;
@@ -1231,10 +1299,6 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   // Radius caption
   dw_tip_diameter_name.SetParams("TIP DIAMETER", dw_tip_diameter.GetStartX() + BORDER_W*2, dw_tip_diameter.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
-  // Find Center button
-  find_edge_btn.SetParams("FIND EDGE", BORDER_W, y + height - Font_8x12::GetInstance().GetCharH() * 5 - BORDER_W, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
-  find_edge_btn.SetCallback(AppTask::GetCurrent());
-
   // All good
   return Result::RESULT_OK;
 }
@@ -1263,8 +1327,8 @@ Result EdgeFinderTab::Show()
   dw_tip_diameter.Show(100);
   dw_tip_diameter_name.Show(100);
 
-  // Find Center button
-  find_edge_btn.Show(102);
+  // Set "Find Edge" text to the Left Soft button
+  Application::GetInstance().GetLeftButton().SetString("FIND EDGE");
 
   // Request offsets to show it
   grbl_comm.RequestOffsets();
@@ -1301,9 +1365,6 @@ Result EdgeFinderTab::Hide()
   dw_tip_diameter.Hide();
   dw_tip_diameter_name.Hide();
 
-  // Find Center button
-  find_edge_btn.Hide();
-
   // To update probe tip diameter
   NVM::GetInstance().WriteData();
 
@@ -1325,13 +1386,11 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
     dw_real[i].SetNumber(grbl_comm.GetAxisPosition(i));
   }
 
-  // Error check - if state isn't IDLE or RUN, we should abort probing sequence
+  // Error check - if state isn't IDLE or RUN
   if((grbl_comm.GetState() != GrblComm::IDLE) && (grbl_comm.GetState() != GrblComm::RUN) && (grbl_comm.GetState() != GrblComm::HOLD))
   {
-    // Clear line state
-    state = PROBE_CNT;
-    // Clear CMD ID
-    cmd_id = 0u;
+    // We should abort probing sequence
+    ResetProbeSequence();
   }
 
   // If we send command and this command executed successfully
@@ -1422,9 +1481,7 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
       else if(state == PROBE_RETURN)
       {
         // Done probing
-        state = PROBE_CNT;
-        // Clear CMD ID
-        cmd_id = 0u;
+        ResetProbeSequence();
       }
       else
       {
@@ -1448,9 +1505,7 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
     // Send Stop command
     grbl_comm.Stop();
     // Clear state
-    state = PROBE_CNT;
-    // Clear CMD ID
-    cmd_id = 0u;
+    ResetProbeSequence();
   }
 
   // Return ok - we don't check semaphore give error, because we don't need to.
@@ -1467,11 +1522,14 @@ Result EdgeFinderTab::ProcessCallback(const void* ptr)
   {
     // We can start probing only in IDLE state and if probing isn't started yet
     // Check button
-    if(ptr == &find_edge_btn)
+    if(ptr == &Application::GetInstance().GetLeftButton())
     {
       if(grbl_comm.GetState() == GrblComm::IDLE)
       {
+        // Start probing sequence
         state = PROBE_START;
+        // Disable screen change
+        ProbeScr::GetInstance().DisableScreenChange();
       }
     }
     // X data window
@@ -1527,6 +1585,19 @@ Result EdgeFinderTab::ProcessCallback(const void* ptr)
 
   // Always good
   return Result::RESULT_OK;
+}
+
+// *****************************************************************************
+// ***   Private: ResetProbeSequence function   ********************************
+// *****************************************************************************
+void EdgeFinderTab::ResetProbeSequence()
+{
+  // Clear state
+  state = PROBE_CNT;
+  // Clear CMD ID
+  cmd_id = 0u;
+  // Enable screen change
+  ProbeScr::GetInstance().EnableScreenChange();
 }
 
 // *************************************************************************
