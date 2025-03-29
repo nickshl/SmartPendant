@@ -71,7 +71,7 @@ extern "C" void AppMain(void)
   DisplayDrv::GetInstance().SetTouchDrv(&touch);
   DisplayDrv::GetInstance().InitTask();
   // Init sound task
-  SoundDrv::GetInstance().InitTask();
+  SoundDrv::GetInstance().InitTask(&htim1, TIM_CHANNEL_1);
   // Init input task
   InputDrv::GetInstance().SetEncoderTim(&htim2, TIM_CHANNEL_1);
   InputDrv::GetInstance().InitTask();
