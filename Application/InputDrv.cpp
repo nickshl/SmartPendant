@@ -49,12 +49,15 @@ InputDrv& InputDrv::GetInstance(void)
 }
 
 // *****************************************************************************
-// ***   Public: SetEncoderTim   ***********************************************
+// ***   Init Input Driver Task   **********************************************
 // *****************************************************************************
-void InputDrv::SetEncoderTim(TIM_HandleTypeDef* htm, uint32_t ch)
+void InputDrv::InitTask(TIM_HandleTypeDef& htm, uint32_t ch)
 {
-  htim = htm;
+  // Save timer handle and channel
+  htim = &htm;
   channel = ch;
+  // Create task
+  CreateTask();
 }
 
 // *****************************************************************************

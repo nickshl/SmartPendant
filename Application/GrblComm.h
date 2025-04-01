@@ -294,6 +294,11 @@ class GrblComm : public AppTask
     static GrblComm& GetInstance(void);
 
     // *************************************************************************
+    // ***   Public: Init GrblComm Task   **************************************
+    // *************************************************************************
+    void InitTask(StHalUart& uart_in);
+
+    // *************************************************************************
     // ***   Public: Setup function   ******************************************
     // *************************************************************************
     virtual Result Setup();
@@ -792,11 +797,6 @@ class GrblComm : public AppTask
     // ***   Public: ValueToStringWithUnits function   *****************************
     // *****************************************************************************
     char* ValueToStringWithUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units);
-
-    // *************************************************************************
-    // ***   Public: SetUartDrv function   *************************************
-    // *************************************************************************
-    void SetUartDrv(StHalUart& uart_in) {uart = &uart_in;}
 
   private:
     // Timer period

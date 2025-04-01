@@ -121,9 +121,9 @@ class InputDrv : public AppTask
     static InputDrv& GetInstance(void);
 
     // *************************************************************************
-    // ***   Public: SetEncoderTim   *******************************************
+    // ***   Public: Init Input Driver Task   **********************************
     // *************************************************************************
-    void SetEncoderTim(TIM_HandleTypeDef* htm, uint32_t ch);
+    void InitTask(TIM_HandleTypeDef& htm, uint32_t ch);
 
     // *************************************************************************
     // ***   Input Driver Setup   **********************************************

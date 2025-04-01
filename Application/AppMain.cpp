@@ -49,6 +49,8 @@ static StHalGpio display_rst(LCD_RST_GPIO_Port, LCD_RST_Pin, IGpio::OUTPUT);
 // Buttons
 static StHalGpio btn_lu(BTN_LU_GPIO_Port, BTN_LU_Pin, IGpio::INPUT);
 static StHalGpio btn_ld(BTN_LD_GPIO_Port, BTN_LD_Pin, IGpio::INPUT);
+// Buzzer
+static StHalGpio buzzer(BUZZER_GPIO_Port, BUZZER_Pin, IGpio::OUTPUT);
 // Interfaces
 static StHalSpi spi1(hspi1);
 static StHalIicThreadSafe iic1(hi2c1);
@@ -67,14 +69,11 @@ extern "C" void AppMain(void)
   // Init NVM
   NVM::GetInstance().Init(eep);
   // Init Display Driver Task
-  DisplayDrv::GetInstance().SetDisplayDrv(&display);
-  DisplayDrv::GetInstance().SetTouchDrv(&touch);
-  DisplayDrv::GetInstance().InitTask();
+  DisplayDrv::GetInstance().InitTask(display, touch);
   // Init sound task
-  SoundDrv::GetInstance().InitTask(&htim1, TIM_CHANNEL_1);
+  SoundDrv::GetInstance().InitTask(htim1, TIM_CHANNEL_1, buzzer);
   // Init input task
-  InputDrv::GetInstance().SetEncoderTim(&htim2, TIM_CHANNEL_1);
-  InputDrv::GetInstance().InitTask();
+  InputDrv::GetInstance().InitTask(htim2, TIM_CHANNEL_1);
   // Check Startup conditions
   if(btn_lu.IsLow())
   {
@@ -89,8 +88,7 @@ extern "C" void AppMain(void)
   else
   {
     // Init GRBL Communication task
-    GrblComm::GetInstance().SetUartDrv(uart1);
-    GrblComm::GetInstance().InitTask();
+    GrblComm::GetInstance().InitTask(uart1);
     // Init Application Task
     Application::GetInstance().InitTask();
   }
@@ -110,7 +108,7 @@ extern "C" void vApplicationStackOverflowHook(TaskHandle_t* px_task, signed port
 // *****************************************************************************
 extern "C" void vApplicationMallocFailedHook(void)
 {
-// Commented out since ProgramSender rely on nullptr retunr from new operator
+// Commented out since ProgramSender rely on nullptr return from new operator
 // in case if program is too big.
 //  Break();
 //  while(1);
