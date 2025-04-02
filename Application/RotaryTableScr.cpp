@@ -189,7 +189,7 @@ Result RotaryTableScr::Show()
   // Set encoder callback handler
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
   // Set callback handler for left and right buttons
-  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
+  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_RIGHT, btn_cble);
 
   // All good
   return Result::RESULT_OK;
@@ -467,7 +467,7 @@ Result RotaryTableScr::ProcessEncoderCallback(RotaryTableScr* obj_ptr, void* ptr
 // *****************************************************************************
 Result RotaryTableScr::ProcessButtonCallback(RotaryTableScr* obj_ptr, void* ptr)
 {
-  Result result = Result::ERR_NULL_PTR;
+  Result result = Result::ERR_UNHANDLED_REQUEST;
 
   // Check pointer
   if(obj_ptr != nullptr)
@@ -495,26 +495,13 @@ Result RotaryTableScr::ProcessButtonCallback(RotaryTableScr* obj_ptr, void* ptr)
             ths.center_dw[i].SetNumber(ths.grbl_comm.GetAxisPosition(i));
           }
         }
+        // Set ok result
+        result = Result::RESULT_OK;
       }
-      else
-      {
-        // If button pressed
-        if(btn.state == true)
-        {
-          // TODO: send reset to GRBL
-        }
-      }
-    }
-    else
-    {
-      ; // Do nothing - MISRA rule
     }
 
     // Update objects on a screen
     ths.UpdateObjects();
-
-    // Set ok result
-    result = Result::RESULT_OK;
   }
 
   // Return result

@@ -246,34 +246,24 @@ Result ChangeValueBox::ProcessButtonCallback(ChangeValueBox* obj_ptr, void* ptr)
       // Left button
       if(btn.btn == InputDrv::BTN_LEFT)
       {
-        // If button pressed
-        if(btn.state == true)
+        // Set state of "Enter" button on the screen
+        ths.left_btn.SetPressed(btn.state);
+        // If button released
+        if(btn.state == false)
         {
-          // Press "Enter" button on the screen
-          ths.left_btn.SetPressed(true);
-        }
-        else // Released
-        {
-          // Release "Enter" button on the screen
-          ths.left_btn.SetPressed(false);
-          // And call callback
+          // Call callback
           ProcessButtonCallback(obj_ptr, &ths.left_btn);
         }
       }
       // Right button - Reset values or send Stop command to GRBL if in movement
       else if(btn.btn == InputDrv::BTN_RIGHT)
       {
-        // If button pressed
-        if(btn.state == true)
+        // Set state of  "Cancel" button on the screen
+        ths.right_btn.SetPressed(btn.state);
+        // If button released
+        if(btn.state == false)
         {
-          // Press "Enter" button on the screen
-          ths.right_btn.SetPressed(true);
-        }
-        else // Released
-        {
-          // Release "Cancel" button on the screen
-          ths.right_btn.SetPressed(false);
-          // And call callback
+          // Call callback
           ProcessButtonCallback(obj_ptr, &ths.right_btn);
         }
       }

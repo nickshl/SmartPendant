@@ -180,8 +180,8 @@ Result Application::ProcessCallback(const void* ptr)
 {
   Result result = Result::RESULT_OK;
 
-  // Check MPG button
-  if(ptr == &mpg_btn)
+  // Check if it MPG button and it is enabled
+  if((ptr == &mpg_btn) && (mpg_btn.IsActive()))
   {
     if(grbl_comm.GetMpgModeRequest() == true)
     {
@@ -400,17 +400,12 @@ Result Application::ProcessButtonCallback(Application* obj_ptr, void* ptr)
     // If button object found, It on display and it active
     if((ui_btn != nullptr) && ui_btn->IsShow() && ui_btn->IsActive())
     {
-      // If button pressed
-      if(btn.state == true)
+      // Reflect button state on the screen
+      ui_btn->SetPressed(btn.state);
+      // If button released and it is active
+      if((btn.state == false) && ui_btn->IsActive())
       {
-        // Press button on the screen
-        ui_btn->SetPressed(true);
-      }
-      else // Released
-      {
-        // Release button on the screen
-        ui_btn->SetPressed(false);
-        // And call callback for this button
+        // Call callback for this button
         ui_btn->SendCallback();
       }
     }
@@ -418,26 +413,12 @@ Result Application::ProcessButtonCallback(Application* obj_ptr, void* ptr)
     // *** Other buttons *******************************************************
 
     // Act on press button only
-    if(btn.state == true)
+    if((btn.btn == InputDrv::BTN_USR) && (btn.state == true))
     {
-      if(btn.btn == InputDrv::BTN_USR)
-      {
-        if(GrblComm::GetInstance().GetMpgModeRequest() == true)
-        {
-          GrblComm::GetInstance().ReleaseControl();
-          ths.mpg_btn.SetPressed(false);
-        }
-        else
-        {
-          GrblComm::GetInstance().GainControl();
-          ths.mpg_btn.SetPressed(true);
-        }
-      }
-      else
-      {
-        ; // Do nothing - MISRA rule
-      }
+      // Call callback for MPG button
+      ths.ProcessCallback(&ths.mpg_btn);
     }
+
     // Set ok result
     result = Result::RESULT_OK;
   }

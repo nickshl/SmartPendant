@@ -233,276 +233,6 @@ ProbeScr::ProbeScr() : left_btn(Application::GetInstance().GetLeftButton()),
 
 // *****************************************************************************
 // *****************************************************************************
-// ***   TOOL OFFSET TAB   *****************************************************
-// *****************************************************************************
-// *****************************************************************************
-
-// *****************************************************************************
-// ***   Get Instance   ********************************************************
-// *****************************************************************************
-ToolOffsetTab& ToolOffsetTab::GetInstance()
-{
-  static ToolOffsetTab tool_offset_tab;
-  return tool_offset_tab;
-}
-
-// *****************************************************************************
-// ***   ToolOffsetTab Setup   *************************************************
-// *****************************************************************************
-Result ToolOffsetTab::Setup(int32_t y, int32_t height)
-{
-  int32_t start_y = y + BORDER_W;
-  // Data window height
-  uint32_t window_height = Font_8x12::GetInstance().GetCharH() * 5u;
-
-  // Tool offset position
-  dw_tool.SetParams(BORDER_W, start_y + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetUnitsPrecision());
-  dw_tool.SetBorder(BORDER_W, COLOR_BLUE);
-  dw_tool.SetDataFont(Font_8x12::GetInstance(), 2u);
-  dw_tool.SetNumber(grbl_comm.GetToolLengthOffset()); // Get current position at startup
-  dw_tool.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
-  dw_tool.SetCallback(AppTask::GetCurrent());
-  dw_tool.SetActive(false);
-  // Measure offset button
-  get_offset_btn.SetParams("MEASURE OFFSET", BORDER_W, dw_tool.GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*3) / 2, Font_8x12::GetInstance().GetCharH() * 5, true);
-  get_offset_btn.SetCallback(AppTask::GetCurrent());
-  // Clear offset button
-  clear_offset_btn.SetParams("CLEAR OFFSET", get_offset_btn.GetEndX() + BORDER_W, dw_tool.GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*3) / 2, Font_8x12::GetInstance().GetCharH() * 5, true);
-  clear_offset_btn.SetCallback(AppTask::GetCurrent());
-
-  // Tool offset Name
-  name_base.SetParams("BASE POSITION", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
-  name_base.Move((display_drv.GetScreenW()  / 2) - (name_base.GetWidth() / 2), get_offset_btn.GetEndY() + BORDER_W * 2u);
-  // Tool offset position
-  dw_base.SetParams(BORDER_W, name_base.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetUnitsPrecision());
-  dw_base.SetBorder(BORDER_W, COLOR_MAGENTA);
-  dw_base.SetDataFont(Font_8x12::GetInstance(), 2u);
-  dw_base.SetNumber(0); // Get current position at startup
-  dw_base.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
-  dw_base.SetCallback(AppTask::GetCurrent());
-  dw_base.SetActive(false);
-  // Measure offset button
-  get_base_btn.SetParams("MEASURE BASE", BORDER_W, dw_base.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
-  get_base_btn.SetCallback(AppTask::GetCurrent());
-
-  // All good
-  return Result::RESULT_OK;
-}
-
-// *****************************************************************************
-// ***   Show   ****************************************************************
-// *****************************************************************************
-Result ToolOffsetTab::Show()
-{
-  // Tool offset window and name
-  name_tool.Show(100);
-  dw_tool.Show(100);
-  // Base position window and name
-  name_base.Show(100);
-  dw_base.Show(100);
-
-  // Fill all windows
-  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(3u); i++)
-  {
-    DataWindow& dw_real = Application::GetInstance().GetRealDataWindow(i);
-    String& dw_real_name = Application::GetInstance().GetRealDataWindowNameString(i);
-
-    // Real position
-    dw_real.SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, Application::GetInstance().GetScreenEndY() - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 7u, grbl_comm.GetUnitsPrecision());
-    dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
-    dw_real.SetDataFont(Font_8x12::GetInstance());
-    dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
-    // Axis Name
-    dw_real_name.SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
-    dw_real_name.Move(dw_real.GetStartX() + BORDER_W, dw_real.GetStartY() + BORDER_W);
-
-    dw_real.Show(100);
-    dw_real_name.Show(100);
-  }
-
-  // Measure offset button
-  get_offset_btn.Show(102);
-  // Clear offset button
-  clear_offset_btn.Show(102);
-  // Measure base button
-  get_base_btn.Show(102);
-
-  // Request offsets to show it
-  grbl_comm.RequestOffsets();
-
-  // Hide Left Soft button since it doesn't used on this screen
-  Application::GetInstance().GetLeftButton().Hide();
-
-  // All good
-  return Result::RESULT_OK;
-}
-
-// *****************************************************************************
-// ***   Hide   ****************************************************************
-// *****************************************************************************
-Result ToolOffsetTab::Hide()
-{
-  // Tool offset window and name
-  name_tool.Hide();
-  dw_tool.Hide();
-
-  // Base position window and name
-  name_base.Hide();
-  dw_base.Hide();
-
-  // Axis data
-  for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
-  {
-    Application::GetInstance().GetRealDataWindow(i).Hide();
-    Application::GetInstance().GetRealDataWindowNameString(i).Hide();
-  }
-
-  // Measure offset button
-  get_offset_btn.Hide();
-  // Clear offset button
-  clear_offset_btn.Hide();
-  // Measure base button
-  get_base_btn.Hide();
-
-  // Show Left Soft button because we hided it earlier
-  Application::GetInstance().GetLeftButton().Show();
-
-  // All good
-  return Result::RESULT_OK;
-}
-
-// *****************************************************************************
-// ***   TimerExpired function   ***********************************************
-// *****************************************************************************
-Result ToolOffsetTab::TimerExpired(uint32_t interval)
-{
-  Result result = Result::RESULT_OK;
-
-  // Set actual tool offset
-  dw_tool.SetNumber(grbl_comm.GetToolLengthOffset());
-
-  // If we in probing cycle
-  if(state != PROBE_CNT)
-  {
-    // No command sent yet - start probing
-    if(cmd_id == 0u)
-    {
-      // Try to probe Z axis -1 meter at feed 100 mm/min
-      result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
-      // Check result
-      if(result == Result::ERR_CANNOT_EXECUTE)
-      {
-        // Clear cmd id
-        cmd_id = 0u;
-        // Clear state
-        state = PROBE_CNT;
-        // Enable screen change
-        ProbeScr::GetInstance().EnableScreenChange();
-        // Set ok result since we cancelled probing
-        result = Result::RESULT_OK;
-      }
-    }
-    // If we send probing command and this command executed successfully
-    else if((grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK) && (grbl_comm.IsStatusReceivedAfterCmd(cmd_id)) && (grbl_comm.GetState() == GrblComm::IDLE))
-    {
-      // Get probe Z position
-      int32_t probe_pos = grbl_comm.GetProbeMachinePosition(GrblComm::AXIS_Z);
-      // If we tried base - update base data window
-      if(state == PROBE_BASE) dw_base.SetNumber(probe_pos);
-      else if(state == PROBE_TOOL) // If tried tool
-      {
-        // Calculate difference between base and tool
-        int32_t tool_diff = probe_pos - dw_base.GetNumber();
-        // Set tool offset
-        result = grbl_comm.SetToolLengthOffset(tool_diff);
-        // Request offsets to update it on the display
-        if(result.IsGood()) grbl_comm.RequestOffsets();
-      }
-      else
-      {
-        ; // Do nothing
-      }
-      if(result.IsGood())
-      {
-        // Move Z axis to the point before probing at feed 500 mm/min
-        grbl_comm.JogInMachineCoodinates(GrblComm::AXIS_Z, z_position, grbl_comm.ConvertMetricToUnits(500u));
-        // Clear cmd
-        cmd_id = 0u;
-        // Clear state
-        state = PROBE_CNT;
-        // Enable screen change
-        ProbeScr::GetInstance().EnableScreenChange();
-      }
-    }
-    // Error check - if command was sent, but not accepted by controller TODO: do we need this?
-    else if(cmd_id && (grbl_comm.GetCmdResult(cmd_id) != GrblComm::Status_Cmd_Not_Executed_Yet) && (grbl_comm.GetCmdResult(cmd_id) != GrblComm::Status_OK))
-    {
-      // Set error to stop sequence
-      result = Result::ERR_CANNOT_EXECUTE;
-    }
-    else
-    {
-      ; // Do nothing
-    }
-  }
-
-  if(result.IsBad())
-  {
-    // Send Stop command
-    grbl_comm.Stop();
-    // Clear cmd
-    cmd_id = 0u;
-    // Clear state
-    state = PROBE_CNT;
-    // Enable screen change
-    ProbeScr::GetInstance().EnableScreenChange();
-  }
-
-  // Return result
-  return result;
-}
-
-// *****************************************************************************
-// ***   ProcessCallback function   ********************************************
-// *****************************************************************************
-Result ToolOffsetTab::ProcessCallback(const void* ptr)
-{
-  Result result = Result::RESULT_OK;
-
-  // We can start probing only in IDLE state and if probing isn't started yet
-  if((grbl_comm.GetState() == GrblComm::IDLE) && (state == PROBE_CNT))
-  {
-    // Check buttons
-    if((ptr == &get_base_btn) || (ptr == &get_offset_btn) || (ptr == &clear_offset_btn))
-    {
-      // Get current Z position to restore it after tool length offset clear and to return Z axis back after probing
-      int32_t z_pos = grbl_comm.GetAxisPosition(GrblComm::AXIS_Z);
-      // Clear tool length offset
-      result |= grbl_comm.ClearToolLengthOffset();
-      // Request offsets to show it
-      result |= grbl_comm.RequestOffsets();
-      // Restore axis position
-      result |= grbl_comm.SetAxisPosition(GrblComm::AXIS_Z, z_pos);
-      // Set state for probing only if result is good for previous commands
-      if(result.IsGood() && ((ptr == &get_base_btn) || (ptr == &get_offset_btn)))
-      {
-        // Get current Z position to return Z axis back after probing
-        z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
-        // Set current state
-        if(ptr == &get_base_btn) state = PROBE_BASE;
-        else                     state = PROBE_TOOL;
-        // Disable screen change
-        ProbeScr::GetInstance().DisableScreenChange();
-      }
-    }
-  }
-
-  // Always good
-  return Result::RESULT_OK;
-}
-
-// *****************************************************************************
-// *****************************************************************************
 // ***   CENTER FINDER TAB   ***************************************************
 // *****************************************************************************
 // *****************************************************************************
@@ -576,11 +306,19 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   // Radius caption
   dw_distance_name.SetParams("DISTANCE", dw_distance.GetStartX() + BORDER_W*2, dw_distance.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
+  // Button for precise measurement
+  precise_btn.SetParams("PRECISE", BORDER_W, dw_distance.GetEndY() + BORDER_W*2, Font_8x12::GetInstance().GetCharW() * 10, Font_8x12::GetInstance().GetCharH() * 5, true);
+  precise_btn.SetCallback(AppTask::GetCurrent());
+
   // For diameter data
   for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
   {
-    diameter_str[i].SetParams("", BORDER_W, dw_distance.GetEndY() + BORDER_W + Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
+    diameter_str[i].SetParams("", precise_btn.GetEndX() + BORDER_W*2, precise_btn.GetStartY() + Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
   }
+
+  // Set Message Box parameters and callback
+  msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
+  msg_box.SetCallback(AppTask::GetCurrent());
 
   // All good
   return Result::RESULT_OK;
@@ -607,6 +345,8 @@ Result CenterFinderTab::Show()
   // Buttons to select type of measurement
   inside_btn.Show(100);
   outside_btn.Show(100);
+  // Show button for precise measurement
+  precise_btn.Show(100);
 
   // Option for outside probing
   if(outside_btn.GetPressed())
@@ -666,6 +406,8 @@ Result CenterFinderTab::Hide()
   // Buttons to select type of measurement
   inside_btn.Hide();
   outside_btn.Hide();
+  // Hide button for precise measurement
+  precise_btn.Hide();
 
   // Option for outside probing
   dw_clearance.Hide();
@@ -752,8 +494,17 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
           // If result is ready, calculate center and store it as safe position
           if(line_state == PROBE_LINE_RESULT_READY)
           {
-            x_safe_pos = x_min_pos + (x_max_pos - x_min_pos) / 2;
+            x_safe_pos = (x_min_pos + x_max_pos) / 2;
             x_diameter = x_max_pos - x_min_pos + grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+            // For the second iteration, we have to find difference
+            if(iteration == PROBE_ITERATION_SECOND)
+            {
+              x_safe_pos = (x_first_iteration_pos + x_safe_pos) / 2;
+            }
+            else // For the first iteration save x_safe_pos
+            {
+              x_first_iteration_pos = x_safe_pos;
+            }
             // Update X diameter string
             char tmp_x[13u] = {0};
             diameter_str[0u].SetString(diameter_str_buf[0u], NumberOf(diameter_str_buf[0u]), "Dx: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_x, NumberOf(tmp_x), x_diameter), grbl_comm.GetReportUnits());
@@ -791,8 +542,17 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
           // If result is ready, calculate center and store it as safe position
           if(line_state == PROBE_LINE_RESULT_READY)
           {
-            y_safe_pos = y_min_pos + (y_max_pos - y_min_pos) / 2;
+            y_safe_pos = (y_min_pos + y_max_pos) / 2;
             y_diameter = y_max_pos - y_min_pos + grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+            // For the second iteration, we have to find difference
+            if(iteration == PROBE_ITERATION_SECOND)
+            {
+              y_safe_pos = (y_first_iteration_pos + y_safe_pos) / 2;
+            }
+            else // For the first iteration save x_safe_pos
+            {
+              y_first_iteration_pos = y_safe_pos;
+            }
             // Update Y diameter string
             char tmp_y[13u] = {0};
             diameter_str[1u].SetString(diameter_str_buf[1u], NumberOf(diameter_str_buf[1u]), "Dy: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_y, NumberOf(tmp_y), y_diameter), grbl_comm.GetReportUnits());
@@ -800,7 +560,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
             // Update diameter deviation string
             if(dw_real[GrblComm::AXIS_X].IsSelected())
             {
-              diameter_diviation = x_diameter - y_diameter;
+              diameter_diviation = abs(x_diameter - y_diameter);
               char tmp_d[13u] = {0};
               diameter_str[2u].SetString(diameter_str_buf[2u], NumberOf(diameter_str_buf[2u]), "Dd: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_d, NumberOf(tmp_d), diameter_diviation), grbl_comm.GetReportUnits());
             }
@@ -811,12 +571,26 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
       }
       else if(state == PROBE_DONE)
       {
-        // Done probing
-        ResetProbeSequence();
-      }
-      else
-      {
-        ; // Do nothing - MISRA rule
+        // If it is not precise measurement or if it second iterations
+        if((precise_btn.GetPressed() == false) || (iteration == PROBE_ITERATION_SECOND))
+        {
+          // Done probing
+          ResetProbeSequence();
+        }
+        else if(precise_btn.GetPressed())
+        {
+          if(iteration == PROBE_ITERATION_FIRST)
+          {
+            // Show message box with request
+            msg_box.Show(10000u);
+            // Set iteration to prevent entering this again
+            iteration = PROBE_ITERATION_MSGBOX_SHOW;
+          }
+        }
+        else
+        {
+          ; // Do nothing, MISRA rule
+        }
       }
     }
   }
@@ -863,6 +637,7 @@ Result CenterFinderTab::ProcessCallback(const void* ptr)
           // Start probe sequence
           state = PROBE_START;
           line_state = PROBE_LINE_START;
+          iteration = PROBE_ITERATION_FIRST;
           // Disable screen change
           ProbeScr::GetInstance().DisableScreenChange();
         }
@@ -912,6 +687,11 @@ Result CenterFinderTab::ProcessCallback(const void* ptr)
       dw_clearance.SetSelected(true);
       dw_distance.SetSelected(false);
     }
+    // Precise button
+    else if(ptr == &precise_btn)
+    {
+      precise_btn.SetPressed(!precise_btn.GetPressed());
+    }
     else
     {
       ; // Do nothing - MISRA rule
@@ -929,6 +709,25 @@ Result CenterFinderTab::ProcessCallback(const void* ptr)
       Application::GetInstance().GetLeftButton().Disable();
     }
   }
+  else
+  {
+    if(ptr == &msg_box)
+    {
+      // If "Ok" button pressed and we in correct iteration state
+      if((msg_box.GetResult() == Result::RESULT_OK) && (iteration == PROBE_ITERATION_MSGBOX_SHOW))
+      {
+        // Start probe sequence
+        state = PROBE_START;
+        line_state = PROBE_LINE_START;
+        iteration = PROBE_ITERATION_SECOND;
+      }
+      else // Cancel button pressed
+      {
+        // Stop probing
+        ResetProbeSequence();
+      }
+    }
+  }
 
   // Always good
   return Result::RESULT_OK;
@@ -943,6 +742,8 @@ void CenterFinderTab::ResetProbeSequence()
   state = PROBE_CNT;
   // Clear line state
   line_state = PROBE_LINE_CNT;
+  // Clear precise iteration flag
+  iteration = PROBE_ITERATION_CNT;
   // Clear CMD ID
   cmd_id = 0u;
   // Enable screen change
@@ -1299,6 +1100,14 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   // Radius caption
   dw_tip_diameter_name.SetParams("TIP DIAMETER", dw_tip_diameter.GetStartX() + BORDER_W*2, dw_tip_diameter.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
+  // Button for precise measurement
+  precise_btn.SetParams("PRECISE", BORDER_W, dw_tip_diameter.GetEndY() + BORDER_W*2, Font_8x12::GetInstance().GetCharW() * 10, Font_8x12::GetInstance().GetCharH() * 5, true);
+  precise_btn.SetCallback(AppTask::GetCurrent());
+
+  // Set Message Box parameters and callback
+  msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
+  msg_box.SetCallback(AppTask::GetCurrent());
+
   // All good
   return Result::RESULT_OK;
 }
@@ -1318,6 +1127,9 @@ Result EdgeFinderTab::Show()
   // Buttons to select type of measurement
   minus_btn.Show(100);
   plus_btn.Show(100);
+
+  // Buttons to enable/disable measurement
+  precise_btn.Show(100);
 
   // Clearance window
   dw_clearance.Show(100);
@@ -1358,6 +1170,9 @@ Result EdgeFinderTab::Hide()
   // Buttons to select type of measurement
   minus_btn.Hide();
   plus_btn.Hide();
+
+  // Buttons to enable/disable measurement
+  precise_btn.Hide();
 
   // Option for outside probing
   dw_clearance.Hide();
@@ -1404,7 +1219,7 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
       if(state == PROBE_START)
       {
         // Set probing axis
-        axis = dw_real[GrblComm::AXIS_X].IsSelected() ? GrblComm::AXIS_X :  (dw_real[GrblComm::AXIS_Y].IsSelected() ? GrblComm::AXIS_Y : GrblComm::AXIS_Z);
+        axis = dw_real[GrblComm::AXIS_X].IsSelected() ? GrblComm::AXIS_X : (dw_real[GrblComm::AXIS_Y].IsSelected() ? GrblComm::AXIS_Y : GrblComm::AXIS_Z);
         // If minus button pressed - direction is negative, otherwise positive
         dir = minus_btn.GetPressed() ? -1 : +1; // TODO: Z axis can be probed only to - direction
         // Absolute mode necessary for probing, otherwise probe can be screwed up
@@ -1436,31 +1251,54 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
       {
         // Get probe axis position
         measured_pos = grbl_comm.GetProbePosition(axis);
+        // Save position for first iteration
+        if(iteration == PROBE_ITERATION_SECOND)
+        {
+          measured_pos = (first_iteration_measured_pos + measured_pos) / 2;
+        }
+        else
+        {
+          first_iteration_measured_pos = measured_pos;
+        }
         // Move away from workpiece at search feed
         result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
         // Return after axis probing
         state = PROBE_SLOW_RETURN;
       }
-      // ***************************************************************************
-      // *** Ascend to save Z position *********************************************
-      // ***************************************************************************
+      // ***********************************************************************
+      // *** Ascend to save Z position *****************************************
+      // ***********************************************************************
       else if(state == PROBE_SLOW_RETURN)
       {
-        // For Z axis we need lift Z axis precisely Clearance from measured position
-        // and we don't need move axis after that, so we need to skip next step
-        if(axis == GrblComm::AXIS_Z)
+        if(!precise_btn.GetPressed() || (axis == GrblComm::AXIS_Z) || (iteration == PROBE_ITERATION_SECOND))
         {
-          // Rapid ascend Z axis
-          result = grbl_comm.MoveAxis(GrblComm::AXIS_Z, measured_pos + dw_clearance.GetNumber(), 0u, cmd_id);
-          // Skip next step
-          state = PROBE_RETURN;
+          // For Z axis we need lift Z axis precisely Clearance from measured position
+          // and we don't need move axis after that, so we need to skip next step
+          if(axis == GrblComm::AXIS_Z)
+          {
+            // Rapid ascend Z axis
+            result = grbl_comm.MoveAxis(GrblComm::AXIS_Z, measured_pos + dw_clearance.GetNumber(), 0u, cmd_id);
+            // Skip next step
+            state = PROBE_RETURN;
+          }
+          else
+          {
+            // Rapid ascend Z axis
+            result = grbl_comm.MoveAxis(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) + dw_clearance.GetNumber(), 0u, cmd_id);
+            // Current state
+            state = PROBE_ASCEND;
+          }
+        }
+        else if(precise_btn.GetPressed() && (iteration == PROBE_ITERATION_FIRST))
+        {
+          // Show message box with request
+          msg_box.Show(10000u);
+          // Set iteration to prevent entering this again
+          iteration = PROBE_ITERATION_MSGBOX_SHOW;
         }
         else
         {
-          // Rapid ascend Z axis
-          result = grbl_comm.MoveAxis(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) + dw_clearance.GetNumber(), 0u, cmd_id);
-          // Current state
-          state = PROBE_ASCEND;
+          ; // Do nothing - MISRA rule
         }
       }
       // ***************************************************************************
@@ -1528,6 +1366,8 @@ Result EdgeFinderTab::ProcessCallback(const void* ptr)
       {
         // Start probing sequence
         state = PROBE_START;
+        // Set first iteration
+        iteration = PROBE_ITERATION_FIRST;
         // Disable screen change
         ProbeScr::GetInstance().DisableScreenChange();
       }
@@ -1538,6 +1378,8 @@ Result EdgeFinderTab::ProcessCallback(const void* ptr)
       dw_real[GrblComm::AXIS_X].SetSelected(true);
       dw_real[GrblComm::AXIS_Y].SetSelected(false);
       dw_real[GrblComm::AXIS_Z].SetSelected(false);
+      precise_btn.Enable();
+      plus_btn.Enable();
     }
     // Y data window
     else if(ptr == &dw_real[GrblComm::AXIS_Y])
@@ -1545,6 +1387,8 @@ Result EdgeFinderTab::ProcessCallback(const void* ptr)
       dw_real[GrblComm::AXIS_Y].SetSelected(true);
       dw_real[GrblComm::AXIS_X].SetSelected(false);
       dw_real[GrblComm::AXIS_Z].SetSelected(false);
+      precise_btn.Enable();
+      plus_btn.Enable();
     }
     // Z data window
     else if(ptr == &dw_real[GrblComm::AXIS_Z])
@@ -1552,6 +1396,11 @@ Result EdgeFinderTab::ProcessCallback(const void* ptr)
       dw_real[GrblComm::AXIS_Z].SetSelected(true);
       dw_real[GrblComm::AXIS_X].SetSelected(false);
       dw_real[GrblComm::AXIS_Y].SetSelected(false);
+      // Precise button can't be used with Z axis
+      precise_btn.Disable();
+      // Z probe can go only to negative direction
+      plus_btn.Disable();
+      ProcessCallback(&minus_btn);
     }
     // Minus button
     else if(ptr == &minus_btn)
@@ -1577,9 +1426,32 @@ Result EdgeFinderTab::ProcessCallback(const void* ptr)
       dw_clearance.SetSelected(true);
       dw_tip_diameter.SetSelected(false);
     }
+    // Precise button
+    else if(ptr == &precise_btn)
+    {
+      precise_btn.SetPressed(!precise_btn.GetPressed());
+    }
     else
     {
       ; // Do nothing - MISRA rule
+    }
+  }
+  else
+  {
+    if(ptr == &msg_box)
+    {
+      // If "Ok" button pressed and we in correct iteration state
+      if((msg_box.GetResult() == Result::RESULT_OK) && (iteration == PROBE_ITERATION_MSGBOX_SHOW))
+      {
+        // Start probe sequence
+        state = PROBE_START;
+        iteration = PROBE_ITERATION_SECOND;
+      }
+      else // Cancel button pressed
+      {
+        // Stop probing
+        ResetProbeSequence();
+      }
     }
   }
 
@@ -1594,6 +1466,8 @@ void EdgeFinderTab::ResetProbeSequence()
 {
   // Clear state
   state = PROBE_CNT;
+  // Clear iteration
+  iteration = PROBE_ITERATION_CNT;
   // Clear CMD ID
   cmd_id = 0u;
   // Enable screen change
@@ -1639,3 +1513,272 @@ Result EdgeFinderTab::ProcessEncoderCallback(EdgeFinderTab* obj_ptr, void* ptr)
   return result;
 }
 
+// *****************************************************************************
+// *****************************************************************************
+// ***   TOOL OFFSET TAB   *****************************************************
+// *****************************************************************************
+// *****************************************************************************
+
+// *****************************************************************************
+// ***   Get Instance   ********************************************************
+// *****************************************************************************
+ToolOffsetTab& ToolOffsetTab::GetInstance()
+{
+  static ToolOffsetTab tool_offset_tab;
+  return tool_offset_tab;
+}
+
+// *****************************************************************************
+// ***   ToolOffsetTab Setup   *************************************************
+// *****************************************************************************
+Result ToolOffsetTab::Setup(int32_t y, int32_t height)
+{
+  int32_t start_y = y + BORDER_W;
+  // Data window height
+  uint32_t window_height = Font_8x12::GetInstance().GetCharH() * 5u;
+
+  // Tool offset position
+  dw_tool.SetParams(BORDER_W, start_y + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetUnitsPrecision());
+  dw_tool.SetBorder(BORDER_W, COLOR_BLUE);
+  dw_tool.SetDataFont(Font_8x12::GetInstance(), 2u);
+  dw_tool.SetNumber(grbl_comm.GetToolLengthOffset()); // Get current position at startup
+  dw_tool.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
+  dw_tool.SetCallback(AppTask::GetCurrent());
+  dw_tool.SetActive(false);
+  // Measure offset button
+  get_offset_btn.SetParams("MEASURE OFFSET", BORDER_W, dw_tool.GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*3) / 2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  get_offset_btn.SetCallback(AppTask::GetCurrent());
+  // Clear offset button
+  clear_offset_btn.SetParams("CLEAR OFFSET", get_offset_btn.GetEndX() + BORDER_W, dw_tool.GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*3) / 2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  clear_offset_btn.SetCallback(AppTask::GetCurrent());
+
+  // Tool offset Name
+  name_base.SetParams("BASE POSITION", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
+  name_base.Move((display_drv.GetScreenW()  / 2) - (name_base.GetWidth() / 2), get_offset_btn.GetEndY() + BORDER_W * 2u);
+  // Tool offset position
+  dw_base.SetParams(BORDER_W, name_base.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetUnitsPrecision());
+  dw_base.SetBorder(BORDER_W, COLOR_MAGENTA);
+  dw_base.SetDataFont(Font_8x12::GetInstance(), 2u);
+  dw_base.SetNumber(0); // Get current position at startup
+  dw_base.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
+  dw_base.SetCallback(AppTask::GetCurrent());
+  dw_base.SetActive(false);
+  // Measure offset button
+  get_base_btn.SetParams("MEASURE BASE", BORDER_W, dw_base.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  get_base_btn.SetCallback(AppTask::GetCurrent());
+
+  // All good
+  return Result::RESULT_OK;
+}
+
+// *****************************************************************************
+// ***   Show   ****************************************************************
+// *****************************************************************************
+Result ToolOffsetTab::Show()
+{
+  // Tool offset window and name
+  name_tool.Show(100);
+  dw_tool.Show(100);
+  // Base position window and name
+  name_base.Show(100);
+  dw_base.Show(100);
+
+  // Fill all windows
+  for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(3u); i++)
+  {
+    DataWindow& dw_real = Application::GetInstance().GetRealDataWindow(i);
+    String& dw_real_name = Application::GetInstance().GetRealDataWindowNameString(i);
+
+    // Real position
+    dw_real.SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, Application::GetInstance().GetScreenEndY() - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 7u, grbl_comm.GetUnitsPrecision());
+    dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
+    dw_real.SetDataFont(Font_8x12::GetInstance());
+    dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());
+    // Axis Name
+    dw_real_name.SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
+    dw_real_name.Move(dw_real.GetStartX() + BORDER_W, dw_real.GetStartY() + BORDER_W);
+
+    dw_real.Show(100);
+    dw_real_name.Show(100);
+  }
+
+  // Measure offset button
+  get_offset_btn.Show(102);
+  // Clear offset button
+  clear_offset_btn.Show(102);
+  // Measure base button
+  get_base_btn.Show(102);
+
+  // Request offsets to show it
+  grbl_comm.RequestOffsets();
+
+  // Hide Left Soft button since it doesn't used on this screen
+  Application::GetInstance().GetLeftButton().Hide();
+
+  // All good
+  return Result::RESULT_OK;
+}
+
+// *****************************************************************************
+// ***   Hide   ****************************************************************
+// *****************************************************************************
+Result ToolOffsetTab::Hide()
+{
+  // Tool offset window and name
+  name_tool.Hide();
+  dw_tool.Hide();
+
+  // Base position window and name
+  name_base.Hide();
+  dw_base.Hide();
+
+  // Axis data
+  for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
+  {
+    Application::GetInstance().GetRealDataWindow(i).Hide();
+    Application::GetInstance().GetRealDataWindowNameString(i).Hide();
+  }
+
+  // Measure offset button
+  get_offset_btn.Hide();
+  // Clear offset button
+  clear_offset_btn.Hide();
+  // Measure base button
+  get_base_btn.Hide();
+
+  // Show Left Soft button because we hided it earlier
+  Application::GetInstance().GetLeftButton().Show();
+
+  // All good
+  return Result::RESULT_OK;
+}
+
+// *****************************************************************************
+// ***   TimerExpired function   ***********************************************
+// *****************************************************************************
+Result ToolOffsetTab::TimerExpired(uint32_t interval)
+{
+  Result result = Result::RESULT_OK;
+
+  // Set actual tool offset
+  dw_tool.SetNumber(grbl_comm.GetToolLengthOffset());
+
+  // If we in probing cycle
+  if(state != PROBE_CNT)
+  {
+    // No command sent yet - start probing
+    if(cmd_id == 0u)
+    {
+      // Try to probe Z axis -1 meter at feed 100 mm/min
+      result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
+      // Check result
+      if(result == Result::ERR_CANNOT_EXECUTE)
+      {
+        // Clear cmd id
+        cmd_id = 0u;
+        // Clear state
+        state = PROBE_CNT;
+        // Enable screen change
+        ProbeScr::GetInstance().EnableScreenChange();
+        // Set ok result since we cancelled probing
+        result = Result::RESULT_OK;
+      }
+    }
+    // If we send probing command and this command executed successfully
+    else if((grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK) && (grbl_comm.IsStatusReceivedAfterCmd(cmd_id)) && (grbl_comm.GetState() == GrblComm::IDLE))
+    {
+      // Get probe Z position
+      int32_t probe_pos = grbl_comm.GetProbeMachinePosition(GrblComm::AXIS_Z);
+      // If we tried base - update base data window
+      if(state == PROBE_BASE) dw_base.SetNumber(probe_pos);
+      else if(state == PROBE_TOOL) // If tried tool
+      {
+        // Calculate difference between base and tool
+        int32_t tool_diff = probe_pos - dw_base.GetNumber();
+        // Set tool offset
+        result = grbl_comm.SetToolLengthOffset(tool_diff);
+        // Request offsets to update it on the display
+        if(result.IsGood()) grbl_comm.RequestOffsets();
+      }
+      else
+      {
+        ; // Do nothing
+      }
+      if(result.IsGood())
+      {
+        // Move Z axis to the point before probing at feed 500 mm/min
+        grbl_comm.JogInMachineCoodinates(GrblComm::AXIS_Z, z_position, grbl_comm.ConvertMetricToUnits(500u));
+        // Clear cmd
+        cmd_id = 0u;
+        // Clear state
+        state = PROBE_CNT;
+        // Enable screen change
+        ProbeScr::GetInstance().EnableScreenChange();
+      }
+    }
+    // Error check - if command was sent, but not accepted by controller TODO: do we need this?
+    else if(cmd_id && (grbl_comm.GetCmdResult(cmd_id) != GrblComm::Status_Cmd_Not_Executed_Yet) && (grbl_comm.GetCmdResult(cmd_id) != GrblComm::Status_OK))
+    {
+      // Set error to stop sequence
+      result = Result::ERR_CANNOT_EXECUTE;
+    }
+    else
+    {
+      ; // Do nothing
+    }
+  }
+
+  if(result.IsBad())
+  {
+    // Send Stop command
+    grbl_comm.Stop();
+    // Clear cmd
+    cmd_id = 0u;
+    // Clear state
+    state = PROBE_CNT;
+    // Enable screen change
+    ProbeScr::GetInstance().EnableScreenChange();
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   ProcessCallback function   ********************************************
+// *****************************************************************************
+Result ToolOffsetTab::ProcessCallback(const void* ptr)
+{
+  Result result = Result::RESULT_OK;
+
+  // We can start probing only in IDLE state and if probing isn't started yet
+  if((grbl_comm.GetState() == GrblComm::IDLE) && (state == PROBE_CNT))
+  {
+    // Check buttons
+    if((ptr == &get_base_btn) || (ptr == &get_offset_btn) || (ptr == &clear_offset_btn))
+    {
+      // Get current Z position to restore it after tool length offset clear and to return Z axis back after probing
+      int32_t z_pos = grbl_comm.GetAxisPosition(GrblComm::AXIS_Z);
+      // Clear tool length offset
+      result |= grbl_comm.ClearToolLengthOffset();
+      // Request offsets to show it
+      result |= grbl_comm.RequestOffsets();
+      // Restore axis position
+      result |= grbl_comm.SetAxisPosition(GrblComm::AXIS_Z, z_pos);
+      // Set state for probing only if result is good for previous commands
+      if(result.IsGood() && ((ptr == &get_base_btn) || (ptr == &get_offset_btn)))
+      {
+        // Get current Z position to return Z axis back after probing
+        z_position = grbl_comm.GetAxisMachinePosition(GrblComm::AXIS_Z);
+        // Set current state
+        if(ptr == &get_base_btn) state = PROBE_BASE;
+        else                     state = PROBE_TOOL;
+        // Disable screen change
+        ProbeScr::GetInstance().DisableScreenChange();
+      }
+    }
+  }
+
+  // Always good
+  return Result::RESULT_OK;
+}

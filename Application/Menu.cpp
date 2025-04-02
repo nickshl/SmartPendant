@@ -305,20 +305,18 @@ Result Menu::ProcessButtonCallback(Menu* obj_ptr, void* ptr)
       // Left button
       if(btn.btn == InputDrv::BTN_LEFT)
       {
+        // Set state of left soft button on the screen
+        ths.left_btn.SetPressed(btn.state);
         // If button pressed
         if(btn.state == true)
         {
           // Change color to indicate press
           ths.box.SetColor(COLOR_GREEN);
-          // Press "Enter" button on the screen
-          ths.left_btn.SetPressed(true);
         }
         else // Released
         {
           // Change color back
           ths.box.SetColor(COLOR_BLUE);
-          // Release "Enter" button on the screen
-          ths.left_btn.SetPressed(false);
           // And call callback
           ProcessButtonCallback(obj_ptr, &ths.left_btn);
         }
@@ -326,20 +324,18 @@ Result Menu::ProcessButtonCallback(Menu* obj_ptr, void* ptr)
       // Right button - Reset values or send Stop command to GRBL if in movement
       else if(btn.btn == InputDrv::BTN_RIGHT)
       {
+        // Set state of right soft button on the screen
+        ths.right_btn.SetPressed(btn.state);
         // If button pressed
         if(btn.state == true)
         {
           // Change color to indicate press
           ths.box.SetColor(COLOR_RED);
-          // Press "Enter" button on the screen
-          ths.right_btn.SetPressed(true);
         }
         else // Released
         {
           // Change color back
           ths.box.SetColor(COLOR_BLUE);
-          // Release "Cancel" button on the screen
-          ths.right_btn.SetPressed(false);
           // And call callback
           ProcessButtonCallback(obj_ptr, &ths.right_btn);
         }

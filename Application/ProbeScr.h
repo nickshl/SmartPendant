@@ -30,6 +30,7 @@
 #include "GrblComm.h"
 #include "InputDrv.h"
 #include "Tabs.h"
+#include "MsgBox.h"
 
 // *****************************************************************************
 // ***   Local const variables   ***********************************************
@@ -131,98 +132,6 @@ class ProbeScr : public IScreen
 
 // *****************************************************************************
 // *****************************************************************************
-// ***   ToolOffsetTab Class   *************************************************
-// *****************************************************************************
-// *****************************************************************************
-class ToolOffsetTab : public IScreen
-{
-  public:
-    // *************************************************************************
-    // ***   Get Instance   ****************************************************
-    // *************************************************************************
-    static ToolOffsetTab& GetInstance();
-
-    // *************************************************************************
-    // ***   Setup function   **************************************************
-    // *************************************************************************
-    virtual Result Setup(int32_t y, int32_t height);
-
-    // *************************************************************************
-    // ***   Public: Show   ****************************************************
-    // *************************************************************************
-    virtual Result Show();
-
-    // *************************************************************************
-    // ***   Public: Hide   ****************************************************
-    // *************************************************************************
-    virtual Result Hide();
-
-    // *************************************************************************
-    // ***   Public: TimerExpired   ********************************************
-    // *************************************************************************
-    virtual Result TimerExpired(uint32_t interval);
-
-    // *************************************************************************
-    // ***   Public: ProcessCallback   *****************************************
-    // *************************************************************************
-    virtual Result ProcessCallback(const void* ptr);
-
-  private:
-    static const uint8_t BORDER_W = 4u;
-
-    // Enum to track state
-    typedef enum
-    {
-      PROBE_BASE,
-      PROBE_TOOL,
-      PROBE_CNT
-    } state_t;
-
-    // Current state
-    state_t state = PROBE_CNT;
-
-    // Z position before probing
-    int32_t z_position = 0u;
-
-    // Current selected axis
-    // Scale to move axis
-    GrblComm::Axis_t axis = GrblComm::AXIS_CNT;
-    // ID to track send message
-    uint32_t cmd_id = 0u;
-
-    // Current GRBL state to detect changes
-    GrblComm::state_t grbl_state = GrblComm::UNKNOWN;
-
-    // String for caption
-    String name_tool;
-    // Data windows to show tool offset
-    DataWindow dw_tool;
-
-    // String for caption
-    String name_base;
-    // Data windows to show tool offset
-    DataWindow dw_base;
-
-    // Buttons to measure offset
-    UiButton get_offset_btn;
-    // Buttons to clear offset
-    UiButton clear_offset_btn;
-    // Buttons to measure base
-    UiButton get_base_btn;
-
-    // Display driver instance
-    DisplayDrv& display_drv = DisplayDrv::GetInstance();
-    // GRBL Communication Interface instance
-    GrblComm& grbl_comm = GrblComm::GetInstance();
-
-    // *************************************************************************
-    // ***   Private constructor   *********************************************
-    // *************************************************************************
-    ToolOffsetTab() {};
-};
-
-// *****************************************************************************
-// *****************************************************************************
 // ***   CenterFinderTab Class   ***********************************************
 // *****************************************************************************
 // *****************************************************************************
@@ -293,17 +202,31 @@ class CenterFinderTab : public IScreen
     probe_state_t state = PROBE_CNT;
     probe_line_state_t line_state = PROBE_LINE_CNT;
 
+    // Enum to track iteration
+    typedef enum
+    {
+      PROBE_ITERATION_FIRST,
+      PROBE_ITERATION_MSGBOX_SHOW,
+      PROBE_ITERATION_SECOND,
+      PROBE_ITERATION_CNT
+    } probe_iteration_t;
+    // Iteration
+    probe_iteration_t iteration = PROBE_ITERATION_CNT;
+
     // X & Y positions
-    int32_t x_min_pos = 0u;
-    int32_t y_min_pos = 0u;
-    int32_t x_max_pos = 0u;
-    int32_t y_max_pos = 0u;
-    int32_t x_safe_pos = 0u;
-    int32_t y_safe_pos = 0u;
+    int32_t x_min_pos = 0;
+    int32_t y_min_pos = 0;
+    int32_t x_max_pos = 0;
+    int32_t y_max_pos = 0;
+    int32_t x_safe_pos = 0;
+    int32_t y_safe_pos = 0;
     // X & Y diameters
     int32_t x_diameter = 0u;
     int32_t y_diameter = 0u;
-    int32_t diameter_diviation = 0u;
+    int32_t diameter_diviation = 0;
+    // Copy of x_safe_pos and y_safe_pos for precise measurements
+    int32_t x_first_iteration_pos = 0;
+    int32_t y_first_iteration_pos = 0;
 
     // ID to track send message
     uint32_t cmd_id = 0u;
@@ -330,6 +253,12 @@ class CenterFinderTab : public IScreen
     // Buttons to select type of measurement
     UiButton inside_btn;
     UiButton outside_btn;
+
+    // Button for precise measurement
+    UiButton precise_btn;
+
+    // Message box for pop up request to turn probe 180 degrees
+    MsgBox msg_box;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
@@ -429,14 +358,27 @@ class EdgeFinderTab : public IScreen
     // Current state
     probe_state_t state = PROBE_CNT;
 
+    // Enum to track iteration
+    typedef enum
+    {
+      PROBE_ITERATION_FIRST,
+      PROBE_ITERATION_MSGBOX_SHOW,
+      PROBE_ITERATION_SECOND,
+      PROBE_ITERATION_CNT
+    } probe_iteration_t;
+    // Iteration
+    probe_iteration_t iteration = PROBE_ITERATION_CNT;
+
     // Current probing axis
     uint8_t axis = GrblComm::AXIS_CNT;
     // Current probing direction(+1/-1)
     int8_t dir = 0;
     // Measured position
-    int32_t measured_pos = 0u;
+    int32_t measured_pos = 0;
+    // Measured position during first iteration
+    int32_t first_iteration_measured_pos = 0;
     // Safe position(from which probing started)
-    int32_t safe_pos = 0u;
+    int32_t safe_pos = 0;
 
     // ID to track send message
     uint32_t cmd_id = 0u;
@@ -460,6 +402,12 @@ class EdgeFinderTab : public IScreen
     UiButton plus_btn;
     UiButton minus_btn;
 
+    // Button for precise measurement
+    UiButton precise_btn;
+
+    // Message box for pop up request to turn probe 180 degrees
+    MsgBox msg_box;
+
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // GRBL Communication Interface instance
@@ -482,6 +430,98 @@ class EdgeFinderTab : public IScreen
     // ***   Private constructor   *********************************************
     // *************************************************************************
     EdgeFinderTab() {};
+};
+
+// *****************************************************************************
+// *****************************************************************************
+// ***   ToolOffsetTab Class   *************************************************
+// *****************************************************************************
+// *****************************************************************************
+class ToolOffsetTab : public IScreen
+{
+  public:
+    // *************************************************************************
+    // ***   Get Instance   ****************************************************
+    // *************************************************************************
+    static ToolOffsetTab& GetInstance();
+
+    // *************************************************************************
+    // ***   Setup function   **************************************************
+    // *************************************************************************
+    virtual Result Setup(int32_t y, int32_t height);
+
+    // *************************************************************************
+    // ***   Public: Show   ****************************************************
+    // *************************************************************************
+    virtual Result Show();
+
+    // *************************************************************************
+    // ***   Public: Hide   ****************************************************
+    // *************************************************************************
+    virtual Result Hide();
+
+    // *************************************************************************
+    // ***   Public: TimerExpired   ********************************************
+    // *************************************************************************
+    virtual Result TimerExpired(uint32_t interval);
+
+    // *************************************************************************
+    // ***   Public: ProcessCallback   *****************************************
+    // *************************************************************************
+    virtual Result ProcessCallback(const void* ptr);
+
+  private:
+    static const uint8_t BORDER_W = 4u;
+
+    // Enum to track state
+    typedef enum
+    {
+      PROBE_BASE,
+      PROBE_TOOL,
+      PROBE_CNT
+    } state_t;
+
+    // Current state
+    state_t state = PROBE_CNT;
+
+    // Z position before probing
+    int32_t z_position = 0u;
+
+    // Current selected axis
+    // Scale to move axis
+    GrblComm::Axis_t axis = GrblComm::AXIS_CNT;
+    // ID to track send message
+    uint32_t cmd_id = 0u;
+
+    // Current GRBL state to detect changes
+    GrblComm::state_t grbl_state = GrblComm::UNKNOWN;
+
+    // String for caption
+    String name_tool;
+    // Data windows to show tool offset
+    DataWindow dw_tool;
+
+    // String for caption
+    String name_base;
+    // Data windows to show tool offset
+    DataWindow dw_base;
+
+    // Buttons to measure offset
+    UiButton get_offset_btn;
+    // Buttons to clear offset
+    UiButton clear_offset_btn;
+    // Buttons to measure base
+    UiButton get_base_btn;
+
+    // Display driver instance
+    DisplayDrv& display_drv = DisplayDrv::GetInstance();
+    // GRBL Communication Interface instance
+    GrblComm& grbl_comm = GrblComm::GetInstance();
+
+    // *************************************************************************
+    // ***   Private constructor   *********************************************
+    // *************************************************************************
+    ToolOffsetTab() {};
 };
 
 #endif

@@ -367,17 +367,12 @@ Result Header::ProcessButtonCallback(Header* obj_ptr, void* ptr)
     // If button object found and header isn't disabled
     if((ui_btn != nullptr) && (ths.shadowbox.IsShow() == false))
     {
-      // If button pressed
-      if(btn.state == true)
+      // Set button state on the screen
+      ui_btn->SetPressed(btn.state);
+      // If button released
+      if(btn.state == false)
       {
-        // Press button on the screen
-        ui_btn->SetPressed(true);
-      }
-      else // Released
-      {
-        // Release button on the screen
-        ui_btn->SetPressed(false);
-        // And call callback
+        // Call callback
         ths.ProcessUiCallback(obj_ptr, ui_btn);
       }
     }
