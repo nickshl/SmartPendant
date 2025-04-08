@@ -220,10 +220,10 @@ class CenterFinderTab : public IScreen
     int32_t y_max_pos = 0;
     int32_t x_safe_pos = 0;
     int32_t y_safe_pos = 0;
-    // X & Y diameters
-    int32_t x_diameter = 0u;
-    int32_t y_diameter = 0u;
-    int32_t diameter_diviation = 0;
+    // X & Y distances
+    int32_t x_distance = 0u;
+    int32_t y_distance = 0u;
+    int32_t distance_diviation = 0;
     // Copy of x_safe_pos and y_safe_pos for precise measurements
     int32_t x_first_iteration_pos = 0;
     int32_t y_first_iteration_pos = 0;
@@ -247,8 +247,8 @@ class CenterFinderTab : public IScreen
     String dw_distance_name;
 
     // String for caption
-    String diameter_str[3u];
-    char diameter_str_buf[NumberOf(diameter_str)][64] = {0};
+    String data_str[3u];
+    char data_str_buf[NumberOf(data_str)][64] = {0};
 
     // Buttons to select type of measurement
     UiButton inside_btn;

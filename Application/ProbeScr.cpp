@@ -311,9 +311,9 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   precise_btn.SetCallback(AppTask::GetCurrent());
 
   // For diameter data
-  for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
+  for(uint32_t i = 0u; i < NumberOf(data_str); i++)
   {
-    diameter_str[i].SetParams("", precise_btn.GetEndX() + BORDER_W*2, precise_btn.GetStartY() + Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
+    data_str[i].SetParams("", precise_btn.GetEndX() + BORDER_W*2, precise_btn.GetStartY() + Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
   }
 
   // Set Message Box parameters and callback
@@ -337,9 +337,9 @@ Result CenterFinderTab::Show()
   }
 
   // For diameter data
-  for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
+  for(uint32_t i = 0u; i < NumberOf(data_str); i++)
   {
-    diameter_str[i].Show(100);
+    data_str[i].Show(100);
   }
 
   // Buttons to select type of measurement
@@ -398,9 +398,9 @@ Result CenterFinderTab::Hide()
   }
 
   // For diameter data
-  for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
+  for(uint32_t i = 0u; i < NumberOf(data_str); i++)
   {
-    diameter_str[i].Hide();
+    data_str[i].Hide();
   }
 
   // Buttons to select type of measurement
@@ -455,9 +455,9 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
       if(state == PROBE_START)
       {
         // For diameter data
-        for(uint32_t i = 0u; i < NumberOf(diameter_str); i++)
+        for(uint32_t i = 0u; i < NumberOf(data_str); i++)
         {
-          diameter_str[i].SetString("");
+          data_str[i].SetString("");
         }
         // Restart line sequence
         line_state = PROBE_LINE_START;
@@ -495,7 +495,16 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
           if(line_state == PROBE_LINE_RESULT_READY)
           {
             x_safe_pos = (x_min_pos + x_max_pos) / 2;
-            x_diameter = x_max_pos - x_min_pos + grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+            x_distance = x_max_pos - x_min_pos;
+            // For inside we need to add probe ball tip diameter
+            if(inside_btn.GetPressed())
+            {
+              x_distance += grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+            }
+            else // For outside we have to subtract probe ball tip diameter
+            {
+              x_distance -= grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+            }
             // For the second iteration, we have to find difference
             if(iteration == PROBE_ITERATION_SECOND)
             {
@@ -507,7 +516,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
             }
             // Update X diameter string
             char tmp_x[13u] = {0};
-            diameter_str[0u].SetString(diameter_str_buf[0u], NumberOf(diameter_str_buf[0u]), "Dx: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_x, NumberOf(tmp_x), x_diameter), grbl_comm.GetReportUnits());
+            data_str[0u].SetString(data_str_buf[0u], NumberOf(data_str_buf[0u]), "Dx: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_x, NumberOf(tmp_x), x_distance), grbl_comm.GetReportUnits());
           }
           // Otherwise continue probing sequence for X max
           result = ProbeLineSequence(line_state, GrblComm::AXIS_X, +1, x_safe_pos, x_max_pos);
@@ -543,7 +552,16 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
           if(line_state == PROBE_LINE_RESULT_READY)
           {
             y_safe_pos = (y_min_pos + y_max_pos) / 2;
-            y_diameter = y_max_pos - y_min_pos + grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+            y_distance = y_max_pos - y_min_pos;
+            // For inside we need to add probe ball tip diameter
+            if(inside_btn.GetPressed())
+            {
+              y_distance += grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+            }
+            else // For outside we have to subtract probe ball tip diameter
+            {
+              y_distance -= grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+            }
             // For the second iteration, we have to find difference
             if(iteration == PROBE_ITERATION_SECOND)
             {
@@ -555,14 +573,14 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
             }
             // Update Y diameter string
             char tmp_y[13u] = {0};
-            diameter_str[1u].SetString(diameter_str_buf[1u], NumberOf(diameter_str_buf[1u]), "Dy: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_y, NumberOf(tmp_y), y_diameter), grbl_comm.GetReportUnits());
+            data_str[1u].SetString(data_str_buf[1u], NumberOf(data_str_buf[1u]), "Dy: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_y, NumberOf(tmp_y), y_distance), grbl_comm.GetReportUnits());
 
             // Update diameter deviation string
             if(dw_real[GrblComm::AXIS_X].IsSelected())
             {
-              diameter_diviation = abs(x_diameter - y_diameter);
+              distance_diviation = abs(x_distance - y_distance);
               char tmp_d[13u] = {0};
-              diameter_str[2u].SetString(diameter_str_buf[2u], NumberOf(diameter_str_buf[2u]), "Dd: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_d, NumberOf(tmp_d), diameter_diviation), grbl_comm.GetReportUnits());
+              data_str[2u].SetString(data_str_buf[2u], NumberOf(data_str_buf[2u]), "Dd: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_d, NumberOf(tmp_d), distance_diviation), grbl_comm.GetReportUnits());
             }
           }
           // Otherwise continue probing sequence for Y max
