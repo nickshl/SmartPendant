@@ -31,7 +31,7 @@ class Tabs : public VisObject
 {
   public:
     // Maximum allowed number of tabs
-    static constexpr uint32_t MAX_TABS = 16u;
+    static constexpr uint32_t MAX_TABS = 3u;
 
     // *************************************************************************
     // ***   Public: Constructor   *********************************************

@@ -310,7 +310,7 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   precise_btn.SetParams("PRECISE", BORDER_W, dw_distance.GetEndY() + BORDER_W*2, Font_8x12::GetInstance().GetCharW() * 10, Font_8x12::GetInstance().GetCharH() * 5, true);
   precise_btn.SetCallback(AppTask::GetCurrent());
 
-  // For diameter data
+  // For distance data
   for(uint32_t i = 0u; i < NumberOf(data_str); i++)
   {
     data_str[i].SetParams("", precise_btn.GetEndX() + BORDER_W*2, precise_btn.GetStartY() + Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
@@ -336,7 +336,7 @@ Result CenterFinderTab::Show()
     dw_real_name[i].Show(100);
   }
 
-  // For diameter data
+  // For measurement data
   for(uint32_t i = 0u; i < NumberOf(data_str); i++)
   {
     data_str[i].Show(100);
@@ -397,7 +397,7 @@ Result CenterFinderTab::Hide()
     dw_real_name[i].Hide();
   }
 
-  // For diameter data
+  // For measurement data
   for(uint32_t i = 0u; i < NumberOf(data_str); i++)
   {
     data_str[i].Hide();
@@ -454,7 +454,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
       // Iterations
       if(state == PROBE_START)
       {
-        // For diameter data
+        // For measurement data
         for(uint32_t i = 0u; i < NumberOf(data_str); i++)
         {
           data_str[i].SetString("");
@@ -514,7 +514,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
             {
               x_first_iteration_pos = x_safe_pos;
             }
-            // Update X diameter string
+            // Update X measurement string
             char tmp_x[13u] = {0};
             data_str[0u].SetString(data_str_buf[0u], NumberOf(data_str_buf[0u]), "Dx: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_x, NumberOf(tmp_x), x_distance), grbl_comm.GetReportUnits());
           }
@@ -571,11 +571,11 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
             {
               y_first_iteration_pos = y_safe_pos;
             }
-            // Update Y diameter string
+            // Update Y measurement string
             char tmp_y[13u] = {0};
             data_str[1u].SetString(data_str_buf[1u], NumberOf(data_str_buf[1u]), "Dy: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_y, NumberOf(tmp_y), y_distance), grbl_comm.GetReportUnits());
 
-            // Update diameter deviation string
+            // Update measurement deviation string
             if(dw_real[GrblComm::AXIS_X].IsSelected())
             {
               distance_diviation = abs(x_distance - y_distance);

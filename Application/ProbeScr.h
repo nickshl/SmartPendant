@@ -246,7 +246,7 @@ class CenterFinderTab : public IScreen
     DataWindow dw_distance;
     String dw_distance_name;
 
-    // String for caption
+    // String for data
     String data_str[3u];
     char data_str_buf[NumberOf(data_str)][64] = {0};
 

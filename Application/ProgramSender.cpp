@@ -18,10 +18,11 @@
 // *****************************************************************************
 // ***   Includes   ************************************************************
 // *****************************************************************************
-#include <ProgramSender.h>
+#include "ProgramSender.h"
 #include "Application.h"
 
 #include "fatfs.h"
+#include <cctype> // For tolower()
 
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
@@ -38,9 +39,6 @@ ProgramSender& ProgramSender::GetInstance()
 Result ProgramSender::Setup(int32_t y, int32_t height)
 {
   constexpr int32_t CTRL_HEIGHT = 40;
-
-  // Initialize font
-  mem_info.SetParams(mem_info_buf, 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
 
   // Fill menu_items
   for(uint32_t i = 0u; i < NumberOf(menu_items); i++)
@@ -95,8 +93,7 @@ Result ProgramSender::Show()
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
 
   // Show free memory info
-  UpdateMemoryInfo();
-  mem_info.Show(10000);
+  Application::GetInstance().ShowMemoryInfo();
 
   // Update text - in case it is generated, we have to count lines
   text_box.SetText(p_text);
@@ -158,7 +155,7 @@ Result ProgramSender::Hide()
   InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
 
   // Hide free memory info
-  mem_info.Hide();
+  Application::GetInstance().HideMemoryInfo();
 
   // Hide menu
   menu.Hide();
@@ -381,21 +378,6 @@ Result ProgramSender::TimerExpired(uint32_t interval)
 }
 
 // *************************************************************************
-// ***   Private: UpdateMemoryInfo function   ******************************
-// *************************************************************************
-void ProgramSender::UpdateMemoryInfo()
-{
-  // Get memory stats from FreeRTOS
-  HeapStats_t HeapStats;
-  vPortGetHeapStats(&HeapStats);
-  snprintf(mem_info_buf, sizeof(mem_info_buf), "Available memory: %db", HeapStats.xSizeOfLargestFreeBlockInBytes);
-  // Update string and recalculate size
-  mem_info.SetString(mem_info_buf, true);
-  // Set string params
-  mem_info.SetParams(mem_info_buf, display_drv.GetScreenW()/2 - mem_info.GetWidth()/2, 30, COLOR_WHITE, Font_6x8::GetInstance());
-}
-
-// *************************************************************************
 // ***   Private: ProcessSpeedFeed function   ******************************
 // *************************************************************************
 Result ProgramSender::ProcessSpeedFeed()
@@ -487,8 +469,24 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
     // Hide the menu
     ths.menu.Hide();
 
+    // Buffer for the file name, filled with 0
+    char fn[20u] = {0};
+    // Copy filename(max 19 characters
+    for(uint32_t i = 0u; i < NumberOf(fn); i++)
+    {
+      fn[i] = ths.menu_items[(uint32_t)ptr].text[i];
+      if(fn[i] == '\0') break;
+    }
+    // Go from the end of array and replace all spaces to null-terminator until
+    // we found first non-space character
+    for(uint32_t i = NumberOf(fn) - 1u; i > 0u; i--)
+    {
+      if(fn[i] <= ' ') fn[i] = '\0';
+      else break;
+    }
+
     // Open file
-    FRESULT fres = f_open(&SDFile, ths.menu_items[(uint32_t)ptr].text, FA_OPEN_EXISTING | FA_READ);
+    FRESULT fres = f_open(&SDFile, fn, FA_OPEN_EXISTING | FA_READ);
     // Write data to file
     if(fres == FR_OK)
     {
@@ -684,11 +682,33 @@ Result ProgramSender::ProcessCallback(const void* ptr)
       FILINFO fno;
       for(;;)
       {
-        res = f_readdir(&dir, &fno);                  // Read a directory item
-        if (res != FR_OK || fno.fname[0] == 0) break; // Break on error or end of dir
-        if(!(fno.fattrib & AM_DIR))                   // It is a directory
+        // Read a directory item
+        res = f_readdir(&dir, &fno);
+        // Break on error or end of dir
+        if((res != FR_OK) || (fno.fname[0] == 0)) break;
+        // Check extension - we want .gc* or .nc*
+        bool add_file = false;
+        // Index variable
+        uint32_t i = 0u;
+        // Find end of the filename
+        for(; i < NumberOf(fno.fname); i++) if(fno.fname[i] == '\0') break;
+        // Check extension
+        for(i -= 3u; i > 0; i--)
         {
-          menu_items[idx].str.SetString(menu_items[idx].text, menu_items[idx].n, "%-12s%19lub", fno.fname, fno.fsize);
+          // Check if extension is .nc* or .gc*
+          if((fno.fname[i] == '.') && (tolower(fno.fname[i+2]) == 'c'))
+          {
+            if((tolower(fno.fname[i+1]) == 'g') || (tolower(fno.fname[i+1]) == 'n'))
+            {
+              add_file = true;
+              break;
+            }
+          }
+        }
+        // It isn't a directory
+        if(!(fno.fattrib & AM_DIR) && add_file)
+        {
+          menu_items[idx].str.SetString(menu_items[idx].text, menu_items[idx].n, "%-19s%12lub", fno.fname, fno.fsize);
           idx++;
           if(idx == NumberOf(menu_items)) break;
         }
@@ -751,10 +771,20 @@ Result ProgramSender::ProcessCallback(const void* ptr)
 // *****************************************************************************
 // ***   Public: AllocateDataBuffer   ******************************************
 // *****************************************************************************
-char* ProgramSender::AllocateDataBuffer(uint32_t size)
+char* ProgramSender::AllocateDataBuffer(uint32_t& size)
 {
   // Always release data buffer before allocate it again
   ReleaseDataPointer();
+
+  // If size is zero
+  if(size == 0u)
+  {
+    // Get maximum available block size from FreeRTOS and use it
+    HeapStats_t HeapStats;
+    vPortGetHeapStats(&HeapStats);
+    size = HeapStats.xSizeOfLargestFreeBlockInBytes - 32u;
+  }
+
   // Allocate memory for data
   p_text = new char[size];
   // If allocation is successful
@@ -766,7 +796,7 @@ char* ProgramSender::AllocateDataBuffer(uint32_t size)
   // Set buffer(or nullptr) to textbox
   text_box.SetText(p_text);
   // Update free memory info
-  UpdateMemoryInfo();
+  Application::GetInstance().UpdateMemoryInfo();
   // Return result
   return p_text;
 }
@@ -789,7 +819,7 @@ void ProgramSender::ReleaseDataPointer()
   // Set null data pointer
   text_box.SetText(nullptr);
   // Update free memory info
-  UpdateMemoryInfo();
+  Application::GetInstance().UpdateMemoryInfo();
 }
 
 // *****************************************************************************

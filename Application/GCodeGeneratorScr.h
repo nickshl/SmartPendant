@@ -1,10 +1,10 @@
 //******************************************************************************
-//  @file ProgramSender.h
+//  @file GCodeGeneratorScr.h
 //  @author Nicolai Shlapunov
 //
-//  @details ProgramSender: User ProgramSender Class, header
+//  @details CodeGeneratorScr: User CodeGeneratorScr Class, header
 //
-//  @copyright Copyright (c) 2023, Devtronic & Nicolai Shlapunov
+//  @copyright Copyright (c) 2025, Devtronic & Nicolai Shlapunov
 //             All rights reserved.
 //
 //  @section SUPPORT
@@ -15,8 +15,8 @@
 //
 //******************************************************************************
 
-#ifndef ProgramSender_h
-#define ProgramSender_h
+#ifndef GCodeGeneratorScr_h
+#define GCodeGeneratorScr_h
 
 // *****************************************************************************
 // ***   Includes   ************************************************************
@@ -26,15 +26,12 @@
 #include "UiEngine.h"
 
 #include "IScreen.h"
-#include "DataWindow.h"
-#include "GrblComm.h"
-#include "InputDrv.h"
+#include "Tabs.h"
 #include "Menu.h"
-#include "TextBox.h"
+#include "MsgBox.h"
+#include "ChangeValueBox.h"
 
-// *****************************************************************************
-// ***   Local const variables   ***********************************************
-// *****************************************************************************
+#include "Little-C.h"
 
 // *****************************************************************************
 // ***   Defines   *************************************************************
@@ -42,15 +39,15 @@
 #define BG_Z (100)
 
 // *****************************************************************************
-// ***   ProgramSender Class   *************************************************
+// ***   CodeGeneratorScr Class   **********************************************
 // *****************************************************************************
-class ProgramSender : public IScreen
+class GCodeGeneratorScr : public IScreen
 {
   public:
     // *************************************************************************
     // ***   Get Instance   ****************************************************
     // *************************************************************************
-    static ProgramSender& GetInstance();
+    static GCodeGeneratorScr& GetInstance();
 
     // *************************************************************************
     // ***   Setup function   **************************************************
@@ -77,34 +74,19 @@ class ProgramSender : public IScreen
     // *************************************************************************
     virtual Result ProcessCallback(const void* ptr);
 
-    // *************************************************************************
-    // ***   Public: AllocateDataBuffer   **************************************
-    // *************************************************************************
-    char* AllocateDataBuffer(uint32_t& size);
-
-    // *************************************************************************
-    // ***   Public: GetDataBufferPtr   ****************************************
-    // *************************************************************************
-    char* GetDataBufferPtr() {return p_text;}
-
-    // *************************************************************************
-    // ***   Public: ReleaseDataPointer   **************************************
-    // *************************************************************************
-    void ReleaseDataPointer();
-
   private:
     static const uint8_t BORDER_W = 4u;
 
-    // Run flag
-    bool run = false;
-    bool finished = false;
-    // Current position
-    uint32_t idx = 0u;
-    // Current cmd ID
-    uint32_t id = 0u;
-
     // Pointer to text buffer used if program loaded completely
     char* p_text = nullptr;
+
+    // Interpreter for C-like language to generate G-Code
+    LittleC interpreter;
+
+    // Pages
+    Tabs tabs;
+    // Caption
+    char script_caption_str[32u];
 
     // Strings
     char str[32u][32u + 1u] = {0};
@@ -113,36 +95,15 @@ class ProgramSender : public IScreen
     // Menu object
     Menu menu;
 
-    // Text box for program
-    TextBox text_box;
+    // Message box to display errors
+    MsgBox msg_box;
 
-    // Soft Buttons
-    UiButton& left_btn;
-    UiButton& middle_btn;
-    UiButton& right_btn;
-
-    // *************************************************************************
-    // *** Feeds & Speeds override   *******************************************
-    // *************************************************************************
-
-    // String for caption
-    String feed_name;
-    // Data windows to show current value
-    DataWindow feed_dw;
-    // Feed value
-    int32_t feed_val = 0;
-
-    // String for caption
-    String speed_name;
-    // Data windows to show current value
-    DataWindow speed_dw;
-    // Feed value
-    int32_t speed_val = 0;
-
-    // Buttons for control flood coolant
-    UiButton flood_btn;
-    // Buttons for control mist coolant
-    UiButton mist_btn;
+    // Object to change numerical parameters
+    ChangeValueBox& change_box;
+    // Caption for change_box
+    char change_box_caption_str[32u];
+    // Units for change_box
+    char change_box_units_str[16u];
 
     // *************************************************************************
     // *************************************************************************
@@ -153,36 +114,70 @@ class ProgramSender : public IScreen
     // GRBL Communication Interface instance
     GrblComm& grbl_comm = GrblComm::GetInstance();
 
-    // Encoder value
-    int32_t enc_val = 0u;
-
-    // Encoder callback entry
-    InputDrv::CallbackListEntry enc_cble;
-
-    // *************************************************************************
-    // ***   Private: ProcessSpeedFeed function   ******************************
-    // *************************************************************************
-    Result ProcessSpeedFeed();
-
     // *************************************************************************
     // ***   Private: ProcessMenuOkCallback function   *************************
     // *************************************************************************
-    static Result ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr);
+    static Result ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void* ptr);
 
     // *************************************************************************
     // ***   Private: ProcessMenuCancelCallback function   *********************
     // *************************************************************************
-    static Result ProcessMenuCancelCallback(ProgramSender* obj_ptr, void* ptr);
+    static Result ProcessMenuCancelCallback(GCodeGeneratorScr* obj_ptr, void* ptr);
 
     // *************************************************************************
-    // ***   Private: ProcessEncoderCallback function   ************************
+    // ***   Private: UpdateMenuStrings   **************************************
     // *************************************************************************
-    static Result ProcessEncoderCallback(ProgramSender* obj_ptr, void* ptr);
+    void UpdateMenuStrings();
+
+    // *************************************************************************
+    // ***   Private: AllocateDataBuffer   *************************************
+    // *************************************************************************
+    char* AllocateDataBuffer(uint32_t size);
+
+    // *************************************************************************
+    // ***   Private: ReleaseDataPointer   *************************************
+    // *************************************************************************
+    void ReleaseDataPointer();
+
+    // *************************************************************************
+    // ***   Private: GetGlobalVariableCommentString   *************************
+    // *************************************************************************
+    bool GetGlobalVariableCommentString(uint32_t variable_idx, char* ptr, uint32_t n, uint32_t pos);
+
+    // *************************************************************************
+    // ***   Private: GetGlobalVariableCommentNumber   *************************
+    // *************************************************************************
+    bool GetGlobalVariableCommentNumber(uint32_t variable_idx, int32_t& value, uint32_t pos);
+
+    // *************************************************************************
+    // ***   Public: GetGlobalVariableDescription   ****************************
+    // *************************************************************************
+    bool GetGlobalVariableDescription(uint32_t variable_idx, char* ptr, uint32_t n);
+
+    // *************************************************************************
+    // ***   Public: GetGlobalVariableScaler   *********************************
+    // *************************************************************************
+    bool GetGlobalVariableScaler(uint32_t variable_idx, int32_t& scaler);
+
+    // *************************************************************************
+    // ***   Public: GetGlobalVariableUnits   **********************************
+    // *************************************************************************
+    bool GetGlobalVariableUnits(uint32_t variable_idx, char* ptr, uint32_t n);
+
+    // *************************************************************************
+    // ***   Private: GetGlobalVariableMinVal   ********************************
+    // *************************************************************************
+    bool GetGlobalVariableMinVal(uint32_t variable_idx, int32_t& min);
+
+    // *************************************************************************
+    // ***   Private: GetGlobalVariableMaxVal   ********************************
+    // *************************************************************************
+    bool GetGlobalVariableMaxVal(uint32_t variable_idx, int32_t& max);
 
     // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    ProgramSender();
+    GCodeGeneratorScr();
 };
 
 #endif

@@ -1280,6 +1280,76 @@ bool GrblComm::ParseInt(int32_t& value, char* data)
 }
 
 // *****************************************************************************
+// ***   Private: ParseSettings function   *************************************
+// *****************************************************************************
+void GrblComm::ParseSettings(char* data)
+{
+  char *s = strchr(data, '=');
+  // If  '=' sign found
+  if(s)
+  {
+    // Replace '=' with null-terminator
+    *s++ = '\0';
+
+    // Find settings number
+    uint32_t setting_num = atoi(&data[1]);
+
+    // Find setting and store it
+    switch(setting_num)
+    {
+      // *********************************************************************
+      case 13:
+        if(measurement_system != atoi(s))
+        {
+          measurement_system = atoi(s);
+          settings_changed = true;
+        }
+        break;
+
+        // *********************************************************************
+        case 22:
+          if(homing != atoi(s))
+          {
+            homing = atoi(s);
+            settings_changed = true;
+          }
+          break;
+
+      // *********************************************************************
+      case 30:
+        if(spindle_speed_max != atol(s))
+        {
+          spindle_speed_max = atol(s);
+          settings_changed = true;
+        }
+        break;
+
+      // *********************************************************************
+      case 31:
+        if(spindle_speed_min != atol(s))
+        {
+          spindle_speed_min = atol(s);
+          settings_changed = true;
+        }
+        break;
+
+      // *********************************************************************
+      case 32:
+        if(mode_of_operation != atoi(s))
+        {
+          mode_of_operation = atoi(s);
+          settings_changed = true;
+        }
+        break;
+
+      // *********************************************************************
+      default:
+        break;
+    }
+  }
+}
+
+// *****************************************************************************
 // ***   Private: ParseAxisData function   *************************************
 // *****************************************************************************
 bool GrblComm::ParseAxisData(char* data, float (&axis)[AXIS_CNT])
@@ -1402,74 +1472,6 @@ void GrblComm::ParseData(void)
     respond_pending = false;
     grbl_status = Status_OK;
     return;
-  }
-
-  // Parse settings
-  if(line[0] == '$')
-  {
-    char *s = strchr(line, '=');
-    // If  '=' sign found
-    if(s)
-    {
-      // Replace '=' with null-terminator
-      *s++ = '\0';
-
-      // Find settings number
-      uint32_t setting_num = atoi(&line[1]);
-
-      // Find setting and store it
-      switch(setting_num)
-      {
-        // *********************************************************************
-        case 13:
-          if(measurement_system != atoi(s))
-          {
-            measurement_system = atoi(s);
-            settings_changed = true;
-          }
-          break;
-
-          // *********************************************************************
-          case 22:
-            if(homing != atoi(s))
-            {
-              homing = atoi(s);
-              settings_changed = true;
-            }
-            break;
-
-        // *********************************************************************
-        case 30:
-          if(spindle_speed_max != atol(s))
-          {
-            spindle_speed_max = atol(s);
-            settings_changed = true;
-          }
-          break;
-
-        // *********************************************************************
-        case 31:
-          if(spindle_speed_min != atol(s))
-          {
-            spindle_speed_min = atol(s);
-            settings_changed = true;
-          }
-          break;
-
-        // *********************************************************************
-        case 32:
-          if(mode_of_operation != atoi(s))
-          {
-            mode_of_operation = atoi(s);
-            settings_changed = true;
-          }
-          break;
-
-        // *********************************************************************
-        default:
-          break;
-      }
-    }
   }
 
   // Parse status
@@ -1644,6 +1646,10 @@ void GrblComm::ParseData(void)
     {
       ; // Do nothing - MISRA rule
     }
+  }
+  else if(line[0] == '$') // Parse settings
+  {
+    ParseSettings(line);
   }
   else if(!strncmp(line, "error:", 6))
   {

@@ -62,15 +62,44 @@ Result Menu::Setup(int32_t x, int32_t y, int32_t w, int32_t h)
     result = Result::RESULT_OK;
   }
 
+  // Width depends how many buttons we have
+  int32_t btn_width = display_drv.GetScreenW() / 2 - BORDER_W;
+
   // Left soft button
-  left_btn.SetParams("Select", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, display_drv.GetScreenW() / 2 - BORDER_W, Font_8x12::GetInstance().GetCharH() * 3, true);
+  left_btn.SetParams("Select", 0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3, btn_width, Font_8x12::GetInstance().GetCharH() * 3, true);
   left_btn.SetCallback(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this);
   // Right soft button
-  right_btn.SetParams("Cancel", display_drv.GetScreenW() - left_btn.GetWidth(), left_btn.GetStartY(), left_btn.GetWidth(), left_btn.GetHeight(), true);
+  right_btn.SetParams("Cancel", display_drv.GetScreenW() - btn_width, left_btn.GetStartY(), btn_width, left_btn.GetHeight(), true);
   right_btn.SetCallback(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this);
 
   // Return result
   return result;
+}
+
+// *****************************************************************************
+// ***   Public: SetCount   ****************************************************
+// *****************************************************************************
+void Menu::SetCount(int32_t in_cnt)
+{
+  // If new count less than current, we have to hide all excessive lines
+  for(int32_t i = in_cnt; i < cnt; i++)
+  {
+    ptr[i].str.Hide();
+  }
+  // Save count
+  cnt = in_cnt;
+  // Correct selected line if needed
+  if(cur_pos >= cnt)
+  {
+    cur_pos = 0;
+    // Set selection box parameters
+    box.SetParams(ptr[cur_pos].str.GetStartX(), ptr[cur_pos].str.GetStartY(), list.GetWidth(), ptr[cur_pos].str.GetHeight(), COLOR_BLUE, true);
+  }
+  // Show all lines
+  for(int32_t i = 0u; i < cnt; i++)
+  {
+    ptr[i].str.Show(1);
+  }
 }
 
 // *****************************************************************************

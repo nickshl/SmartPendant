@@ -70,6 +70,9 @@ Result Application::Setup()
   // Initialize header
   InitHeader();
 
+  // Initialize memory info string
+  mem_info.SetParams(mem_info_buf, 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
+
   // Setup all screens
   for(uint32_t i = 0u; i < scr_cnt; i++)
   {
@@ -372,6 +375,21 @@ void Application::ChangeScreen(IScreen& screen)
 }
 
 // *****************************************************************************
+// ***   Public: UpdateMemoryInfo function   ***********************************
+// *****************************************************************************
+void Application::UpdateMemoryInfo()
+{
+  // Get memory stats from FreeRTOS
+  HeapStats_t HeapStats;
+  vPortGetHeapStats(&HeapStats);
+  snprintf(mem_info_buf, sizeof(mem_info_buf), "Available memory: %db", HeapStats.xSizeOfLargestFreeBlockInBytes);
+  // Update string and recalculate size
+  mem_info.SetString(mem_info_buf, true);
+  // Set string params
+  mem_info.SetParams(mem_info_buf, display_drv.GetScreenW()/2 - mem_info.GetWidth()/2, 30, COLOR_WHITE, Font_6x8::GetInstance());
+}
+
+// *****************************************************************************
 // ***   Private: ProcessButtonCallback function   *****************************
 // *****************************************************************************
 Result Application::ProcessButtonCallback(Application* obj_ptr, void* ptr)
@@ -469,23 +487,13 @@ void Application::InitHeader()
   }
   header.SetText(scr_cnt, "GCODE SENDER", Font_12x16::GetInstance());
   scr[scr_cnt++] = &ProgramSender::GetInstance();
+  header.SetText(scr_cnt, "GCODE GENERATOR", Font_12x16::GetInstance());
+  scr[scr_cnt++] = &GCodeGeneratorScr::GetInstance();
   // Probing available only for mill
   if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_MILL)
   {
     header.SetText(scr_cnt, "PROBE", Font_12x16::GetInstance());
     scr[scr_cnt++] = &ProbeScr::GetInstance();
-  }
-  // Milling Operation available only for mill
-  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_MILL)
-  {
-    header.SetText(scr_cnt, "MILLING OPERATIONS", Font_12x16::GetInstance());
-    scr[scr_cnt++] = &MillOpsScr::GetInstance();
-  }
-  // Turning Operation available only for lathe
-  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE)
-  {
-    header.SetText(scr_cnt, "TURNING OPERATIONS", Font_12x16::GetInstance());
-    scr[scr_cnt++] = &LatheOpsScr::GetInstance();
   }
   header.SetText(scr_cnt, "SETTINGS", Font_12x16::GetInstance());
   scr[scr_cnt++] = &SettingsScr::GetInstance();

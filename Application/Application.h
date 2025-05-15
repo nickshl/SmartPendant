@@ -43,8 +43,7 @@
 #include "RotaryTableScr.h"
 #include "ProgramSender.h"
 #include "ProbeScr.h"
-#include "MillOpsScr.h"
-#include "LatheOpsScr.h"
+#include "GCodeGeneratorScr.h"
 #include "SettingsScr.h"
 
 // *****************************************************************************
@@ -158,6 +157,21 @@ class Application : public AppTask
     void ChangeScreen(IScreen& screen);
 
     // *************************************************************************
+    // ***   Public: ShowMemoryInfo function   *********************************
+    // *************************************************************************
+    void ShowMemoryInfo() {UpdateMemoryInfo(); mem_info.Show(10000);}
+
+    // *************************************************************************
+    // ***   Public: HideMemoryInfo function   *********************************
+    // *************************************************************************
+    void HideMemoryInfo() {mem_info.Hide();}
+
+    // *************************************************************************
+    // ***   Public: UpdateMemoryInfo function   ******************************
+    // *************************************************************************
+    void UpdateMemoryInfo();
+
+    // *************************************************************************
     // ***   Public: EnableScreenChange function   *****************************
     // *************************************************************************
     void EnableScreenChange() {header.Enable(); mpg_btn.Enable();}
@@ -196,6 +210,10 @@ class Application : public AppTask
     DataWindow dw_real[GrblComm::AXIS_CNT];
     // String for caption
     String dw_real_name[NumberOf(dw_real)];
+
+    // Memory info
+    String mem_info;
+    char mem_info_buf[32u];
 
     // Soft Buttons
     UiButton left_btn;

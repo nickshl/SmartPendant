@@ -34,7 +34,7 @@ class Header : public VisObject
 {
   public:
     // Maximum allowed number of pages
-    static constexpr uint32_t MAX_PAGES = 16u;
+    static constexpr uint32_t MAX_PAGES = 8u;
 
     // *************************************************************************
     // ***   Public: Constructor   *********************************************
