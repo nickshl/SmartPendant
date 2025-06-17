@@ -79,11 +79,14 @@ class DirectControlScr : public IScreen
   private:
     static constexpr uint8_t BORDER_W = 4u;
 
-    // String for caption
+    // String for version
     String version;
+    // Value for speed
+    int32_t jog_val = 0;
     // Jogging values
     int32_t axis_jog_val[GrblComm::AXIS_CNT] = {0};
-    int32_t jog_val = 0;
+    // Jogging direction
+    int32_t axis_jog_dir[GrblComm::AXIS_CNT] = {0};
 
     // Current selected axis
     GrblComm::Axis_t axis = GrblComm::AXIS_CNT;

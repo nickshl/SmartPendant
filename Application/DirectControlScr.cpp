@@ -252,15 +252,6 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
     {
       // Calculate distance - number of encoder clicks multiplied by click value
       int32_t distance = axis_jog_val[i] * scale;
-      // Feed in encoder clicks per second
-      uint32_t feed = InputDrv::GetInstance().GetEncoderSpeed();
-      // 20 clicks per second as minimum feed
-      if(feed < 20u) feed = 20u;
-      // Feed in units(1 um or 0.0001 inch depend on controller settings) per second
-      feed *= scale;
-      // Convert feed from units/sec to units*100/min
-      feed = feed * 60u / 10u;
-
       // In Lathe mode we need some changes
       if((i == GrblComm::AXIS_X) && (grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE))
       {
@@ -269,7 +260,36 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
         distance = -distance;
       }
 
-      result = grbl_comm.Jog(i, distance, feed, false);
+      // Feed in mm/min
+      uint32_t feed_x100 = 600u * 100u; // TODO: Make it configurable?
+      // If jogging direction is not changed
+      if(((axis_jog_dir[i] < 0) && (axis_jog_val[i] < 0)) || ((axis_jog_dir[i] > 0) && (axis_jog_val[i] > 0)))
+      {
+        // Feed in encoder clicks per second
+        feed_x100 = InputDrv::GetInstance().GetEncoderSpeed();
+        // 20 clicks per second as minimum feed
+        if(feed_x100 < 20u) feed_x100 = 20u;
+        // Feed in units(1 um or 0.0001 inch depend on controller settings) per second
+        feed_x100 *= scale;
+        // Convert feed from units/sec to units*100/min
+        feed_x100 = feed_x100 * 60u / 10u;
+      }
+      else // And if direction is changed
+      {
+        // grblHAL uses requested feed rate to make backlash movement to
+        // guarantee that endmill never will work outside specified feed rate.
+        // During jogging feedrate can be as slow as 20 um per second(in case
+        // if 1 um step is selected). As result it will take 5 seconds to make
+        // 0.1 mm backlash movement. So, set feed to 600 mm/min when direction
+        // is changed to make quick backlash movement.
+
+        // Save direction of jog. axis_jog_val[i] can't be zero here since we
+        // already checked it above.
+        axis_jog_dir[i] = axis_jog_val[i] > 0 ? 1 : -1;
+      }
+
+      // Jog machine
+      result = grbl_comm.Jog(i, distance, feed_x100, false);
 
       // Clear value
       axis_jog_val[i] = 0;
