@@ -74,7 +74,7 @@ class Application : public AppTask
     // *************************************************************************
     // ***   Public: TimerExpired function   ***********************************
     // *************************************************************************
-    virtual Result TimerExpired();
+    virtual Result TimerExpired(uint32_t missed_cnt);
 
     // *************************************************************************
     // ***   Public: ProcessMessage function   *********************************
@@ -183,7 +183,7 @@ class Application : public AppTask
 
   private:
     // Timer period
-    static const uint32_t TASK_TIMER_PERIOD_MS = 20U;
+    static const uint32_t TASK_TIMER_PERIOD_MS = 20u;
     // Border width
     static constexpr uint8_t BORDER_W = 4u;
 

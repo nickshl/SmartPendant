@@ -163,7 +163,11 @@ uint32_t CalibrateHSI()
   // TIM11 clocked from AHB2. This clock equal system clock. TIM11 input capture
   // connected to HSE_RTC clock, which should be 1MHz. As result, TIM11 should
   // count SystemCoreClock / 1000000 cycles per RTC clock cycle.
-  while(1)
+  // Since calibration value is 5 bits, it mean that we need not more than 32
+  // iterations to calibrate HSI to match 1MHz RTC clock. In some cases code
+  // below can "oscillate" around the target value, so we limit it to 31
+  // iterations.
+  for(uint32_t i = 0; i < 0x1Fu; i++)
   {
     // Get measurement
     uint32_t count = CaptureClockValue();

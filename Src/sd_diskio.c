@@ -488,6 +488,7 @@ DRESULT SD_write(BYTE lun, const BYTE *buff, DWORD sector, UINT count)
 #endif
   }
 #if defined(ENABLE_SCRATCH_BUFFER)
+  }
   else {
     /* Slow path, fetch each sector a part and memcpy to destination buffer */
     int i;
@@ -557,7 +558,6 @@ DRESULT SD_write(BYTE lun, const BYTE *buff, DWORD sector, UINT count)
         res = RES_OK;
     }
 
-  }
 #endif
 
   return res;

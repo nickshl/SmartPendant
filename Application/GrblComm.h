@@ -306,7 +306,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: TimerExpired function   ***********************************
     // *************************************************************************
-    virtual Result TimerExpired();
+    virtual Result TimerExpired(uint32_t missed_cnt);
 
     // *************************************************************************
     // ***   Public: ProcessMessage function   *********************************
@@ -816,6 +816,9 @@ class GrblComm : public AppTask
     // Flag to show if we trying to gain control
     bool mpg_mode_request = true;
 
+    // Command to request status. On MPG gain control request it would be replaced
+    // request full status report command. Then it will reverted back.
+    uint8_t status_request_command = CMD_STATUS_REPORT_LEGACY;
     // Flag show that status received after request. New status request will
     // not send until previous response received.
     bool status_received = true;

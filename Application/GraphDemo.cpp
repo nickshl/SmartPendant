@@ -330,11 +330,11 @@ void SoundControlBox::Action(VisObject::ActionType action, int32_t tx, int32_t t
       // Update image
       if(mute == true)
       {
-        SetImage(mute_img[0], true); // Don't take semaphore - already taken
+        SetImage(mute_img[0]); // Don't take semaphore - already taken
       }
       else
       {
-        SetImage(mute_img[1], true); // Don't take semaphore - already taken
+        SetImage(mute_img[1]); // Don't take semaphore - already taken
       }
       break;
 

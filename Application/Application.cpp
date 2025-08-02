@@ -100,7 +100,7 @@ Result Application::Setup()
 // *****************************************************************************
 // ***   Public: TimerExpired function   ***************************************
 // *****************************************************************************
-Result Application::TimerExpired()
+Result Application::TimerExpired(uint32_t missed_cnt)
 {
   // Update state & status
   state_str.SetString(grbl_comm.GetCurrentStateName());

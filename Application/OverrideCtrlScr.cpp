@@ -208,7 +208,7 @@ Result OverrideCtrlScr::TimerExpired(uint32_t interval)
       feed_val--;
     }
   }
-  else if (feed_val < 0)
+  else if(feed_val < 0)
   {
     if(feed_val < -10)
     {
@@ -240,7 +240,7 @@ Result OverrideCtrlScr::TimerExpired(uint32_t interval)
       speed_val--;
     }
   }
-  else if (speed_val < 0)
+  else if(speed_val < 0)
   {
     if(speed_val < -10)
     {

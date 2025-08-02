@@ -64,7 +64,7 @@ Result GrblComm::Setup()
 // *****************************************************************************
 // ***   Public: TimerExpired function   ***************************************
 // *****************************************************************************
-Result GrblComm::TimerExpired()
+Result GrblComm::TimerExpired(uint32_t missed_cnt)
 {
   // Process any received data
   PollSerial();
@@ -125,7 +125,9 @@ Result GrblComm::TimerExpired()
     // Status received flag
     status_received = false;
     // Request status
-    uart->Write((uint8_t*)"?", 1u);
+    uart->Write(&status_request_command, 1u);
+    // Revert status command to short one
+    status_request_command = CMD_STATUS_REPORT_LEGACY;
 
 #if defined(SEND_DATA_TO_USB)
     // Send to USB
@@ -301,6 +303,8 @@ void GrblComm::GainControl()
   grbl_received.mpg = false;
   // Set flag to indicate we want to gain control
   mpg_mode_request = true;
+  // Request full status report first time after connect
+  status_request_command = CMD_STATUS_REPORT_ALL;
 }
 
 // *****************************************************************************

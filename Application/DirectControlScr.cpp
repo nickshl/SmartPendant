@@ -147,6 +147,7 @@ Result DirectControlScr::Show()
 
   // Spindle control
   spindle_dw.Show(100);
+  spindle_dw.SetSelected(false); // Disable to reset speed override on select
   spindle_name.Show(101);
   spindle_dir_btn.Show(100);
   spindle_ctrl_btn.Show(100);
@@ -488,6 +489,14 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
       }
       if(ptr == &spindle_dw)
       {
+        // If speed override is not 100%
+        if(grbl_comm.GetSpeedOverride() != 100u)
+        {
+          // Set speed override to 100%
+          grbl_comm.SpeedReset();
+          // Set spindle speed to current value to match previous value with override
+          grbl_comm.SetSpindleSpeed(spindle_dw.GetNumber(), grbl_comm.IsSpindleCCW());
+        }
         // Select spindle data window
         spindle_dw.SetSelected(true);
         // Not an axis
