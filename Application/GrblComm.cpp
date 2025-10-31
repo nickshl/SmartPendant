@@ -42,12 +42,12 @@ GrblComm& GrblComm::GetInstance(void)
 // *****************************************************************************
 // ***   Init GrblComm Task   **************************************************
 // *****************************************************************************
-void GrblComm::InitTask(StHalUart& uart_in)
+Result GrblComm::InitTask(StHalUart& uart_in)
 {
   // Save UART handle
   uart = &uart_in;
   // Create task
-  CreateTask();
+  return AppTask::InitTask();
 }
 
 // *****************************************************************************

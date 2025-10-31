@@ -22,8 +22,6 @@
 
 #include "Application.h"
 
-#include "Version.h"
-
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
 // *****************************************************************************
@@ -38,6 +36,10 @@ DirectControlScr& DirectControlScr::GetInstance()
 // *****************************************************************************
 Result DirectControlScr::Setup(int32_t y, int32_t height)
 {
+  // Get crystal frequency. PLL configured in such way, that input frequency
+  // divided to be 1 MHz. So, divider is equal to actual crystal frequency.
+  uint32_t crystal_freq = ((RCC->PLLCFGR & RCC_PLLCFGR_PLLM_Msk) >> RCC_PLLCFGR_PLLM_Pos);
+
   int32_t start_y = y + BORDER_W;
   // Data window height
   uint32_t window_height = (height - Font_8x12::GetInstance().GetCharH() - BORDER_W) / (grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)) + 2) - BORDER_W*2;
@@ -103,8 +105,10 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
   spindle_ctrl_btn.SetParams("START", spindle_dir_btn.GetEndX() + 1 + BORDER_W, spindle_dir_btn.GetStartY(), spindle_dir_btn.GetWidth(), window_height, true);
   spindle_ctrl_btn.SetCallback(AppTask::GetCurrent());
 
+  // Create version string with oscillator frequency
+  snprintf(ver_txt, sizeof(ver_txt), "%s %luMHz", VERSION, crystal_freq);
   // Version string
-  version.SetParams(VERSION, BORDER_W, scale_btn[0].GetEndY() + (spindle_dw.GetStartY() - scale_btn[0].GetEndY() -  Font_8x12::GetInstance().GetCharH()) / 2, COLOR_WHITE, Font_8x12::GetInstance());
+  version.SetParams(ver_txt, BORDER_W, scale_btn[0].GetEndY() + (spindle_dw.GetStartY() - scale_btn[0].GetEndY() -  Font_8x12::GetInstance().GetCharH()) / 2, COLOR_WHITE, Font_8x12::GetInstance());
 
   // All good
   return Result::RESULT_OK;

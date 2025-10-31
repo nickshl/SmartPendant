@@ -42,6 +42,8 @@
 // ***   Functions   ***********************************************************
 // *****************************************************************************
 
+// Detect which crystal can configure clock value
+void DetectCrystalValue();
 // Jump to internal bootloader
 void Bootloader();
 // Function to get calibration value for HSI
@@ -80,13 +82,10 @@ static Eeprom24 eep(iic1, nullptr, 0x8000u, 64u);
 // *****************************************************************************
 extern "C" void AppMain(void)
 {
+  // Detect 25 or 8 MHz crystal is used
+  DetectCrystalValue();
   // Check top edge button state and if it pressed - jump to internal bootloader
   if(btn_usr.IsLow()) Bootloader();
-  // Since we started witch 16MHz HSI to have it enabled in case we need
-  // calibrate HSI before enter into bootloader, we need to configure the main
-  // PLL back to source HSE source and set PLLM divider 25 for 25 MHz crystal
-  // oscillator.
-  ConfigurePll(RCC_PLLSOURCE_HSE, 25u);
 
   // Init NVM
   NVM::GetInstance().Init(eep);
@@ -114,6 +113,36 @@ extern "C" void AppMain(void)
     // Init Application Task
     Application::GetInstance().InitTask();
   }
+}
+
+// *****************************************************************************
+// ***   DetectCrystalValue() function   ***************************************
+// *****************************************************************************
+void DetectCrystalValue()
+{
+  // PLLM divider for 25 MHz crystal oscillator by default
+  uint32_t pllm = 25u;
+
+  // Configure the main PLL: HSI 16MHz
+  ConfigurePll(RCC_PLLSOURCE_HSI, 16u);
+
+  // If measured count is more than 1.5 times more than expected, then 8MHz
+  // crystal oscillator is used.
+  if(CaptureClockValue() > (SystemCoreClock * 3u / 2u / 1000000u))
+  {
+    // Set PLLN to 8 for 8MHz crystal oscillator
+    pllm = 8u;
+    // Activation RTC clock as HSE / 8 which should give 1 MHz with 8 MHz Crystal Oscillator
+    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+    PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_HSE_DIV8;
+    if(HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) Error_Handler();
+    // RTC clock enable
+    __HAL_RCC_RTC_ENABLE();
+  }
+
+  // Configure the main PLL: source HSE, PLLM divider 25 or 8.
+  ConfigurePll(RCC_PLLSOURCE_HSE, pllm);
 }
 
 // *****************************************************************************

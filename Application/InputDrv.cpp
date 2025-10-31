@@ -51,13 +51,13 @@ InputDrv& InputDrv::GetInstance(void)
 // *****************************************************************************
 // ***   Init Input Driver Task   **********************************************
 // *****************************************************************************
-void InputDrv::InitTask(TIM_HandleTypeDef& htm, uint32_t ch)
+Result InputDrv::InitTask(TIM_HandleTypeDef& htm, uint32_t ch)
 {
   // Save timer handle and channel
   htim = &htm;
   channel = ch;
   // Create task
-  CreateTask();
+  return AppTask::InitTask();
 }
 
 // *****************************************************************************
