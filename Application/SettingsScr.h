@@ -86,13 +86,15 @@ class SettingsScr : public IScreen
       PROBE_SEARCH_FEED,
       PROBE_LOCK_FEED,
       PROBE_BALL_TIP,
+      JOGGING_SPEED,
       MAX_ITEMS
     };
 
     // Menu item strings. This array must match the enum above!
     const char* const menu_strings[MAX_ITEMS] =
     {
-      "MPG request", "Display Inversion", "Probe search speed", "Probe lock speed", "Probe ball tip"
+      "MPG request", "Display Inversion", "Probe search speed", "Probe lock speed", "Probe ball tip",
+      "Jogging speed"
     };
 
     // Strings
