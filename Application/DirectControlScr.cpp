@@ -21,6 +21,7 @@
 #include "DirectControlScr.h"
 
 #include "Application.h"
+#include "NVM.h"
 
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
@@ -70,13 +71,17 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
     // Calculate scale button width
     uint32_t scale_btn_w = (display_drv.GetScreenW() - BORDER_W * (NumberOf(scale_btn) + 1u)) / NumberOf(scale_btn);
     // Set scale button parameters
-    scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], BORDER_W + i * (scale_btn_w + BORDER_W), dw[grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)) - 1u].GetEndY() + BORDER_W*2, scale_btn_w, window_height, true);
+    scale_btn[i].SetParams("", // correct label is set in Show()
+                           BORDER_W + i * (scale_btn_w + BORDER_W),
+                           dw[grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)) - 1u].GetEndY() + BORDER_W*2,
+                           scale_btn_w, window_height, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent());
     scale_btn[i].SetSpacing(3u);
   }
 
-  // Set corresponded button pressed
-  scale_btn[2u].SetPressed(true);
+  // Set most coarse scale button to pressed
+  NVM& nvm = NVM::GetInstance();
+  scale_btn[nvm.GetFastJogging() ? 3u : 2u].SetPressed(true);
   // Set scale 0.01 mm
   scale = grbl_comm.IsMetric() ? scale_val_metric[2u] : scale_val_imperial[2u];
 
@@ -130,8 +135,27 @@ Result DirectControlScr::Show()
     zero_btn[i].Show(100);
   }
   // Scale buttons
+  NVM& nvm = NVM::GetInstance();
+  uint32_t offset = nvm.GetFastJogging() ? 1 : 0;
+  if (grbl_comm.IsMetric())
+  {
+    static const char* scale_labels[] = { "0.001", "0.005", "0.01", "0.1", "1.0" };
+    for (uint32_t i = 0; i < NumberOf(scale_btn); ++i)
+    {
+      sprintf(scale_str_metric[i], "%s\nmm", scale_labels[i + offset]);
+    }
+  }
+  else
+  {
+    static const char* scale_labels[] = { "0.0001", "0.0002", "0.0005", "0.005", "0.01" };
+    for (uint32_t i = 0; i < NumberOf(scale_btn); ++i)
+    {
+      sprintf(scale_str_imperial[i], "%s\ninch", scale_labels[i + offset]);
+    }
+  }
   for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
   {
+    scale_btn[i].SetString(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i]);
     scale_btn[i].Show(100);
   }
   // Set current axis to none for prevent accidental movement

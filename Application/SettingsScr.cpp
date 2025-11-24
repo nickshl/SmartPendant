@@ -138,6 +138,11 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       ths.nvm.SetDisplayInvert(!ths.nvm.GetDisplayInvert());
       ths.display_drv.InvertDisplay(ths.nvm.GetDisplayInvert());
     }
+    else if(idx == JOGGING_SPEED)
+    {
+      ths.nvm.SetFastJogging(!ths.nvm.GetFastJogging());
+      //ths.display_drv.InvertDisplay(ths.nvm.GetDisplayInvert());
+    }
     else
     {
       const char* units = nullptr;
@@ -194,6 +199,7 @@ void SettingsScr::UpdateStrings(void)
   menu.CreateString(menu_items[PROBE_SEARCH_FEED], menu_strings[PROBE_SEARCH_FEED], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_SEARCH_FEED)), grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
   menu.CreateString(menu_items[PROBE_LOCK_FEED],   menu_strings[PROBE_LOCK_FEED],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_LOCK_FEED)), grbl_comm.GetSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
   menu.CreateString(menu_items[PROBE_BALL_TIP],    menu_strings[PROBE_BALL_TIP],    grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_BALL_TIP)), grbl_comm.GetUnitsScaler(), grbl_comm.GetReportUnits()));
+  menu.CreateString(menu_items[JOGGING_SPEED],     menu_strings[JOGGING_SPEED], nvm.GetFastJogging() ? "fast" : "normal");
 }
 
 // ******************************************************************************

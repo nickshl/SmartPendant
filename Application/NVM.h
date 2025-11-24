@@ -47,6 +47,7 @@ class NVM
       PROBE_SEARCH_FEED,
       PROBE_LOCK_FEED,
       PROBE_BALL_TIP,
+      FAST_JOGGING,
       MAX_VALUES
     };
 
@@ -100,6 +101,16 @@ class NVM
     // *************************************************************************
     void SetDisplayInvert(bool invert_display) {data.value[SCREEN_INVERT] = invert_display;}
 
+    // *************************************************************************
+    // ***   GetFastJogging function   ***************************************
+    // *************************************************************************
+    bool GetFastJogging() {return data.value[FAST_JOGGING];}
+
+    // *************************************************************************
+    // ***   SetFastJogging function   ***************************************
+    // *************************************************************************
+    void SetFastJogging(bool fast_jogging) {data.value[FAST_JOGGING] = fast_jogging;}
+
   private:
 
     // Pointer to EEPROM object
@@ -114,7 +125,8 @@ class NVM
         0,    // SCREEN_INVERT
         200,  // PROBE_SEARCH_FEED
         50,   // PROBE_LOCK_FEED
-        2000  // PROBE_BALL_TIP
+        2000, // PROBE_BALL_TIP
+        0,    // FAST_JOGGING
       };
       // CRC
       uint32_t crc = 0u;
