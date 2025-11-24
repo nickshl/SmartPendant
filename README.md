@@ -47,6 +47,19 @@ To make this project yourself, you will need three essential parts:
 * [60 mm 6 pin 100 PPR handwheel](https://s.click.aliexpress.com/e/_DCFuJHr)
 
 This handwheel also works with 3.3V. The STM321F411 pins that the handwheel is connected to are 5V tolerant, so it can be powered from 5V.
+Note that pendant itself needs 5v power supply, it won't work with 3v.
+
+* [3D printed Case](https://github.com/Devtronic-US/SmartPendant/)
+
+## Compatibility
+
+* Controller running latest GrblHAL
+
+* Available UART port
+
+* Controller's UART port should be configured in "MPG & DRO mode"
+
+Detailed instructions how to check compatibility are [available here.](https://www.youtube.com/watch?v=ToWwejkP6e4)
 
 ## Schematic
 
