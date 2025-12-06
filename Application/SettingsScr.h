@@ -26,6 +26,7 @@
 #include "UiEngine.h"
 
 #include "IScreen.h"
+#include "Tabs.h"
 #include "InputDrv.h"
 #include "NVM.h"
 #include "Menu.h"
@@ -77,28 +78,38 @@ class SettingsScr : public IScreen
     virtual Result ProcessCallback(const void* ptr);
 
   private:
+    // Number of menu strings. Set to max number on tab.
+    static constexpr uint32_t MENU_ITEMS = 12u;
+
     // Enum with menu items
-    // TODO: THIS MUST EXACT MATCHED TO NVM::Parameters - need to be fixed
     enum
     {
-      TX_CONTROL,
-      SCREEN_INVERT,
-      PROBE_SEARCH_FEED,
-      PROBE_LOCK_FEED,
-      PROBE_BALL_TIP,
-      MAX_ITEMS
+      GENERAL_TAB,
+      MPG_TAB,
+      PROBE_TAB,
+      MAX_TABS
     };
 
-    // Menu item strings. This array must match the enum above!
-    const char* const menu_strings[MAX_ITEMS] =
+    // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
+    const char* const menu_strings[NVM::MAX_VALUES] =
     {
-      "MPG request", "Display Inversion", "Probe search speed", "Probe lock speed", "Probe ball tip"
+      // General
+      "MPG request", "Display Inversion",
+      // MPG
+      "Metric Feed 1", "Metric Feed 2", "Metric Feed 3", "Metric Feed 4",
+      "Imperial Feed 1", "Imperial Feed 2", "Imperial Feed 3", "Imperial Feed 4",
+      "Rotary Feed 1", "Rotary Feed 2", "Rotary Feed 3", "Rotary Feed 4",
+      // Probe
+      "Probe search speed", "Probe lock speed", "Probe ball tip"
     };
+
+    // Pages
+    Tabs tabs;
 
     // Strings
-    char str[MAX_ITEMS][32u + 1u] = {0};
+    char str[MENU_ITEMS][32u + 1u] = {0};
     // menu items
-    Menu::MenuItem menu_items[MAX_ITEMS];
+    Menu::MenuItem menu_items[MENU_ITEMS];
     // Menu object
     Menu menu;
 
@@ -112,10 +123,18 @@ class SettingsScr : public IScreen
     // NVM instance
     NVM& nvm = NVM::GetInstance();
 
+    // Button callback entry
+    InputDrv::CallbackListEntry btn_cble;
+
     // *************************************************************************
     // ***   Private: ProcessMenuCallback function   ***************************
     // *************************************************************************
     static Result ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr);
+
+    // *************************************************************************
+    // ***   Private: ProcessButtonCallback function   *************************
+    // *************************************************************************
+    static Result ProcessButtonCallback(SettingsScr* obj_ptr, void* ptr);
 
     // *************************************************************************
     // ***   Private: UpdateStrings function   *********************************

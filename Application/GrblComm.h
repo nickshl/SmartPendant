@@ -285,6 +285,7 @@ class GrblComm : public AppTask
     {
       MEASUREMENT_SYSTEM_METRIC = 0u,
       MEASUREMENT_SYSTEM_IMPERIAL,
+      MEASUREMENT_SYSTEM_ROTARY, // For rotary axis works in both systems
       MEASUREMENT_SYSTEM_CNT
     } measurement_system_t;
 
@@ -359,6 +360,11 @@ class GrblComm : public AppTask
     const char* const GetAxisName(uint8_t axis);
 
     // *************************************************************************
+    // ***   Public: IsRotaryAxis function   ***********************************
+    // *************************************************************************
+    bool IsRotaryAxis(uint8_t axis);
+
+    // *************************************************************************
     // ***   Public: GetState function   ***************************************
     // *************************************************************************
     state_t GetState() {return grbl_state;}
@@ -396,12 +402,17 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetCurrentStatusName function   ***************************
     // *************************************************************************
-    const char* const GetCurrentStatusName() {return GetStatusName(grbl_status);}
+    inline const char* const GetCurrentStatusName() {return GetStatusName(grbl_status);}
 
     // *************************************************************************
     // ***   Public: IsSettingsChanged function   ******************************
     // *************************************************************************
     bool IsSettingsChanged() {bool result = settings_changed; settings_changed = false; return result;}
+
+    // *************************************************************************
+    // ***   Public: GetMeasurementSystem function   ***************************
+    // *************************************************************************
+    inline uint8_t GetMeasurementSystem() {return measurement_system;}
 
     // *************************************************************************
     // ***   Public: IsMetric function   ***************************************
@@ -411,17 +422,42 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetUnitsScaler function   *********************************
     // *************************************************************************
-    inline int32_t GetUnitsScaler() {return (IsMetric() ? 1000 : 10000);} // 1 um for metric(base unit mm) / 1 tenths for imperial(base unit inch)
+    inline int32_t GetUnitsScaler(uint8_t ms) {return scaler[ms];}
+
+    // *************************************************************************
+    // ***   Public: GetReportUnitsScaler function   ***************************
+    // *************************************************************************
+    inline int32_t GetReportUnitsScaler() {return GetUnitsScaler(measurement_system);}
+
+    // *************************************************************************
+    // ***   Public: GetReportUnitsScaler function   ***************************
+    // *************************************************************************
+    inline int32_t GetReportUnitsScaler(uint8_t axis) {return (IsRotaryAxis(axis) ? scaler[MEASUREMENT_SYSTEM_ROTARY] : GetReportUnitsScaler());}
 
     // *************************************************************************
     // ***   Public: GetSpeedScaler function   *********************************
     // *************************************************************************
-    inline int32_t GetSpeedScaler() {return (IsMetric() ? 1 : 1);} // 1 mm/min or 1 inch/min
+    inline int32_t GetSpeedScaler(uint8_t ms) {return ((ms == MEASUREMENT_SYSTEM_METRIC) ? 1 : 1);} // 1 mm/min or 1 inch/min or 1 degree/min
 
     // *************************************************************************
-    // ***   Public: GetUnitsPrecision function   *********************************
+    // ***   Public: GetReportSpeedScaler function   ***************************
     // *************************************************************************
-    inline uint32_t GetUnitsPrecision() {return (IsMetric() ? 3u : 4u);} // 0.000 for metric / 0.0000 for imperial
+    inline int32_t GetReportSpeedScaler() {return GetSpeedScaler(measurement_system);}
+
+    // *************************************************************************
+    // ***   Public: GetUnitsPrecision function   ******************************
+    // *************************************************************************
+    inline uint32_t GetUnitsPrecision(uint8_t ms) {return precision[ms];}
+
+    // *************************************************************************
+    // ***   Public: GetReportUnitsPrecision function   ************************
+    // *************************************************************************
+    inline uint32_t GetReportUnitsPrecision() {return GetUnitsPrecision(measurement_system);}
+
+    // *************************************************************************
+    // ***   Public: GetReportUnitsPrecision function   ************************
+    // *************************************************************************
+    inline uint32_t GetReportUnitsPrecision(uint8_t axis) {return (IsRotaryAxis(axis) ? precision[MEASUREMENT_SYSTEM_ROTARY] : GetReportUnitsPrecision());}
 
     // *************************************************************************
     // ***   Public: ConvertMetricToUnits function   ***************************
@@ -434,19 +470,34 @@ class GrblComm : public AppTask
     inline int32_t ConvertUnitsToMetric(int32_t units) {return (IsMetric() ? units : units * 254 / 100);}
 
     // *************************************************************************
-    // ***   Public: GetMeasurementSystem function   ***************************
+    // ***   Public: GetUnits function   ***************************************
     // *************************************************************************
-    uint8_t GetMeasurementSystem() {return measurement_system;}
+    inline static const char* GetUnits(uint8_t ms) {return units[ms];}
+
+    // *************************************************************************
+    // ***   Public: GetSpeedUnits function   **********************************
+    // *************************************************************************
+    inline static const char* GetSpeedUnits(uint8_t ms) {return speed_units[ms];}
 
     // *************************************************************************
     // ***   Public: GetReportUnits function   *********************************
     // *************************************************************************
-    inline const char* GetReportUnits() {return ((measurement_system == MEASUREMENT_SYSTEM_METRIC) ? "mm" : "inch");}
+    inline const char* GetReportUnits() {return GetUnits(measurement_system);}
+
+    // *************************************************************************
+    // ***   Public: GetReportUnits function   *********************************
+    // *************************************************************************
+    inline const char* GetReportUnits(uint8_t axis) {return (IsRotaryAxis(axis) ? units[MEASUREMENT_SYSTEM_ROTARY] : GetReportUnits());}
 
     // *************************************************************************
     // ***   Public: GetReportSpeedUnits function   ****************************
     // *************************************************************************
-    inline const char* GetReportSpeedUnits() {return ((measurement_system == MEASUREMENT_SYSTEM_METRIC) ? "mm/min" : "inches/min");}
+    inline const char* GetReportSpeedUnits() {return GetSpeedUnits(measurement_system);}
+
+    // *************************************************************************
+    // ***   Public: GetReportSpeedUnits function   ****************************
+    // *************************************************************************
+    inline const char* GetReportSpeedUnits(uint8_t axis) {return (IsRotaryAxis(axis) ? speed_units[MEASUREMENT_SYSTEM_ROTARY] : GetReportSpeedUnits());}
 
     // *************************************************************************
     // ***   Public: ValueToStringWithScaler function   ************************
@@ -454,14 +505,19 @@ class GrblComm : public AppTask
     inline char* ValueToStringWithScaler(char* buf, uint32_t buf_size, int32_t val, int32_t scaler) {return ValueToString(buf, buf_size, val, scaler);}
 
     // *************************************************************************
-    // ***   Public: ValueToStringWithScalerAndUnits function   ****************
+    // ***   Public: ValueToStringWithReportScaler function   ******************
     // *************************************************************************
-    inline char* ValueToStringWithScalerAndUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units) {return ValueToStringWithUnits(buf, buf_size, val, scaler, units);}
+    inline char* ValueToStringWithReportScaler(char* buf, uint32_t buf_size, int32_t val) {return ValueToString(buf, buf_size, val, GetReportUnitsScaler());}
 
     // *************************************************************************
-    // ***   Public: ValueToStringInCurrentUnits function   ********************
+    // ***   Public: ValueToStringWithScalerAndUnits function   ****************
     // *************************************************************************
-    inline char* ValueToStringInCurrentUnits(char* buf, uint32_t buf_size, int32_t val) {return ValueToString(buf, buf_size, val, GetUnitsScaler());}
+    inline char* ValueToStringWithScalerAndUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units, bool truncate = false) {return ValueToStringWithUnits(buf, buf_size, val, scaler, units, truncate);}
+
+    // *************************************************************************
+    // ***   Public: ValueToStringWithReportScalerAndUnits function   **********
+    // *************************************************************************
+    inline char* ValueToStringWithReportScalerAndUnits(char* buf, uint32_t buf_size, int32_t val) {return ValueToStringWithUnits(buf, buf_size, val, GetReportUnitsScaler(), GetReportUnits());}
 
     // *************************************************************************
     // ***   Public: GetModeOfOperation function   *****************************
@@ -501,7 +557,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetToolLengthOffset function   ****************************
     // *************************************************************************
-    int32_t GetToolLengthOffset() {return (int32_t)(grbl_tool_length_offset[AXIS_Z] * GetUnitsScaler());}
+    int32_t GetToolLengthOffset() {return (int32_t)(grbl_tool_length_offset[AXIS_Z] * GetReportUnitsScaler());}
 
     // *************************************************************************
     // ***   Public: GetFeedOverride function   ********************************
@@ -796,11 +852,17 @@ class GrblComm : public AppTask
     // *****************************************************************************
     // ***   Public: ValueToStringWithUnits function   *****************************
     // *****************************************************************************
-    char* ValueToStringWithUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units);
+    char* ValueToStringWithUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units, bool truncate = false);
 
   private:
     // Timer period
     static const uint32_t TASK_TIMER_PERIOD_MS = 1U;
+
+    // Measurement system and rotational axis parameters
+    static const int32_t scaler[MEASUREMENT_SYSTEM_CNT];
+    static const uint8_t precision[MEASUREMENT_SYSTEM_CNT];
+    static const char* const units[MEASUREMENT_SYSTEM_CNT];
+    static const char* const speed_units[MEASUREMENT_SYSTEM_CNT];
 
     // Pointer to UART class
     StHalUart* uart = nullptr;
@@ -896,6 +958,8 @@ class GrblComm : public AppTask
 
     // Number of axis
     int32_t number_of_axis = 3;
+    // Rotary axis mask(XYZ always linear)
+    uint8_t rotary_axis_mask = 0u;
 
     // Settings
     uint8_t measurement_system = MEASUREMENT_SYSTEM_METRIC;

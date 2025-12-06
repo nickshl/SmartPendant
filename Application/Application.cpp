@@ -35,7 +35,7 @@ Application& Application::GetInstance(void)
 Result Application::Setup()
 {
   // Read data from chip to memory
-  NVM::GetInstance().ReadData();
+  Result nvm_result = NVM::GetInstance().ReadData();
 
   // Set display inversion if needed
   display_drv.InvertDisplay(NVM::GetInstance().GetDisplayInvert());
@@ -46,7 +46,11 @@ Result Application::Setup()
 
   // Box for status
   status_box.SetParams(0, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3 - Font_12x16::GetInstance().GetCharH() * 2 - 2, display_drv.GetScreenW() - Font_12x16::GetInstance().GetCharW() * 6, Font_12x16::GetInstance().GetCharH() * 2, COLOR_GREY, false);
-  status_box.Show(1000);
+  status_box.Show(1000u);
+
+  // Init message box
+  msg_box.Setup("", "");
+  msg_box.SetCallback(this);
 
   // Release control by default at startup
   grbl_comm.ReleaseControl();
@@ -54,21 +58,30 @@ Result Application::Setup()
   mpg_btn.SetParams("MPG", display_drv.GetScreenW() - Font_12x16::GetInstance().GetCharW() * 6 - 1, status_box.GetStartY(), Font_12x16::GetInstance().GetCharW() * 6, status_box.GetHeight(), true);
   mpg_btn.SetCallback(this);
   mpg_btn.SetPressed(false);
-  mpg_btn.Show(1000);
+  mpg_btn.Show(1000u);
 
   // Info strings
   state_str.SetParams("", 4, status_box.GetStartY() + status_box.GetHeight() / 2 - Font_12x16::GetInstance().GetCharH() / 2, COLOR_WHITE, Font_12x16::GetInstance());
   status_str.SetParams("", state_str.GetStartX() + 5 * Font_12x16::GetInstance().GetCharW() + Font_8x12::GetInstance().GetCharW(), status_box.GetEndY() - Font_8x12::GetInstance().GetCharH() - 2, COLOR_WHITE, Font_8x12::GetInstance());
   pins_str.SetParams("", mpg_btn.GetStartX() - Font_8x8::GetInstance().GetCharW() * 11u, status_box.GetStartY() + 4, COLOR_RED, Font_8x8::GetInstance());
-  state_str.Show(1001);
-  status_str.Show(1002);
-  pins_str.Show(1003);
+  state_str.Show(1001u);
+  status_str.Show(1002u);
+  pins_str.Show(1003u);
+
+  // Set callback handler for left and right buttons
+  input_drv.AddButtonsCallbackHandler(this, reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_USR | InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
 
   // Set Soft Buttons parameters
   InitSoftButtons();
 
   // Initialize header
   InitHeader();
+
+  // Init axis data windows
+  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  {
+    dw_real[i].SetNumber(0);
+  }
 
   // Initialize memory info string
   mem_info.SetParams(mem_info_buf, 0, 0, COLOR_WHITE, Font_6x8::GetInstance());
@@ -81,17 +94,21 @@ Result Application::Setup()
 
   // Set index
   scr_idx = 0u;
-  // Show first screen
-  scr[scr_idx]->Show();
 
-  // Set callback handler for left and right buttons
-  input_drv.AddButtonsCallbackHandler(this, reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_USR | InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
-
-  // Init axis data windows
-  for(uint32_t i = 0u; i < NumberOf(dw_real); i++)
+  // If result is bad
+  if(nvm_result.IsBad())
   {
-    dw_real[i].SetNumber(0);
+    // Show message box
+    msg_box.Setup("NVM ERROR", "All parameters set\nto default state\n\nPlease check parameters\nbefore use!");
+    msg_box.Show(10000u);
+    // Override screen will return UNHANDLED_REQUEST for message box
+    scr_idx = scr_cnt - 1u;
   }
+
+  // Set new page
+  header.SetSelectedPage(scr_idx);
+  // Show new screen
+  scr[scr_idx]->Show();
 
   // All good
   return Result::RESULT_OK;

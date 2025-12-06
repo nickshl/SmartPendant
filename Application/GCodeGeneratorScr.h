@@ -96,7 +96,7 @@ class GCodeGeneratorScr : public IScreen
     Menu menu;
 
     // Message box to display errors
-    MsgBox msg_box;
+    MsgBox& msg_box;
 
     // Object to change numerical parameters
     ChangeValueBox& change_box;

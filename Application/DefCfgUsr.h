@@ -28,7 +28,7 @@
 // *****************************************************************************
 
 // *** Applications tasks stack sizes   ****************************************
-#define APPLICATION_TASK_STACK_SIZE 1024u
+#define APPLICATION_TASK_STACK_SIZE 1536u
 // *** Applications tasks priorities   *****************************************
 #define APPLICATION_TASK_PRIORITY (tskIDLE_PRIORITY + 2u)
 

@@ -258,7 +258,7 @@ class CenterFinderTab : public IScreen
     UiButton precise_btn;
 
     // Message box for pop up request to turn probe 180 degrees
-    MsgBox msg_box;
+    MsgBox& msg_box;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
@@ -296,7 +296,7 @@ class CenterFinderTab : public IScreen
     // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    CenterFinderTab() {};
+    CenterFinderTab();
 };
 
 // *****************************************************************************
@@ -406,7 +406,7 @@ class EdgeFinderTab : public IScreen
     UiButton precise_btn;
 
     // Message box for pop up request to turn probe 180 degrees
-    MsgBox msg_box;
+    MsgBox& msg_box;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
@@ -429,7 +429,7 @@ class EdgeFinderTab : public IScreen
     // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    EdgeFinderTab() {};
+    EdgeFinderTab();
 };
 
 // *****************************************************************************

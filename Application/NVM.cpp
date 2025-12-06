@@ -57,19 +57,16 @@ Result NVM::ReadData()
 
   // Save CRC of read data to determinate later if settings was changed
   eep_crc = data.crc;
+  // Calculate CRC32(without stored CRC)
+  uint32_t crc = Crc32((uint8_t*)&data, sizeof(data) - sizeof(data.crc));
 
-  if(result.IsGood())
+  // If we can't read data from chip or if CRC doesn't match - fill it with defaults values
+  if(result.IsBad() || (crc != data.crc))
   {
-    // Calculate CRC32(without stored CRC)
-    uint32_t crc = Crc32((uint8_t*)&data, sizeof(data) - sizeof(data.crc));
-
-    // Check CRC
-    if(crc != data.crc)
-    {
-      // If it doesn't match - fill it with defaults values
-      Nvm_t defaults;
-      data = defaults;
-    }
+    Nvm_t defaults;
+    data = defaults;
+    // Set bad CRC result only if we read data correctly
+    if(result.IsGood()) result = Result::ERR_BAD_CRC;
   }
 
   // Return result

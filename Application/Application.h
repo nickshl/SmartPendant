@@ -127,6 +127,11 @@ class Application : public AppTask
     inline String& GetRealDataWindowNameString(uint32_t axis) {return dw_real_name[axis];}
 
     // *************************************************************************
+    // ***   Public: GetMsgBox function   **************************************
+    // *************************************************************************
+    MsgBox& GetMsgBox() {return msg_box;}
+
+    // *************************************************************************
     // ***   Public: GetChangeValueBox function   ******************************
     // *************************************************************************
     ChangeValueBox& GetChangeValueBox() {return change_value_box;}
@@ -220,6 +225,8 @@ class Application : public AppTask
     UiButton middle_btn;
     UiButton right_btn;
 
+    // Message box to display errors and other info
+    MsgBox msg_box;
     // Object to change numerical parameters
     ChangeValueBox change_value_box;
 

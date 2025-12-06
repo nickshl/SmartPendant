@@ -107,7 +107,7 @@ Result ProgramSender::Show()
     String& dw_real_name = Application::GetInstance().GetRealDataWindowNameString(i);
 
     // Real position
-    dw_real.SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, feed_dw.GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 8u, grbl_comm.GetUnitsPrecision());
+    dw_real.SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, feed_dw.GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 8u, grbl_comm.GetReportUnitsPrecision(i));
     dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real.SetDataFont(Font_8x12::GetInstance());
     dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());

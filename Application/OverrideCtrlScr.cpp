@@ -99,7 +99,7 @@ Result OverrideCtrlScr::Show()
     String& dw_real_name = Application::GetInstance().GetRealDataWindowNameString(i);
 
     // Real position
-    dw_real.SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, Application::GetInstance().GetScreenStartY() + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 8u, grbl_comm.GetUnitsPrecision());
+    dw_real.SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, Application::GetInstance().GetScreenStartY() + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 8u, grbl_comm.GetReportUnitsPrecision(i));
     dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real.SetDataFont(Font_10x18::GetInstance());
     dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::BOTTOM_RIGHT, Font_6x8::GetInstance());

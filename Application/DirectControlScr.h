@@ -111,11 +111,9 @@ class DirectControlScr : public IScreen
     // Buttons to choose scale
     UiButton scale_btn[4u];
     // Scale options(string)
-    const char scale_str_metric[NumberOf(scale_btn)][12u] = {"0.001\nmm", "0.005\nmm", "0.01\nmm", "0.1\nmm"};
-    const char scale_str_imperial[NumberOf(scale_btn)][12u] = {"0.0001\ninch", "0.0002\ninch", "0.0005\ninch", "0.005\ninch"};
+    char scale_str[NumberOf(scale_btn)][12u] = {0};
     // Scale options(value)
-    const uint32_t scale_val_metric[NumberOf(scale_btn)] = {1, 5, 10, 100};
-    const uint32_t scale_val_imperial[NumberOf(scale_btn)] = {1, 2, 5, 50};
+    uint32_t scale_val[NumberOf(scale_btn)] = {0};
 
     // Data windows to show spindle speed
     DataWindow spindle_dw;
@@ -150,6 +148,11 @@ class DirectControlScr : public IScreen
     // ***   Private: ProcessEncoderCallback function   ************************
     // *************************************************************************
     static Result ProcessEncoderCallback(DirectControlScr* obj_ptr, void* ptr);
+
+    // *************************************************************************
+    // ***   Private: UpdateScaleButtons function   ****************************
+    // *************************************************************************
+    void UpdateScaleButtons();
 
     // *************************************************************************
     // ***   Private constructor   *********************************************

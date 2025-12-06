@@ -46,7 +46,7 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
   {
     // Axis position
-    dw[i].SetParams(display_drv.GetScreenW() / 6, start_y + (window_height + BORDER_W*2) * i, (display_drv.GetScreenW() - BORDER_W*2) / 2, window_height, 7u, grbl_comm.GetUnitsPrecision());
+    dw[i].SetParams(display_drv.GetScreenW() / 6, start_y + (window_height + BORDER_W*2) * i, (display_drv.GetScreenW() - BORDER_W*2) / 2, window_height, 7u, grbl_comm.GetReportUnitsPrecision(i));
     dw[i].SetBorder(BORDER_W, COLOR_RED);
     dw[i].SetDataFont(Font_8x12::GetInstance(), 2u);
     dw[i].SetNumber(grbl_comm.GetAxisPosition(i)); // Get current position at startup
@@ -54,7 +54,7 @@ Result DelayControlScr::Setup(int32_t y, int32_t height)
     dw[i].SetCallback(AppTask::GetCurrent());
     dw[i].SetActive(true);
     // Position difference
-    dw_diff[i].SetParams(dw[i].GetEndX() + BORDER_W, dw[i].GetEndY() - (window_height - BORDER_W) / 2, display_drv.GetScreenW() - dw[i].GetEndX() - BORDER_W * 2, (window_height - BORDER_W) / 2, 8u, grbl_comm.GetUnitsPrecision());
+    dw_diff[i].SetParams(dw[i].GetEndX() + BORDER_W, dw[i].GetEndY() - (window_height - BORDER_W) / 2, display_drv.GetScreenW() - dw[i].GetEndX() - BORDER_W * 2, (window_height - BORDER_W) / 2, 8u, grbl_comm.GetReportUnitsPrecision(i));
     dw_diff[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_diff[i].SetDataFont(Font_8x12::GetInstance());
     dw_diff[i].SetNumber(0);
@@ -109,7 +109,7 @@ Result DelayControlScr::Show()
     DataWindow& dw_real = Application::GetInstance().GetRealDataWindow(i);
 
     // Real position
-    dw_real.SetParams(dw_diff[i].GetStartX(), dw[i].GetStartY(), dw_diff[i].GetWidth(), dw_diff[i].GetHeight(), 8u, grbl_comm.GetUnitsPrecision());
+    dw_real.SetParams(dw_diff[i].GetStartX(), dw[i].GetStartY(), dw_diff[i].GetWidth(), dw_diff[i].GetHeight(), 8u, grbl_comm.GetReportUnitsPrecision(i));
     dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real.SetDataFont(Font_8x12::GetInstance());
     dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());

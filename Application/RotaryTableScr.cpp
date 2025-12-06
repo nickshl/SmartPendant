@@ -57,7 +57,7 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < NumberOf(center_dw); i++)
   {
     // Axis position
-    center_dw[i].SetParams(BORDER_W + (i ? center_dw[i - 1u].GetEndX() + 1 : 0), center.GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * (1 + NumberOf(center_dw))) / NumberOf(center_dw),  window_height, 7u, grbl_comm.GetUnitsPrecision());
+    center_dw[i].SetParams(BORDER_W + (i ? center_dw[i - 1u].GetEndX() + 1 : 0), center.GetEndY() + BORDER_W, (display_drv.GetScreenW() - BORDER_W * (1 + NumberOf(center_dw))) / NumberOf(center_dw),  window_height, 7u, grbl_comm.GetReportUnitsPrecision());
     center_dw[i].SetBorder(BORDER_W, COLOR_RED);
     center_dw[i].SetDataFont(Font_8x12::GetInstance(), 2u);
     center_dw[i].SetNumber(grbl_comm.GetAxisPosition(i)); // Get current position at startup
@@ -83,7 +83,7 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   scale_btn[1u].SetPressed(true);
 
   // Radius position
-  radius_dw.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetUnitsPrecision());
+  radius_dw.SetParams(BORDER_W, scale_btn[0].GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetReportUnitsPrecision());
   radius_dw.SetBorder(BORDER_W, COLOR_RED);
   radius_dw.SetDataFont(Font_8x12::GetInstance(), 2u);
   radius_dw.SetLimits(1, INT32_MAX);
@@ -95,7 +95,7 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   radius_name.SetParams("RADIUS", radius_dw.GetStartX() + BORDER_W*2, radius_dw.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // Z axis position
-  z_axis_dw.SetParams(BORDER_W, radius_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetUnitsPrecision());
+  z_axis_dw.SetParams(BORDER_W, radius_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetReportUnitsPrecision());
   z_axis_dw.SetBorder(BORDER_W, COLOR_RED);
   z_axis_dw.SetDataFont(Font_8x12::GetInstance(), 2u);
   z_axis_dw.SetNumber(0);
@@ -106,7 +106,7 @@ Result RotaryTableScr::Setup(int32_t y, int32_t height)
   z_axis_name.SetParams(grbl_comm.GetAxisName(GrblComm::AXIS_Z), z_axis_dw.GetStartX() + BORDER_W*2, z_axis_dw.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // Arc length position
-  arc_dw.SetParams(BORDER_W, z_axis_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetUnitsPrecision());
+  arc_dw.SetParams(BORDER_W, z_axis_dw.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 15u, grbl_comm.GetReportUnitsPrecision());
   arc_dw.SetBorder(BORDER_W, COLOR_RED);
   arc_dw.SetDataFont(Font_8x12::GetInstance(), 2u);
   arc_dw.SetNumber(0);
@@ -174,7 +174,7 @@ Result RotaryTableScr::Show()
     DataWindow& dw_real = Application::GetInstance().GetRealDataWindow(i);
     String& dw_real_name = Application::GetInstance().GetRealDataWindowNameString(i);
 
-    dw_real.SetParams(BORDER_W / 2 + (display_drv.GetScreenW() / 2) * i, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3 + BORDER_W / 2, (display_drv.GetScreenW() - BORDER_W*2) / 2, Font_8x12::GetInstance().GetCharH() * 3 - BORDER_W, 14u, grbl_comm.GetUnitsPrecision());
+    dw_real.SetParams(BORDER_W / 2 + (display_drv.GetScreenW() / 2) * i, display_drv.GetScreenH() - Font_8x12::GetInstance().GetCharH() * 3 + BORDER_W / 2, (display_drv.GetScreenW() - BORDER_W*2) / 2, Font_8x12::GetInstance().GetCharH() * 3 - BORDER_W, 14u, grbl_comm.GetReportUnitsPrecision());
     dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real.SetDataFont(Font_8x12::GetInstance());
     dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());

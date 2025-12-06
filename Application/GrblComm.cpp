@@ -31,6 +31,14 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
 #endif
 
 // *****************************************************************************
+// ***   Units strings array initialization   **********************************
+// *****************************************************************************
+const char* const GrblComm::units[MEASUREMENT_SYSTEM_CNT] = {"mm", "inch", "deg"};
+const char* const GrblComm::speed_units[MEASUREMENT_SYSTEM_CNT] = {"mm/min", "inches/min", "deg/min"};
+const int32_t GrblComm::scaler[MEASUREMENT_SYSTEM_CNT] = {1000, 10000, 1000}; // 1 um for metric(base unit mm), 1 tenths for imperial(base unit inch), 0.001 degree
+const uint8_t GrblComm::precision[MEASUREMENT_SYSTEM_CNT] = {3u, 4u, 3u}; // 0.000 for metric, 0.0000 for imperial, 0.000 for degrees
+
+// *****************************************************************************
 // ***   Public: Get Instance   ************************************************
 // *****************************************************************************
 GrblComm& GrblComm::GetInstance(void)
@@ -373,6 +381,24 @@ const char* const GrblComm::GetAxisName(uint8_t axis)
 }
 
 // *****************************************************************************
+// ***   Public: IsRotaryAxis function   ***************************************
+// *****************************************************************************
+bool GrblComm::IsRotaryAxis(uint8_t axis)
+{
+  bool result = false;
+
+  // First 3 axis(XYZ) can't be rotary
+  if((axis >= AXIS_A) && (axis < number_of_axis))
+  {
+    axis -= AXIS_A;
+    result = (rotary_axis_mask & (1u << axis));
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
 // ***   Public: GetStateName function   ***************************************
 // *****************************************************************************
 const char* const GrblComm::GetStateName(state_t state)
@@ -413,7 +439,7 @@ int32_t GrblComm::GetAxisMachinePosition(uint8_t axis)
     // Lock mutex before copying data
     mutex.Lock();
     // Calculate value and convert it into fixed point(um for metric/tenths for imperial)
-    value = (int32_t)(grbl_position[axis] * GetUnitsScaler());
+    value = (int32_t)(grbl_position[axis] * GetReportUnitsScaler(axis));
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -434,7 +460,7 @@ int32_t GrblComm::GetAxisPosition(uint8_t axis)
     // Lock mutex before copying data
     mutex.Lock();
     // Calculate value and convert it into fixed point(um for metric/tenths for imperial)
-    value = (int32_t)((grbl_position[axis] - grbl_offset[axis]) * GetUnitsScaler());
+    value = (int32_t)((grbl_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -455,7 +481,7 @@ int32_t GrblComm::GetProbeMachinePosition(uint8_t axis)
     // Lock mutex before copying data
     mutex.Lock();
     // Copy value
-    value = (int32_t)(grbl_probe_position[axis] * GetUnitsScaler());
+    value = (int32_t)(grbl_probe_position[axis] * GetReportUnitsScaler(axis));
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -476,7 +502,7 @@ int32_t GrblComm::GetProbePosition(uint8_t axis)
     // Lock mutex before copying data
     mutex.Lock();
     // Copy value
-    value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * GetUnitsScaler());
+    value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -644,7 +670,7 @@ Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t feed_x100, bool is
       char distance_str[16u];
       char feed_str[16u];
       // Convert distance & feed values to strings
-      ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
+      ValueToString(distance_str, NumberOf(distance_str), distance, GetReportUnitsScaler(axis));
       ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
       // Create jog string
       snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%sF%s\r", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91", axis_str[axis], distance_str, feed_str);
@@ -682,7 +708,7 @@ Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t
       // Buffer for distance string
       char distance_str[16u];
       // Convert distance value to string
-      ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
+      ValueToString(distance_str, NumberOf(distance_str), distance, GetReportUnitsScaler(axis));
       // Create jog string
       snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%sG53G90%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed);
 
@@ -720,9 +746,9 @@ Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t dis
     char distance_z_str[16u];
     char feed_str[16u];
     // Convert distance value to string
-    ValueToString(distance_x_str, NumberOf(distance_x_str), distance_x, GetUnitsScaler());
-    ValueToString(distance_y_str, NumberOf(distance_y_str), distance_y, GetUnitsScaler());
-    ValueToString(distance_z_str, NumberOf(distance_z_str), distance_z, GetUnitsScaler());
+    ValueToString(distance_x_str, NumberOf(distance_x_str), distance_x, GetReportUnitsScaler());
+    ValueToString(distance_y_str, NumberOf(distance_y_str), distance_y, GetReportUnitsScaler());
+    ValueToString(distance_z_str, NumberOf(distance_z_str), distance_z, GetReportUnitsScaler());
     ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
     // Create jog string
     snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%s%s%s%s%sF%s\r", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91",
@@ -774,9 +800,9 @@ Result GrblComm::JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t feed_x100,
     char r_str[16u];
     char feed_str[16u];
     // Convert distance & feed values to strings
-    ValueToString(x_str, NumberOf(x_str), x, GetUnitsScaler());
-    ValueToString(y_str, NumberOf(y_str), y, GetUnitsScaler());
-    ValueToString(r_str, NumberOf(r_str), r, GetUnitsScaler());
+    ValueToString(x_str, NumberOf(x_str), x, GetReportUnitsScaler());
+    ValueToString(y_str, NumberOf(y_str), y, GetReportUnitsScaler());
+    ValueToString(r_str, NumberOf(r_str), r, GetReportUnitsScaler());
     ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
 
     // Create Jog command
@@ -848,7 +874,7 @@ Result GrblComm::SetAxisPosition(uint8_t axis, int32_t position)
       // Buffer for distance string
       char position_str[16u];
       // Convert distance value to string
-      ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
+      ValueToString(position_str, NumberOf(position_str), position, GetReportUnitsScaler(axis));
       // Create Set Axis command
       snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG90G10L20P0%s%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str);
 
@@ -886,7 +912,7 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, ui
       char distance_str[16u];
       char feed_str[16u];
       // Convert distance & feed values to strings
-      ValueToString(distance_str, NumberOf(distance_str), distance, GetUnitsScaler());
+      ValueToString(distance_str, NumberOf(distance_str), distance, GetReportUnitsScaler(axis));
       ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
 
       // Create move command(zero feed mean rapid)
@@ -934,7 +960,7 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
       // Buffer for distance string
       char position_str[16u];
       // Convert distance value to string
-      ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
+      ValueToString(position_str, NumberOf(position_str), position, GetReportUnitsScaler(axis));
       // Create Set Axis command. Strict uses .2 to produce alarm, non-strict uses .3 to avoid alarm.
       if(strict)
       {
@@ -980,7 +1006,7 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint
       // Buffer for distance string
       char position_str[16u];
       // Convert distance value to string
-      ValueToString(position_str, NumberOf(position_str), position, GetUnitsScaler());
+      ValueToString(position_str, NumberOf(position_str), position, GetReportUnitsScaler(axis));
       // Create Set Axis command
       snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.4%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
 
@@ -1016,7 +1042,7 @@ Result GrblComm::SetToolLengthOffset(int32_t offset)
     // Buffer for distance string
     char offset_str[16u];
     // Convert distance value to string
-    ValueToString(offset_str, NumberOf(offset_str), offset, GetUnitsScaler());
+    ValueToString(offset_str, NumberOf(offset_str), offset, GetReportUnitsScaler());
     // Create Set Axis command
     snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG43.1Z%s\r", GetMeasurementSystemGcode(), offset_str);
 
@@ -1187,10 +1213,23 @@ char* GrblComm::ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t
 // *****************************************************************************
 // ***   Public: ValueToStringWithUnits function   *****************************
 // *****************************************************************************
-char* GrblComm::ValueToStringWithUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units)
+char* GrblComm::ValueToStringWithUnits(char* buf, uint32_t buf_size, int32_t val, int32_t scaler, const char* units, bool truncate)
 {
   // Create numeric string
   ValueToString(buf, buf_size, val, scaler);
+
+  // If truncate requested - remove trailing zeros after point
+  if(truncate && (scaler > 1))
+  {
+    // Get string length
+    uint32_t len = strlen(buf) - 1u;
+    // Replace all trailing zeros and point to null-terminator
+    while(len && ((buf[len] == '0') || (buf[len] == '.')))
+    {
+      buf[len] = '\0';
+      len--;
+    }
+  }
 
   // Check units pointer
   if(units != nullptr)
@@ -1301,7 +1340,7 @@ void GrblComm::ParseSettings(char* data)
     // Find setting and store it
     switch(setting_num)
     {
-      // *********************************************************************
+      // ***********************************************************************
       case 13:
         if(measurement_system != atoi(s))
         {
@@ -1310,16 +1349,16 @@ void GrblComm::ParseSettings(char* data)
         }
         break;
 
-        // *********************************************************************
-        case 22:
-          if(homing != atoi(s))
-          {
-            homing = atoi(s);
-            settings_changed = true;
-          }
-          break;
+      // ***********************************************************************
+      case 22:
+        if(homing != atoi(s))
+        {
+          homing = atoi(s);
+          settings_changed = true;
+        }
+        break;
 
-      // *********************************************************************
+      // ***********************************************************************
       case 30:
         if(spindle_speed_max != atol(s))
         {
@@ -1328,7 +1367,7 @@ void GrblComm::ParseSettings(char* data)
         }
         break;
 
-      // *********************************************************************
+      // ***********************************************************************
       case 31:
         if(spindle_speed_min != atol(s))
         {
@@ -1337,7 +1376,7 @@ void GrblComm::ParseSettings(char* data)
         }
         break;
 
-      // *********************************************************************
+      // ***********************************************************************
       case 32:
         if(mode_of_operation != atoi(s))
         {
@@ -1346,7 +1385,16 @@ void GrblComm::ParseSettings(char* data)
         }
         break;
 
-      // *********************************************************************
+      // ***********************************************************************
+      case 376:
+        if(rotary_axis_mask != atoi(s))
+        {
+          rotary_axis_mask = atoi(s);
+          settings_changed = true;
+        }
+        break;
+
+      // ***********************************************************************
       default:
         break;
     }

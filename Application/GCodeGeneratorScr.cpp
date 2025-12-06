@@ -60,10 +60,6 @@ Result GCodeGeneratorScr::Setup(int32_t y, int32_t height)
   // Set number of items in menu
   menu.SetCount(0);
 
-  // Set Message Box parameters and callback
-  msg_box.Setup("", "");
-  msg_box.SetCallback(AppTask::GetCurrent());
-
   // All good
   return Result::RESULT_OK;
 }
@@ -738,4 +734,5 @@ bool GCodeGeneratorScr::GetGlobalVariableMaxVal(uint32_t variable_idx, int32_t& 
 // *****************************************************************************
 // ***   Private constructor   *************************************************
 // *****************************************************************************
-GCodeGeneratorScr::GCodeGeneratorScr() : change_box(Application::GetInstance().GetChangeValueBox()) {};
+GCodeGeneratorScr::GCodeGeneratorScr() : msg_box(Application::GetInstance().GetMsgBox()),
+                                         change_box(Application::GetInstance().GetChangeValueBox()) {};

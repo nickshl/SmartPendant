@@ -257,7 +257,7 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
     // Real position
-    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 7u, grbl_comm.GetUnitsPrecision());
+    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 7u, grbl_comm.GetReportUnitsPrecision());
     dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real[i].SetBorderColor(COLOR_GREY, COLOR_RED);
     dw_real[i].SetDataFont(Font_10x18::GetInstance());
@@ -283,7 +283,7 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   inside_btn.SetPressed(true);
 
   // Clearance
-  dw_clearance.SetParams(BORDER_W, inside_btn.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, inside_btn.GetHeight(), 15u, grbl_comm.GetUnitsPrecision());
+  dw_clearance.SetParams(BORDER_W, inside_btn.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, inside_btn.GetHeight(), 15u, grbl_comm.GetReportUnitsPrecision());
   dw_clearance.SetBorder(BORDER_W, COLOR_RED);
   dw_clearance.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_clearance.SetLimits(0, INT32_MAX);
@@ -295,7 +295,7 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   dw_clearance_name.SetParams("CLEARANCE", dw_clearance.GetStartX() + BORDER_W*2, dw_clearance.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // Distance
-  dw_distance.SetParams(BORDER_W, dw_clearance.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, inside_btn.GetHeight(), 15u, grbl_comm.GetUnitsPrecision());
+  dw_distance.SetParams(BORDER_W, dw_clearance.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, inside_btn.GetHeight(), 15u, grbl_comm.GetReportUnitsPrecision());
   dw_distance.SetBorder(BORDER_W, COLOR_RED);
   dw_distance.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_distance.SetLimits(0, INT32_MAX);
@@ -316,10 +316,6 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
     data_str[i].SetParams("", precise_btn.GetEndX() + BORDER_W*2, precise_btn.GetStartY() + Font_10x18::GetInstance().GetCharH() * i, COLOR_WHITE, Font_10x18::GetInstance());
   }
 
-  // Set Message Box parameters and callback
-  msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
-  msg_box.SetCallback(AppTask::GetCurrent());
-
   // All good
   return Result::RESULT_OK;
 }
@@ -329,6 +325,9 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 Result CenterFinderTab::Show()
 {
+  // Set Message Box parameters and callback
+  msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
+
   // Axis data
   for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
@@ -516,7 +515,7 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
             }
             // Update X measurement string
             char tmp_x[13u] = {0};
-            data_str[0u].SetString(data_str_buf[0u], NumberOf(data_str_buf[0u]), "Dx: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_x, NumberOf(tmp_x), x_distance), grbl_comm.GetReportUnits());
+            data_str[0u].SetString(data_str_buf[0u], NumberOf(data_str_buf[0u]), "Dx: %s %s", grbl_comm.ValueToStringWithReportScaler(tmp_x, NumberOf(tmp_x), x_distance), grbl_comm.GetReportUnits());
           }
           // Otherwise continue probing sequence for X max
           result = ProbeLineSequence(line_state, GrblComm::AXIS_X, +1, x_safe_pos, x_max_pos);
@@ -573,14 +572,14 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
             }
             // Update Y measurement string
             char tmp_y[13u] = {0};
-            data_str[1u].SetString(data_str_buf[1u], NumberOf(data_str_buf[1u]), "Dy: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_y, NumberOf(tmp_y), y_distance), grbl_comm.GetReportUnits());
+            data_str[1u].SetString(data_str_buf[1u], NumberOf(data_str_buf[1u]), "Dy: %s %s", grbl_comm.ValueToStringWithReportScaler(tmp_y, NumberOf(tmp_y), y_distance), grbl_comm.GetReportUnits());
 
             // Update measurement deviation string
             if(dw_real[GrblComm::AXIS_X].IsSelected())
             {
               distance_diviation = abs(x_distance - y_distance);
               char tmp_d[13u] = {0};
-              data_str[2u].SetString(data_str_buf[2u], NumberOf(data_str_buf[2u]), "Dd: %s %s", grbl_comm.ValueToStringInCurrentUnits(tmp_d, NumberOf(tmp_d), distance_diviation), grbl_comm.GetReportUnits());
+              data_str[2u].SetString(data_str_buf[2u], NumberOf(data_str_buf[2u]), "Dd: %s %s", grbl_comm.ValueToStringWithReportScaler(tmp_d, NumberOf(tmp_d), distance_diviation), grbl_comm.GetReportUnits());
             }
           }
           // Otherwise continue probing sequence for Y max
@@ -1046,6 +1045,11 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
 }
 
 // *****************************************************************************
+// ***   CenterFinderTab: Private constructor   ********************************
+// *****************************************************************************
+CenterFinderTab::CenterFinderTab() : msg_box(Application::GetInstance().GetMsgBox()) {};
+
+// *****************************************************************************
 // *****************************************************************************
 // ***   EDGE FINDER TAB   *****************************************************
 // *****************************************************************************
@@ -1071,7 +1075,7 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
     // Real position
-    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 7u, grbl_comm.GetUnitsPrecision());
+    dw_real[i].SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, start_y + BORDER_W*2 + Font_10x18::GetInstance().GetCharH(), (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_10x18::GetInstance().GetCharH() + Font_6x8::GetInstance().GetCharH()*2 + BORDER_W, 7u, grbl_comm.GetReportUnitsPrecision());
     dw_real[i].SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real[i].SetBorderColor(COLOR_GREY, COLOR_RED);
     dw_real[i].SetDataFont(Font_10x18::GetInstance());
@@ -1095,7 +1099,7 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   minus_btn.SetPressed(true);
 
   // Clearance
-  dw_clearance.SetParams(BORDER_W, minus_btn.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, minus_btn.GetHeight(), 15u, grbl_comm.GetUnitsPrecision());
+  dw_clearance.SetParams(BORDER_W, minus_btn.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, minus_btn.GetHeight(), 15u, grbl_comm.GetReportUnitsPrecision());
   dw_clearance.SetBorder(BORDER_W, COLOR_RED);
   dw_clearance.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_clearance.SetLimits(0, INT32_MAX);
@@ -1107,7 +1111,7 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   dw_clearance_name.SetParams("CLEARANCE", dw_clearance.GetStartX() + BORDER_W*2, dw_clearance.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
   // Distance
-  dw_tip_diameter.SetParams(BORDER_W, dw_clearance.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, minus_btn.GetHeight(), 15u, grbl_comm.GetUnitsPrecision());
+  dw_tip_diameter.SetParams(BORDER_W, dw_clearance.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, minus_btn.GetHeight(), 15u, grbl_comm.GetReportUnitsPrecision());
   dw_tip_diameter.SetBorder(BORDER_W, COLOR_RED);
   dw_tip_diameter.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_tip_diameter.SetLimits(0, INT32_MAX);
@@ -1122,10 +1126,6 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   precise_btn.SetParams("PRECISE", BORDER_W, dw_tip_diameter.GetEndY() + BORDER_W*2, Font_8x12::GetInstance().GetCharW() * 10, Font_8x12::GetInstance().GetCharH() * 5, true);
   precise_btn.SetCallback(AppTask::GetCurrent());
 
-  // Set Message Box parameters and callback
-  msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
-  msg_box.SetCallback(AppTask::GetCurrent());
-
   // All good
   return Result::RESULT_OK;
 }
@@ -1135,6 +1135,9 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 Result EdgeFinderTab::Show()
 {
+  // Set Message Box parameters and callback
+  msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
+
   // Axis data
   for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
@@ -1532,6 +1535,11 @@ Result EdgeFinderTab::ProcessEncoderCallback(EdgeFinderTab* obj_ptr, void* ptr)
 }
 
 // *****************************************************************************
+// ***   EdgeFinderTab: Private constructor   **********************************
+// *****************************************************************************
+EdgeFinderTab::EdgeFinderTab() : msg_box(Application::GetInstance().GetMsgBox()) {};
+
+// *****************************************************************************
 // *****************************************************************************
 // ***   TOOL OFFSET TAB   *****************************************************
 // *****************************************************************************
@@ -1556,7 +1564,7 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   uint32_t window_height = Font_8x12::GetInstance().GetCharH() * 5u;
 
   // Tool offset position
-  dw_tool.SetParams(BORDER_W, start_y + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetUnitsPrecision());
+  dw_tool.SetParams(BORDER_W, start_y + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetReportUnitsPrecision());
   dw_tool.SetBorder(BORDER_W, COLOR_BLUE);
   dw_tool.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_tool.SetNumber(grbl_comm.GetToolLengthOffset()); // Get current position at startup
@@ -1574,7 +1582,7 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   name_base.SetParams("BASE POSITION", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
   name_base.Move((display_drv.GetScreenW()  / 2) - (name_base.GetWidth() / 2), get_offset_btn.GetEndY() + BORDER_W * 2u);
   // Tool offset position
-  dw_base.SetParams(BORDER_W, name_base.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetUnitsPrecision());
+  dw_base.SetParams(BORDER_W, name_base.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetReportUnitsPrecision());
   dw_base.SetBorder(BORDER_W, COLOR_MAGENTA);
   dw_base.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_base.SetNumber(0); // Get current position at startup
@@ -1608,7 +1616,7 @@ Result ToolOffsetTab::Show()
     String& dw_real_name = Application::GetInstance().GetRealDataWindowNameString(i);
 
     // Real position
-    dw_real.SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, Application::GetInstance().GetScreenEndY() - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 7u, grbl_comm.GetUnitsPrecision());
+    dw_real.SetParams(BORDER_W + ((display_drv.GetScreenW() - BORDER_W * 4) / 3 + BORDER_W) * i, Application::GetInstance().GetScreenEndY() - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W, (display_drv.GetScreenW() - BORDER_W * 4) / 3, Font_8x12::GetInstance().GetCharH() * 2u, 7u, grbl_comm.GetReportUnitsPrecision());
     dw_real.SetBorder(BORDER_W / 2, COLOR_GREY);
     dw_real.SetDataFont(Font_8x12::GetInstance());
     dw_real.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT, Font_6x8::GetInstance());

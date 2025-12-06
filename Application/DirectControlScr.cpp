@@ -50,11 +50,11 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
   for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
   {
     // Axis position
-    dw[i].SetParams(display_drv.GetScreenW() / 6, start_y + (window_height + BORDER_W*2) * i, (display_drv.GetScreenW() - BORDER_W*2) * 4 / 6,  window_height, 8u, grbl_comm.GetUnitsPrecision());
+    dw[i].SetParams(display_drv.GetScreenW() / 6, start_y + (window_height + BORDER_W*2) * i, (display_drv.GetScreenW() - BORDER_W*2) * 4 / 6,  window_height, 8u, grbl_comm.GetReportUnitsPrecision(i));
     dw[i].SetBorder(BORDER_W, COLOR_RED);
     dw[i].SetDataFont(Font_8x12::GetInstance(), 2u);
     dw[i].SetNumber(0);
-    dw[i].SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
+    dw[i].SetUnits(grbl_comm.GetReportUnits(i), DataWindow::RIGHT);
     dw[i].SetCallback(AppTask::GetCurrent());
     dw[i].SetActive(true);
     axis_names[i].SetParams(grbl_comm.GetAxisName(i), 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
@@ -70,15 +70,13 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
     // Calculate scale button width
     uint32_t scale_btn_w = (display_drv.GetScreenW() - BORDER_W * (NumberOf(scale_btn) + 1u)) / NumberOf(scale_btn);
     // Set scale button parameters
-    scale_btn[i].SetParams(grbl_comm.IsMetric() ? scale_str_metric[i] : scale_str_imperial[i], BORDER_W + i * (scale_btn_w + BORDER_W), dw[grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)) - 1u].GetEndY() + BORDER_W*2, scale_btn_w, window_height, true);
+    scale_btn[i].SetParams(scale_str[i], BORDER_W + i * (scale_btn_w + BORDER_W), dw[grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)) - 1u].GetEndY() + BORDER_W*2, scale_btn_w, window_height, true);
     scale_btn[i].SetCallback(AppTask::GetCurrent());
     scale_btn[i].SetSpacing(3u);
+    scale_btn[i].SetPressed(false);
   }
-
-  // Set corresponded button pressed
+  // Set third button pressed
   scale_btn[2u].SetPressed(true);
-  // Set scale 0.01 mm
-  scale = grbl_comm.IsMetric() ? scale_val_metric[2u] : scale_val_imperial[2u];
 
   // X button for Lathe mode to change Radius/Diameter
   x_mode_btn.SetParams("", BORDER_W, dw[GrblComm::AXIS_X].GetStartY(), dw[GrblComm::AXIS_X].GetStartX() - BORDER_W * 2, dw[GrblComm::AXIS_X].GetHeight(), true);
@@ -122,6 +120,9 @@ Result DirectControlScr::Show()
   // Version string
   version.Show(1);
 
+  // Update scale buttons
+  UpdateScaleButtons();
+
   // Axis data
   for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw)); i++)
   {
@@ -129,11 +130,7 @@ Result DirectControlScr::Show()
     axis_names[i].Show(100);
     zero_btn[i].Show(100);
   }
-  // Scale buttons
-  for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
-  {
-    scale_btn[i].Show(100);
-  }
+
   // Set current axis to none for prevent accidental movement
   axis = GrblComm::AXIS_CNT;
   // Set border to red for all windows
@@ -331,7 +328,7 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
   if(jog_val != 0)
   {
     // Update speed in data window
-    spindle_dw.SetNumber(spindle_dw.GetNumber() + jog_val * 10);
+    spindle_dw.SetNumber(spindle_dw.GetNumber() + jog_val * scale);
     // clear jog value
     jog_val = 0;
     // Update spindle speed if it is running
@@ -448,7 +445,7 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
         // Set pressed state for selected one
         scale_btn[i].SetPressed(true);
         // Save scale to control
-        scale = grbl_comm.IsMetric() ? scale_val_metric[i] : scale_val_imperial[i];
+        scale = scale_val[i];
         break;
       }
     }
@@ -462,7 +459,7 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
         if((ptr == &dw[i]) && dw[i].IsSelected())
         {
           // Setup object to change numerical parameters
-          change_box.Setup(grbl_comm.GetAxisName(i), grbl_comm.GetReportUnits(), dw[i].GetNumber(), -10000000, 10000000, grbl_comm.GetUnitsPrecision());
+          change_box.Setup(grbl_comm.GetAxisName(i), grbl_comm.GetReportUnits(), dw[i].GetNumber(), -10000000, 10000000, grbl_comm.GetReportUnitsPrecision(i));
           // Set AppTask
           change_box.SetCallback(AppTask::GetCurrent());
           // Save axis index as ID
@@ -483,6 +480,8 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
           dw[i].SetSelected(true);
           // Save axis to control
           axis = (GrblComm::Axis_t)i;
+          // Update scale buttons
+          UpdateScaleButtons();
           // Break the cycle
           break;
         }
@@ -510,6 +509,8 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
         {
           dw[j].SetSelected(false);
         }
+        // Update scale buttons
+        UpdateScaleButtons();
       }
     }
   }
@@ -518,9 +519,9 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
   return result;
 }
 
-// *************************************************************************
-// ***   Private: ProcessEncoderCallback function   ************************
-// *************************************************************************
+// *****************************************************************************
+// ***   Private: ProcessEncoderCallback function   ****************************
+// *****************************************************************************
 Result DirectControlScr::ProcessEncoderCallback(DirectControlScr* obj_ptr, void* ptr)
 {
   Result result = Result::ERR_NULL_PTR;
@@ -552,9 +553,61 @@ Result DirectControlScr::ProcessEncoderCallback(DirectControlScr* obj_ptr, void*
   return result;
 }
 
-// *************************************************************************
-// ***   Private constructor   *********************************************
-// *************************************************************************
+// *****************************************************************************
+// ***   Private: UpdateScaleButtons function   ********************************
+// *****************************************************************************
+void DirectControlScr::UpdateScaleButtons()
+{
+  // Scale buttons
+  for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
+  {
+    // Clear scale_str
+    memset(scale_str[i], 0, NumberOf(scale_str[i]));
+
+    // Check if it axis or spindle
+    if(axis < GrblComm::AXIS_CNT)
+    {
+      // Find appropriate scale settings
+      uint32_t idx = (grbl_comm.IsMetric() ? NVM::MPG_METRIC_FEED_1 : NVM::MPG_IMPERIAL_FEED_1);
+      // Check if axis is rotary and if it is - overwrite scale settings with rotary ones
+      if(grbl_comm.IsRotaryAxis(axis)) idx = NVM::MPG_ROTARY_FEED_1;
+      // Get scale
+      scale_val[i] = NVM::GetInstance().GetValue((NVM::Parameters)(idx + i));
+      // Create scale for the button
+      grbl_comm.ValueToStringWithScalerAndUnits(scale_str[i], NumberOf(scale_str[i]), scale_val[i], grbl_comm.GetReportUnitsScaler(axis), grbl_comm.GetReportUnits(axis), grbl_comm.IsRotaryAxis(axis));
+    }
+    else // Spindle RPM
+    {
+      // Get scale
+      scale_val[i] = (i == 0u) ? 1u : scale_val[i - 1u] * 10u;
+      // Create scale for the button
+      grbl_comm.ValueToStringWithScalerAndUnits(scale_str[i], NumberOf(scale_str[i]), scale_val[i], 1, "rpm");
+    }
+
+    // Replace space to new line between scale and units
+    for(uint8_t j = 0; j < NumberOf(scale_str[i]); j++)
+    {
+      if(scale_str[i][j] == ' ')
+      {
+        scale_str[i][j] = '\n';
+        break;
+      }
+    }
+
+    // Show button
+    scale_btn[i].Show(100);
+    // Check if button is pressed
+    if(scale_btn[i].GetPressed())
+    {
+      // Set corresponding scale
+      scale = scale_val[i];
+    }
+  }
+}
+
+// *****************************************************************************
+// ***   Private constructor   *************************************************
+// *****************************************************************************
 DirectControlScr::DirectControlScr() : left_btn(Application::GetInstance().GetLeftButton()),
                                        middle_btn(Application::GetInstance().GetMiddleButton()),
                                        right_btn(Application::GetInstance().GetRightButton()),
