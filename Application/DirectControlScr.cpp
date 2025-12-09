@@ -262,8 +262,8 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
         distance = -distance;
       }
 
-      // Feed in mm/min
-      uint32_t feed_x100 = 600u * 100u; // TODO: Make it configurable?
+      // Feed in mm/min or deg/min(21600 deg/min is equivalent 60 rpm or 1 revolution per second)
+      uint32_t feed_x100 = (grbl_comm.IsRotaryAxis(axis) ? 21600u : 600u) * 100u; // TODO: Make it configurable?
       // If jogging direction is not changed
       if(((axis_jog_dir[i] < 0) && (axis_jog_val[i] < 0)) || ((axis_jog_dir[i] > 0) && (axis_jog_val[i] > 0)))
       {

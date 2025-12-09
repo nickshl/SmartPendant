@@ -438,8 +438,17 @@ int32_t GrblComm::GetAxisMachinePosition(uint8_t axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
-    // Calculate value and convert it into fixed point(um for metric/tenths for imperial)
-    value = (int32_t)(grbl_position[axis] * GetReportUnitsScaler(axis));
+    // Check if report in work coordinates
+    if(grbl_useWPos)
+    {
+      // If report in work coordinates, we have to add offset to get machine coordinates
+      value = (int32_t)((grbl_position[axis] + grbl_offset[axis]) * GetReportUnitsScaler(axis));
+    }
+    else
+    {
+      // Convert it into fixed point(um for metric/tenths for imperial)
+      value = (int32_t)(grbl_position[axis] * GetReportUnitsScaler(axis));
+    }
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -459,8 +468,17 @@ int32_t GrblComm::GetAxisPosition(uint8_t axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
-    // Calculate value and convert it into fixed point(um for metric/tenths for imperial)
-    value = (int32_t)((grbl_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
+    // Check if report in work coordinates
+    if(grbl_useWPos)
+    {
+      // Convert it into fixed point(um for metric/tenths for imperial)
+      value = (int32_t)(grbl_position[axis] * GetReportUnitsScaler(axis));
+    }
+    else
+    {
+      // If report in machine coordinates, we have to subtract offset to get work coordinates
+      value = (int32_t)((grbl_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
+    }
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -480,8 +498,17 @@ int32_t GrblComm::GetProbeMachinePosition(uint8_t axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
-    // Copy value
-    value = (int32_t)(grbl_probe_position[axis] * GetReportUnitsScaler(axis));
+    // Check if report in work coordinates
+    if(grbl_useWPos)
+    {
+      // If report in work coordinates, we have to add offset to get machine coordinates
+      value = (int32_t)((grbl_probe_position[axis] + grbl_offset[axis]) * GetReportUnitsScaler(axis));
+    }
+    else
+    {
+      // Copy value
+      value = (int32_t)(grbl_probe_position[axis] * GetReportUnitsScaler(axis));
+    }
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -501,8 +528,17 @@ int32_t GrblComm::GetProbePosition(uint8_t axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
-    // Copy value
-    value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
+    // Check if report in work coordinates
+    if(grbl_useWPos)
+    {
+      // Copy value
+      value = (int32_t)(grbl_probe_position[axis] * GetReportUnitsScaler(axis));
+    }
+    else
+    {
+      // Copy value
+      value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
+    }
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -1436,19 +1472,7 @@ bool GrblComm::ParseAxisData(char* data, float (&axis)[AXIS_CNT])
 // *****************************************************************************
 void GrblComm::ParseOffsets(char* data)
 {
-  if(grbl_useWPos)
-  {
-    grbl_changed.offset = (grbl_offset[AXIS_X] != 0.0f) || (grbl_offset[AXIS_Y] != 0.0f) || (grbl_offset[AXIS_Z] != 0.0f);
-
-    grbl_offset[AXIS_X] = 0.0f;
-    grbl_offset[AXIS_Y] = 0.0f;
-    grbl_offset[AXIS_Z] = 0.0f;
-  }
-  else
-  {
-    grbl_changed.offset = ParseAxisData(data, grbl_offset);
-  }
-
+  grbl_changed.offset = ParseAxisData(data, grbl_offset);
   grbl_changed.await_wco_ok = grbl_awaitWCO;
 }
 
