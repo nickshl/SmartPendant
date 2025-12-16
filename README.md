@@ -61,6 +61,39 @@ Note that pendant itself needs 5v power supply, it won't work with 3v.
 
 Detailed instructions how to check compatibility are [available here.](https://www.youtube.com/watch?v=ToWwejkP6e4)
 
+## GRBLHAL Configuration recommendations
+
+Consider turning on these options inside GRBLHAL General section:
+
+* Work coordinate offset
+
+* Overrides
+
+* Enable when homing
+
+## Debugging
+
+You can uncomment `#define SEND_DATA_TO_USB` line in `Application/GrblComm.h` file, recompile firmware. 
+With that controller mirrors all GRBL communication protocol to USB-based com port.
+
+## Probing
+
+### Center Finder
+
+You can select which axes will be used for searching. Active axes are highlighted in red. For outside center finding 2 additional parameters are available: `DISTANCE` - how far to travel before lowering probe. `CLEARANCE` - lowering depth.
+
+### Edge Finder
+
+Active axes are highlighted in red. You can also select which direction to travel using `+` and `-` fields.
+At the end of the process probe will be positioned at the very edge. `CLEARANCE` controls how far probe will be raised after the process.
+
+`PRECISE` button allows performing 2 consequent measurements by rotating probe 180 deg after the first measurement for improved precision.
+
+### Tool Offset 
+
+After using first tool, jog over probe and click `measure base` before changing. Change to the next tool and click `measure offset`. After process is completed, new tool offset will be set to match first tool length.
+
+
 ## Schematic
 
 Schematic vesion 1.3(and later versions, only layout slightly changed):
