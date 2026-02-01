@@ -65,6 +65,9 @@ Result GrblComm::Setup()
 {
   // Init UART
   uart->Init();
+  // Clear all received data to this point
+  uint8_t c = 0u;
+  while(uart->Read(c) == Result::RESULT_OK);
   // All good
   return Result::RESULT_OK;
 }
@@ -1376,6 +1379,15 @@ void GrblComm::ParseSettings(char* data)
     // Find setting and store it
     switch(setting_num)
     {
+      // ***********************************************************************
+      case 10:
+        if(status_report_options != (uint32_t)atol(s))
+        {
+          status_report_options = atol(s);
+          settings_changed = true;
+        }
+        break;
+
       // ***********************************************************************
       case 13:
         if(measurement_system != atoi(s))

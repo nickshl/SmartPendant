@@ -327,32 +327,32 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetFullControlMode function   *****************************
     // *************************************************************************
-    bool GetFullControlMode() {return(NVM::GetInstance().GetCtrlTx() == CTRL_FULL);}
+    inline bool GetFullControlMode() {return(NVM::GetInstance().GetValue(NVM::TX_CONTROL) == CTRL_FULL);}
 
     // *************************************************************************
     // ***   Public: IsInControl function   ************************************
     // *************************************************************************
-    bool IsInControl() {return (grbl_mpgMode || GetFullControlMode());}
+    inline bool IsInControl() {return (grbl_mpgMode || GetFullControlMode());}
 
     // *************************************************************************
     // ***   Public: GetMpgMode function   *************************************
     // *************************************************************************
-    bool GetMpgMode() {return grbl_mpgMode;}
+    inline bool GetMpgMode() {return grbl_mpgMode;}
 
     // *************************************************************************
     // ***   Public: GetMpgModeRequest function   ******************************
     // *************************************************************************
-    bool GetMpgModeRequest() {return mpg_mode_request;}
+    inline bool GetMpgModeRequest() {return mpg_mode_request;}
 
     // *************************************************************************
     // ***   Public: GetNumberOfAxis function   ********************************
     // *************************************************************************
-    uint32_t GetNumberOfAxis() {return number_of_axis;}
+    inline uint32_t GetNumberOfAxis() {return number_of_axis;}
 
     // *************************************************************************
     // ***   Public: GetLimitedNumberOfAxis function   *************************
     // *************************************************************************
-    uint32_t GetLimitedNumberOfAxis(uint32_t n) {return (((uint32_t)number_of_axis < n) ? number_of_axis : n);}
+    inline uint32_t GetLimitedNumberOfAxis(uint32_t n) {return (((uint32_t)number_of_axis < n) ? number_of_axis : n);}
 
     // *************************************************************************
     // ***   Public: GetAxisName function   ************************************
@@ -367,12 +367,12 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetState function   ***************************************
     // *************************************************************************
-    state_t GetState() {return grbl_state;}
+    inline state_t GetState() {return grbl_state;}
 
     // *************************************************************************
     // ***   Public: GetPinsStr function   *************************************
     // *************************************************************************
-    const char* const GetPinsStr() {return grbl_pins;}
+    inline const char* const GetPinsStr() {return grbl_pins;}
 
     // *************************************************************************
     // ***   Public: IsPinsStrChanged function   *******************************
@@ -392,7 +392,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetStatusCode function   **********************************
     // *************************************************************************
-    status_t GetStatusCode() {return grbl_status;}
+    inline status_t GetStatusCode() {return grbl_status;}
 
     // *************************************************************************
     // ***   Public: GetStatusName function   **********************************
@@ -522,12 +522,12 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetModeOfOperation function   *****************************
     // *************************************************************************
-    uint8_t GetModeOfOperation() {return mode_of_operation;}
+    inline uint8_t GetModeOfOperation() {return mode_of_operation;}
 
     // *************************************************************************
     // ***   Public: IsHomingEnabled function   ********************************
     // *************************************************************************
-    bool IsHomingEnabled() {return(homing & 0x0001u);}
+    inline bool IsHomingEnabled() {return(homing & 0x0001u);}
 
     // *************************************************************************
     // ***   Public: GetAxisMachinePosition function   *************************
@@ -547,7 +547,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: IsProbeTriggered function   *******************************
     // *************************************************************************
-    bool IsProbeTriggered() {return grbl_probe_triggered;}
+    inline bool IsProbeTriggered() {return grbl_probe_triggered;}
 
     // *************************************************************************
     // ***   Public: GetProbePosition function   *******************************
@@ -562,62 +562,67 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetFeedOverride function   ********************************
     // *************************************************************************
-    int32_t GetFeedOverride() {return grbl_feed_override;}
+    inline int32_t GetFeedOverride() {return grbl_feed_override;}
 
     // *************************************************************************
     // ***   Public: GetSpeedOverride function   *******************************
     // *************************************************************************
-    int32_t GetSpeedOverride() {return spindle_rpm_override;}
+    inline int32_t GetSpeedOverride() {return spindle_rpm_override;}
 
     // *************************************************************************
     // ***   Public: GetCoolantFlood function   ********************************
     // *************************************************************************
-    bool GetCoolantFlood() {return coolant_flood;}
+    inline bool GetCoolantFlood() {return coolant_flood;}
 
     // *************************************************************************
     // ***   Public: GetCoolantMist function   *********************************
     // *************************************************************************
-    bool GetCoolantMist() {return coolant_mist;}
+    inline bool GetCoolantMist() {return coolant_mist;}
 
     // *************************************************************************
     // ***   Public: GetSpindleMaxSpeed function   *****************************
     // *************************************************************************
-    uint16_t GetSpindleMaxSpeed() {return spindle_speed_max;}
+    inline uint16_t GetSpindleMaxSpeed() {return spindle_speed_max;}
 
     // *************************************************************************
     // ***   Public: GetSpindleMaxSpeed function   *****************************
     // *************************************************************************
-    uint16_t GetSpindleMinSpeed() {return spindle_speed_min;}
+    inline uint16_t GetSpindleMinSpeed() {return spindle_speed_min;}
 
     // *************************************************************************
     // ***   Public: IsSpindleRunning function   *******************************
     // *************************************************************************
-    bool IsSpindleRunning() {return spindle_on;}
+    inline bool IsSpindleRunning() {return spindle_on;}
 
     // *************************************************************************
     // ***   Public: IsSpindleCCW function   ***********************************
     // *************************************************************************
-    bool IsSpindleCCW() {return spindle_ccw;}
+    inline bool IsSpindleCCW() {return spindle_ccw;}
 
     // *************************************************************************
     // ***   Public: GetSpindleSpeed function   ********************************
     // *************************************************************************
-    uint16_t GetSpindleSpeed() {return spindle_rpm_programmed;}
+    inline uint16_t GetSpindleSpeed() {return spindle_rpm_programmed;}
 
     // *************************************************************************
     // ***   Public: GetSpindleActualSpeed function   **************************
     // *************************************************************************
-    uint16_t GetSpindleActualSpeed() {return spindle_rpm_actual;}
+    inline uint16_t GetSpindleActualSpeed() {return spindle_rpm_actual;}
 
     // *************************************************************************
     // ***   Public: IsLatheDiameterMode function   ****************************
     // *************************************************************************
-    bool IsLatheDiameterMode() {return grbl_xModeDiameter;}
+    inline bool IsLatheDiameterMode() {return grbl_xModeDiameter;}
+
+    // *************************************************************************
+    // ***   Public: IsWorkOffsetReportEnabled   *******************************
+    // *************************************************************************
+    inline bool IsWorkOffsetReportEnabled() {return (status_report_options & (1u << 5u));}
 
     // *************************************************************************
     // ***   Public: IsRespondPending function   *******************************
     // *************************************************************************
-    bool IsRespondPending() {return respond_pending;}
+    inline bool IsRespondPending() {return respond_pending;}
 
     // *************************************************************************
     // ***   Public: GetCmdResult   ********************************************
@@ -876,7 +881,7 @@ class GrblComm : public AppTask
     uint16_t rx_char_cnt = 0u;
 
     // Flag to show if we trying to gain control
-    bool mpg_mode_request = true;
+    bool mpg_mode_request = false;
 
     // Command to request status. On MPG gain control request it would be replaced
     // request full status report command. Then it will reverted back.
@@ -962,6 +967,7 @@ class GrblComm : public AppTask
     uint8_t rotary_axis_mask = 0u;
 
     // Settings
+    uint32_t status_report_options = 0u;
     uint8_t measurement_system = MEASUREMENT_SYSTEM_METRIC;
     uint8_t mode_of_operation = MODE_OF_OPERATION_MILL;
     uint16_t homing = 0u;

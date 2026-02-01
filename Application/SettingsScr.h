@@ -93,8 +93,9 @@ class SettingsScr : public IScreen
     // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
     const char* const menu_strings[NVM::MAX_VALUES] =
     {
+      "Version",
       // General
-      "MPG request", "Display Inversion",
+      "MPG request", "Display Inversion", "Auto MPG on startup",
       // MPG
       "Metric Feed 1", "Metric Feed 2", "Metric Feed 3", "Metric Feed 4",
       "Imperial Feed 1", "Imperial Feed 2", "Imperial Feed 3", "Imperial Feed 4",

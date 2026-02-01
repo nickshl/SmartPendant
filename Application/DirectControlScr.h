@@ -84,7 +84,7 @@ class DirectControlScr : public IScreen
     // String for version
     String version;
     // Version text with oscillator frequency
-    char ver_txt[sizeof(VERSION) + 6u] = {0};
+    char ver_txt[40u] = {0};
     // Value for speed
     int32_t jog_val = 0;
     // Jogging values

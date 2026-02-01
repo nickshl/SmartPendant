@@ -104,7 +104,11 @@ Result DirectControlScr::Setup(int32_t y, int32_t height)
   spindle_ctrl_btn.SetCallback(AppTask::GetCurrent());
 
   // Create version string with oscillator frequency
-  snprintf(ver_txt, sizeof(ver_txt), "%s %luMHz", VERSION, crystal_freq);
+#if defined(DEBUG)
+  snprintf(ver_txt, sizeof(ver_txt), "SmartPendant %d.%03d.%d %luMHz DEV", VERSION_MAJOR, VERSION_MINOR, VERSION_BUILD, crystal_freq);
+#else
+  snprintf(ver_txt, sizeof(ver_txt), "SmartPendant %d.%03d.%d %luMHz", VERSION_MAJOR, VERSION_MINOR, VERSION_BUILD, crystal_freq);
+#endif
   // Version string
   version.SetParams(ver_txt, BORDER_W, scale_btn[0].GetEndY() + (spindle_dw.GetStartY() - scale_btn[0].GetEndY() -  Font_8x12::GetInstance().GetCharH()) / 2, COLOR_WHITE, Font_8x12::GetInstance());
 

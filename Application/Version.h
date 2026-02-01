@@ -21,6 +21,8 @@
 // *****************************************************************************
 // ***   Version TODO: DON'T FORGET TO CHANGE IT!   ****************************
 // *****************************************************************************
-static constexpr char VERSION[] = "SmartPendant ver: 0.031.0";
+static constexpr uint8_t VERSION_MAJOR = 0u;
+static constexpr uint16_t VERSION_MINOR = 32u;
+static constexpr uint8_t VERSION_BUILD = 0u;
 
 #endif

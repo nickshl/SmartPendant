@@ -1783,14 +1783,10 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
     // Check buttons
     if((ptr == &get_base_btn) || (ptr == &get_offset_btn) || (ptr == &clear_offset_btn))
     {
-      // Get current Z position to restore it after tool length offset clear and to return Z axis back after probing
-      int32_t z_pos = grbl_comm.GetAxisPosition(GrblComm::AXIS_Z);
       // Clear tool length offset
       result |= grbl_comm.ClearToolLengthOffset();
       // Request offsets to show it
       result |= grbl_comm.RequestOffsets();
-      // Restore axis position
-      result |= grbl_comm.SetAxisPosition(GrblComm::AXIS_Z, z_pos);
       // Set state for probing only if result is good for previous commands
       if(result.IsGood() && ((ptr == &get_base_btn) || (ptr == &get_offset_btn)))
       {

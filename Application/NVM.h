@@ -24,6 +24,7 @@
 #include "DevCfg.h"
 
 #include "Eeprom24.h"
+#include "Version.h"
 
 // *****************************************************************************
 // ***   Local const variables   ***********************************************
@@ -42,9 +43,11 @@ class NVM
     // Enum with menu items
     enum Parameters
     {
+      VERSION,
       // General
       TX_CONTROL,
       SCREEN_INVERT,
+      AUTO_MPG_ON_START,
       // MPG
       MPG_METRIC_FEED_1,
       MPG_METRIC_FEED_2,
@@ -106,16 +109,6 @@ class NVM
     // *************************************************************************
     void SetCtrlTx(uint8_t tx_ctrl) {data.value[TX_CONTROL] = tx_ctrl;}
 
-    // *************************************************************************
-    // ***   GetDisplayInvert function   ***************************************
-    // *************************************************************************
-    bool GetDisplayInvert() {return data.value[SCREEN_INVERT];}
-
-    // *************************************************************************
-    // ***   SetDisplayInvert function   ***************************************
-    // *************************************************************************
-    void SetDisplayInvert(bool invert_display) {data.value[SCREEN_INVERT] = invert_display;}
-
   private:
 
     // Pointer to EEPROM object
@@ -126,9 +119,12 @@ class NVM
     {
       int32_t value[MAX_VALUES] =
       {
+        // 8 bit major, 16 bit minor, 8 bit build
+        (VERSION_MAJOR << 24u) | (VERSION_MINOR << 8u) | (VERSION_BUILD),
         // General
         2,    // TX_CONTROL
         0,    // SCREEN_INVERT
+        0,    // AUTO_MPG_ON_START
         // MPG
         1,    // MPG_METRIC_FEED_1: 0.001 mm
         5,    // MPG_METRIC_FEED_2: 0.005 mm

@@ -55,6 +55,12 @@ Result NVM::ReadData()
   // Read all NVM content
   result = eep->Read(0u, (uint8_t*)&data, sizeof(data));
 
+  // Check version
+  if(result.IsGood() && (data.value[VERSION] != ((VERSION_MAJOR << 24u) | (VERSION_MINOR << 8u) | (VERSION_BUILD))))
+  {
+    // Handle conversion there
+  }
+
   // Save CRC of read data to determinate later if settings was changed
   eep_crc = data.crc;
   // Calculate CRC32(without stored CRC)

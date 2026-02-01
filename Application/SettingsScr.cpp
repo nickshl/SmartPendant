@@ -186,16 +186,23 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
     // General tab
     if(ths.tabs.GetSelectedTab() == GENERAL_TAB)
     {
-      if(idx == NVM::TX_CONTROL)
+      // Convert menu index to NVM index
+      uint32_t nvm_idx = idx + NVM::TX_CONTROL;
+
+      if(nvm_idx == NVM::TX_CONTROL)
       {
         uint8_t val = ths.nvm.GetCtrlTx() + 1u;    // Get current value and increment it by 1
         if(val >= GrblComm::CTRL_TX_CNT) val = 0u; // Check overflow
         ths.nvm.SetCtrlTx(val);                    // Store new value
       }
-      else if(idx == NVM::SCREEN_INVERT)
+      else if(nvm_idx == NVM::SCREEN_INVERT)
       {
-        ths.nvm.SetDisplayInvert(!ths.nvm.GetDisplayInvert());
-        ths.display_drv.InvertDisplay(ths.nvm.GetDisplayInvert());
+        ths.nvm.SetValue(NVM::SCREEN_INVERT, !ths.nvm.GetValue(NVM::SCREEN_INVERT));
+        ths.display_drv.InvertDisplay(ths.nvm.GetValue(NVM::SCREEN_INVERT));
+      }
+      else if(nvm_idx == NVM::AUTO_MPG_ON_START)
+      {
+        ths.nvm.SetValue(NVM::AUTO_MPG_ON_START, !ths.nvm.GetValue(NVM::AUTO_MPG_ON_START));
       }
       else
       {
@@ -355,7 +362,8 @@ void SettingsScr::UpdateStrings(void)
   {
     // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
     menu.CreateString(menu_items[cnt++], menu_strings[NVM::TX_CONTROL], (nvm.GetCtrlTx() == GrblComm::CTRL_GPIO_PIN) ? "dedicated pin" : (nvm.GetCtrlTx() == GrblComm::CTRL_SW_COMMAND) ? "sw command" : (nvm.GetCtrlTx() == GrblComm::CTRL_PIN_AND_SW_CMD) ? "pin & sw cmd": "full control");
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::SCREEN_INVERT], nvm.GetDisplayInvert() ? "inverted" : "normal");
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::SCREEN_INVERT], nvm.GetValue(NVM::SCREEN_INVERT) ? "inverted" : "normal");
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::AUTO_MPG_ON_START], nvm.GetValue(NVM::AUTO_MPG_ON_START) ? "enabled" : "disabled");
   }
   // MPG tab
   else if(tabs.GetSelectedTab() == MPG_TAB)
