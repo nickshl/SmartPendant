@@ -789,12 +789,12 @@ Result CenterFinderTab::ProcessEncoderCallback(CenterFinderTab* obj_ptr, void* p
       // Change clearance
       if(ths.dw_clearance.IsShow() && ths.dw_clearance.IsSelected())
       {
-        ths.dw_clearance.SetNumber(ths.dw_clearance.GetNumber() + enc_val * 100);
+        ths.dw_clearance.SetNumber(ths.dw_clearance.GetNumber() + enc_val * (ths.grbl_comm.IsMetric() ? 100 : 10));
       }
       // Change distance
       if(ths.dw_distance.IsShow() && ths.dw_distance.IsSelected())
       {
-        ths.dw_distance.SetNumber(ths.dw_distance.GetNumber() + enc_val * 100);
+        ths.dw_distance.SetNumber(ths.dw_distance.GetNumber() + enc_val * (ths.grbl_comm.IsMetric() ? 100 : 10));
       }
     }
     // Set ok result
@@ -923,7 +923,7 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
   else if(state == PROBE_LINE_MOVE)
   {
     // Dive before probing. We use probing command to avoid probe damage if distance is incorrect.
-    result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, z_safe_pos - grbl_comm.ConvertMetricToUnits(dive), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
+    result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, z_safe_pos - dive, grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
     // Set next state
     state = PROBE_LINE_DIVE;
   }
@@ -932,8 +932,12 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
   // ***************************************************************************
   else if(state == PROBE_LINE_DIVE)
   {
-    // Check if probe reached dive depth
-    if( (grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) != (z_safe_pos - grbl_comm.ConvertMetricToUnits(dive))) ||
+    // Check if probe reached dive depth: axis position should be within allowed
+    // tolerance and probe shouldn't be triggered. If machine not precise enough,
+    // actual position can be slightly different that requested one and strict
+    // check will fail. To mitigate that, position tolerance can be set in
+    // settings.
+    if( (abs(grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - (z_safe_pos - dive)) > grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_POS_DEVIATION))) ||
         (grbl_comm.IsProbeTriggered() == true) )
     {
       // Set error flag - we need report it at the end of the sequence
@@ -1008,8 +1012,11 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
   // ***************************************************************************
   else if(state == PROBE_LINE_ASCEND)
   {
-    // Check if we actually lifted Z axis
-    if(z_safe_pos == grbl_comm.GetAxisPosition(GrblComm::AXIS_Z))
+    // Check if we actually lifted Z axis: axis position should be within allowed
+    // tolerance. If machine not precise enough, actual position can be slightly
+    // different that requested one and strict check will fail. To mitigate that,
+    // position tolerance can be set in settings.
+    if(abs(z_safe_pos - grbl_comm.GetAxisPosition(GrblComm::AXIS_Z)) <= grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_POS_DEVIATION)))
     {
       // Rapid move axis to the point before probing
       result = grbl_comm.MoveAxis(axis, safe_pos, 0u, cmd_id);
@@ -1103,7 +1110,7 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   dw_clearance.SetBorder(BORDER_W, COLOR_RED);
   dw_clearance.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_clearance.SetLimits(0, INT32_MAX);
-  dw_clearance.SetNumber(5000); // 5 mm default
+  dw_clearance.SetNumber(grbl_comm.ConvertMetricToUnits(5000)); // 5 mm default
   dw_clearance.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
   dw_clearance.SetCallback(AppTask::GetCurrent());
   dw_clearance.SetActive(true);
@@ -1115,7 +1122,7 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   dw_tip_diameter.SetBorder(BORDER_W, COLOR_RED);
   dw_tip_diameter.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_tip_diameter.SetLimits(0, INT32_MAX);
-  dw_tip_diameter.SetNumber(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+  dw_tip_diameter.SetNumber(grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP)));
   dw_tip_diameter.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
   dw_tip_diameter.SetCallback(AppTask::GetCurrent());
   dw_tip_diameter.SetActive(true);
@@ -1156,7 +1163,7 @@ Result EdgeFinderTab::Show()
   dw_clearance.Show(100);
   dw_clearance_name.Show(100);
   // Tip diameter window
-  dw_tip_diameter.SetNumber(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP));
+  dw_tip_diameter.SetNumber(grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP)));
   dw_tip_diameter.Show(100);
   dw_tip_diameter_name.Show(100);
 
@@ -1312,6 +1319,8 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
         }
         else if(precise_btn.GetPressed() && (iteration == PROBE_ITERATION_FIRST))
         {
+          // Move probe away work piece to give more space to rotate the probe
+          result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) - (dw_tip_diameter.GetNumber() / 2 * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
           // Show message box with request
           msg_box.Show(10000u);
           // Set iteration to prevent entering this again
@@ -1517,13 +1526,13 @@ Result EdgeFinderTab::ProcessEncoderCallback(EdgeFinderTab* obj_ptr, void* ptr)
       // Change clearance
       if(ths.dw_clearance.IsSelected())
       {
-        ths.dw_clearance.SetNumber(ths.dw_clearance.GetNumber() + enc_val * 100);
+        ths.dw_clearance.SetNumber(ths.dw_clearance.GetNumber() + enc_val * (ths.grbl_comm.IsMetric() ? 100 : 10));
       }
       // Change distance
       if(ths.dw_tip_diameter.IsSelected())
       {
-        ths.dw_tip_diameter.SetNumber(ths.dw_tip_diameter.GetNumber() + enc_val * 100);
-        NVM::GetInstance().SetValue(NVM::PROBE_BALL_TIP, ths.dw_tip_diameter.GetNumber());
+        ths.dw_tip_diameter.SetNumber(ths.dw_tip_diameter.GetNumber() + enc_val * (ths.grbl_comm.IsMetric() ? 100 : 10));
+        NVM::GetInstance().SetValue(NVM::PROBE_BALL_TIP, ths.grbl_comm.ConvertUnitsToMetric(ths.dw_tip_diameter.GetNumber()));
       }
     }
     // Set ok result

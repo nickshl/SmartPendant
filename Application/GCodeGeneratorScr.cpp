@@ -56,7 +56,7 @@ Result GCodeGeneratorScr::Setup(int32_t y, int32_t height)
   // Set callback
   menu.SetCallback(AppTask::GetCurrent(), this, reinterpret_cast<CallbackPtr>(ProcessMenuOkCallback), reinterpret_cast<CallbackPtr>(ProcessMenuCancelCallback));
   // Setup menu
-  menu.Setup(menu_items, NumberOf(menu_items), 0, y + tabs.GetHeight(), display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W*2 - tabs.GetHeight());
+  menu.Setup(menu_items, NumberOf(menu_items), 0, y + tabs.GetHeight(), display_drv.GetScreenW(), height - Font_8x12::GetInstance().GetCharH() * 2u - BORDER_W * 2 - tabs.GetHeight());
   // Set number of items in menu
   menu.SetCount(0);
 
@@ -150,6 +150,24 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
               // Generate GCode for ProgramSender
               if(ths.interpreter.Execute())
               {
+                // Save result if it is enabled in settings
+                if(NVM::GetInstance().GetValue(NVM::SAVE_SCRIPT_RESULT))
+                {
+                  // Stop timer to prevent queue overflow since SD card operations can take some time.
+                  AppTask::GetCurrent()->StopTimer();
+                  // File write count
+                  UINT wbytes;
+                  // Mount SD
+                  FRESULT fres = f_mount(&SDFatFS, (TCHAR const*)SDPath, 0);
+                  // Open file
+                  if(fres == FR_OK) fres = f_open(&SDFile, "Result.nc", FA_CREATE_ALWAYS | FA_WRITE);
+                  // Write data to file
+                  if(fres == FR_OK) fres = f_write(&SDFile, ProgramSender::GetInstance().GetDataBufferPtr(), ProgramSender::GetInstance().GetDataBufferLength(), &wbytes);
+                  // Close file
+                  if(fres == FR_OK) fres = f_close(&SDFile);
+                  // Restart timer
+                  AppTask::GetCurrent()->StartTimer();
+                }
                 // Switch to the Program Sender screen if successful
                 Application::GetInstance().ChangeScreen(ProgramSender::GetInstance());
               }
@@ -173,33 +191,48 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
         else
         {
           int var_val = 0;
-          int32_t min_val = 0;
-          int32_t max_val = 0;
           int32_t scaler = 1u;
           uint32_t precision = 0;
           // Get variable name and value
           ths.interpreter.GetGlobalVariableValue(idx, var_val);
           ths.GetGlobalVariableDescription(idx, ths.change_box_caption_str, NumberOf(ths.change_box_caption_str));
           ths.GetGlobalVariableScaler(idx, scaler);
-          ths.GetGlobalVariableUnits(idx, ths.change_box_units_str, NumberOf(ths.change_box_units_str));
-          ths.GetGlobalVariableMinVal(idx, min_val);
-          ths.GetGlobalVariableMaxVal(idx, max_val);
-          // Convert scaler to precision
-          while(scaler >= 10)
+          // Check if it enum
+          if(scaler == 0)
           {
-            scaler /= 10;
-            precision++;
+            // Add 1 to variable after one click
+            var_val += 1;
+            // Check overflow
+            if(var_val >= ths.GetGlobalVariableEnumCount(idx)) var_val = 0;
+            // Set variable value
+            ths.interpreter.SetGlobalVariableValue(idx, var_val);
+            // Update strings on display
+            ths.UpdateMenuStrings();
           }
-          // Setup object to change numerical parameters, title scale set to 1
-          ths.change_box.Setup(ths.change_box_caption_str, ths.change_box_units_str, var_val, min_val, max_val, precision, 1u);
-          // Set AppTask
-          ths.change_box.SetCallback(AppTask::GetCurrent());
-          // Save axis index as ID
-          ths.change_box.SetId(idx);
-          // Show change box
-          ths.change_box.Show(10000u);
-          // Update string on display
-          ths.UpdateMenuStrings();
+          else
+          {
+            int32_t min_val = 0;
+            int32_t max_val = 0;
+            ths.GetGlobalVariableMinVal(idx, min_val);
+            ths.GetGlobalVariableMaxVal(idx, max_val);
+            ths.GetGlobalVariableUnits(idx, ths.change_box_units_str, NumberOf(ths.change_box_units_str));
+            // Convert scaler to precision
+            while(scaler >= 10)
+            {
+              scaler /= 10;
+              precision++;
+            }
+            // Setup object to change numerical parameters, title scale set to 1
+            ths.change_box.Setup(ths.change_box_caption_str, ths.change_box_units_str, var_val, min_val, max_val, precision, 1u);
+            // Set AppTask
+            ths.change_box.SetCallback(AppTask::GetCurrent());
+            // Save axis index as ID
+            ths.change_box.SetId(idx);
+            // Show change box
+            ths.change_box.Show(10000u);
+            // Update string on display
+            ths.UpdateMenuStrings();
+          }
         }
       }
     }
@@ -271,7 +304,7 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
               }
             }
             // Null-terminate it
-            ths.script_caption_str[i]= '\0';
+            ths.script_caption_str[i] = '\0';
             // Set loaded script tab caption
             ths.tabs.SetText(0u, ths.script_caption_str, nullptr, Font_10x18::GetInstance());
             // Populate menu with global variables
@@ -364,8 +397,7 @@ Result GCodeGeneratorScr::ProcessCallback(const void* ptr)
     // If "Scripts" tab is selected
     if(tabs.GetSelectedTab() == 1u)
     {
-      // Stop timer to prevent queue overflow since SD card operations can take some
-      // time.
+      // Stop timer to prevent queue overflow since SD card operations can take some time.
       AppTask::GetCurrent()->StopTimer();
 
       // Reinit SD card
@@ -462,10 +494,14 @@ Result GCodeGeneratorScr::ProcessCallback(const void* ptr)
   // Process change box callback
   else if(ptr == &change_box)
   {
-    // Set variable value
-    interpreter.SetGlobalVariableValue(change_box.GetId(), change_box.GetValue());
-    // Update strings on display
-    UpdateMenuStrings();
+    // Update variable and strings only if user pressed "OK" button
+    if(change_box.GetResult())
+    {
+      // Set variable value
+      interpreter.SetGlobalVariableValue(change_box.GetId(), change_box.GetValue());
+      // Update strings on display
+      UpdateMenuStrings();
+    }
   }
   // Process message box with an error
   else if(ptr == &msg_box)
@@ -488,7 +524,7 @@ Result GCodeGeneratorScr::ProcessCallback(const void* ptr)
 void GCodeGeneratorScr::UpdateMenuStrings(void)
 {
   char var_str[24u] = {0};
-  char val_str[16u] = {0};
+  char val_str[24u] = {0};
   char units_str[8u] = {0};
   int32_t scaler = 1u;
 
@@ -503,10 +539,19 @@ void GCodeGeneratorScr::UpdateMenuStrings(void)
     // Get variable value and description
     interpreter.GetGlobalVariableValue(i, var_val);
     GetGlobalVariableDescription(i, var_str, NumberOf(var_str));
-    GetGlobalVariableScaler(i, scaler);
-    GetGlobalVariableUnits(i, units_str, NumberOf(units_str));
-    // Create menus string for value
-    menu.CreateString(menu_items[i], var_str, grbl_comm.ValueToStringWithScalerAndUnits(val_str, NumberOf(val_str), var_val, scaler, units_str));
+    // Check if it enum
+    if(IsGlobalVariableEnum(i))
+    {
+      GetGlobalVariableEnumValue(i, val_str, NumberOf(val_str), var_val);
+      menu.CreateString(menu_items[i], var_str, val_str);
+    }
+    else
+    {
+      GetGlobalVariableScaler(i, scaler);
+      GetGlobalVariableUnits(i, units_str, NumberOf(units_str));
+      // Create menus string for value
+      menu.CreateString(menu_items[i], var_str, grbl_comm.ValueToStringWithScalerAndUnits(val_str, NumberOf(val_str), var_val, scaler, units_str));
+    }
   }
   // Check if we have space for Generate
   if((i == n) && (i < NumberOf(menu_items) - 1))
@@ -599,6 +644,8 @@ bool GCodeGeneratorScr::GetGlobalVariableCommentString(uint32_t variable_idx, ch
         // Copy character to buffer
         ptr[i] = var_comment_ptr[i];
       }
+      // Null-terminate buffer if there more characters than provided buffer can hold
+      if(n > 0) ptr[n-1] = '\0';
     }
     else
     {
@@ -640,6 +687,52 @@ bool GCodeGeneratorScr::GetGlobalVariableUnits(uint32_t variable_idx, char* ptr,
     ptr[0] = '\0';
   }
 
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Private: GetGlobalVariableEnumValue   *********************************
+// *****************************************************************************
+bool GCodeGeneratorScr::GetGlobalVariableEnumValue(uint32_t variable_idx, char* ptr, uint32_t n, uint32_t idx)
+{
+  bool result = GetGlobalVariableCommentString(variable_idx, ptr, n, 2u + idx);
+
+  if((result == false) && (ptr != nullptr))
+  {
+    // No units
+    ptr[0] = '\0';
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Private: GetGlobalVariableEnumCount   *********************************
+// *****************************************************************************
+int32_t GCodeGeneratorScr::GetGlobalVariableEnumCount(uint32_t variable_idx)
+{
+  int32_t result = 0u;
+  // Count how many there enum items(if size 0 pointer isn't matter)
+  while(GetGlobalVariableEnumValue(variable_idx, nullptr, 0, result))
+  {
+    result++;
+  }
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Private: IsGlobalVariableEnum   ***************************************
+// *****************************************************************************
+bool GCodeGeneratorScr::IsGlobalVariableEnum(uint32_t variable_idx)
+{
+  int32_t scaler = 0;
+  // Get units
+  bool result = GetGlobalVariableScaler(variable_idx, scaler);
+  // If it isn't ENUM
+  if((result == true) && (scaler != 0)) result = false;
   // Return result
   return result;
 }

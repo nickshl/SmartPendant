@@ -25,6 +25,9 @@
 // *****************************************************************************
 Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, int32_t min, int32_t max, uint32_t point_pos, uint8_t title_scale)
 {
+  // Clear items pointer
+  items = nullptr;
+
   // Width of box
   static const uint32_t width = display_drv.GetScreenW();
 
@@ -98,6 +101,36 @@ Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, 
 }
 
 // *****************************************************************************
+// ***   ChangeValueBox Setup   ************************************************
+// *****************************************************************************
+Result ChangeValueBox::Setup(const char* title, const char* const* itms, int32_t n, int32_t val, uint8_t title_scale)
+{
+  // Use main setup to create box and value caption
+  Setup(title, "", val, 0, n - 1, 0, title_scale);
+
+  // Save items
+  items = itms;
+  items_cnt = n;
+
+  // Set string instead value
+  value_dw.SetString(itms[val]);
+
+  // No scale buttons for items list, so hide them
+  for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
+  {
+    scale_btn[i].Hide();
+  }
+
+  // Set box parameters to make it smaller
+  box.SetParams(0, 0, box.GetWidth(), value_dw.GetEndY() + BORDER_W*2, COLOR_BLACK, true);
+  box.SetBorderWidth(BORDER_W);
+  box.SetColor(COLOR_YELLOW);
+
+  // All good
+  return Result::RESULT_OK;
+}
+
+// *****************************************************************************
 // ***   Set callback function   ***********************************************
 // *****************************************************************************
 void ChangeValueBox::SetCallback(AppTask* task, CallbackPtr func, void* param)
@@ -123,8 +156,8 @@ Result ChangeValueBox::Show(uint32_t z)
 
   // Set encoder callback handler
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
-  // Set callback handler for left and right buttons
-  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
+  // Set callback handler for all buttons
+  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_ALL, btn_cble);
 
   // All good
   return Result::RESULT_OK;
@@ -174,6 +207,11 @@ Result ChangeValueBox::ProcessEncoderCallback(ChangeValueBox* obj_ptr, void* ptr
     {
       // Calculate & set new value number
       ths.value_dw.SetNumber(ths.value_dw.GetNumber() + enc_val * ths.scale);
+      // If it enum list - set string according to value
+      if(ths.items != nullptr)
+      {
+        ths.value_dw.SetString(&ths.items[ths.value_dw.GetNumber()][0]);
+      }
     }
     // Set ok result
     result = Result::RESULT_OK;
@@ -197,9 +235,11 @@ Result ChangeValueBox::ProcessButtonCallback(ChangeValueBox* obj_ptr, void* ptr)
     // we have to provide pinter to object.
     ChangeValueBox& ths = *obj_ptr;
 
-    // Process Left Soft Button
-    if(ptr == &ths.left_btn)
+    // Process Left and Right Soft Buttons
+    if((ptr == &ths.left_btn) || (ptr == &ths.right_btn))
     {
+      // Only if left button is pressed - want to apply value
+      ths.is_ok_pressed = (ptr == &ths.left_btn) ? true : false;
       // Hide itself and call callback to show that value should be saved
       ths.Hide();
       // If AppTask pointer provided
@@ -218,12 +258,6 @@ Result ChangeValueBox::ProcessButtonCallback(ChangeValueBox* obj_ptr, void* ptr)
       {
         ; // Do nothing - MISRA rule
       }
-    }
-    // Process Right Soft Button
-    else if(ptr == &ths.right_btn)
-    {
-      // Cancel button just hides dialog - no additional action neede
-      ths.Hide();
     }
     // Process scale buttons
     else if(ptr == &ths.scale_btn[0])
@@ -267,7 +301,7 @@ Result ChangeValueBox::ProcessButtonCallback(ChangeValueBox* obj_ptr, void* ptr)
           ProcessButtonCallback(obj_ptr, &ths.right_btn);
         }
       }
-      else
+      else // Any other button - do nothing
       {
         ; // Do nothing - MISRA rule
       }

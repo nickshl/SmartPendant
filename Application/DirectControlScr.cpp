@@ -417,7 +417,10 @@ Result DirectControlScr::ProcessCallback(const void* ptr)
   // Process change box callback
   else if(ptr == &change_box)
   {
-    grbl_comm.SetAxisPosition(change_box.GetId(), change_box.GetValue());
+    if(change_box.GetResult())
+    {
+      grbl_comm.SetAxisPosition(change_box.GetId(), change_box.GetValue());
+    }
   }
   // Process spindle control button
   else if(ptr == &spindle_ctrl_btn)

@@ -48,6 +48,7 @@ class NVM
       TX_CONTROL,
       SCREEN_INVERT,
       AUTO_MPG_ON_START,
+      SAVE_SCRIPT_RESULT,
       // MPG
       MPG_METRIC_FEED_1,
       MPG_METRIC_FEED_2,
@@ -64,6 +65,7 @@ class NVM
       // Probe
       PROBE_SEARCH_FEED,
       PROBE_LOCK_FEED,
+      PROBE_POS_DEVIATION,
       PROBE_BALL_TIP,
       // Total
       MAX_VALUES
@@ -120,11 +122,12 @@ class NVM
       int32_t value[MAX_VALUES] =
       {
         // 8 bit major, 16 bit minor, 8 bit build
-        (VERSION_MAJOR << 24u) | (VERSION_MINOR << 8u) | (VERSION_BUILD),
+        EEP_VERSION,
         // General
         2,    // TX_CONTROL
         0,    // SCREEN_INVERT
         0,    // AUTO_MPG_ON_START
+        0,    // SAVE_SCRIPT_RESULT
         // MPG
         1,    // MPG_METRIC_FEED_1: 0.001 mm
         5,    // MPG_METRIC_FEED_2: 0.005 mm
@@ -139,9 +142,10 @@ class NVM
         720,  // MPG_ROTARY_FEED_3: 0.720 deg -  5 handwheel revolution for full turn
         3600, // MPG_ROTARY_FEED_4: 3.600 deg -  1 handwheel revolution for full turn
         // Probe
-        200,  // PROBE_SEARCH_FEED
-        50,   // PROBE_LOCK_FEED
-        2000  // PROBE_BALL_TIP
+        200,  // PROBE_SEARCH_FEED: 200 mm/min
+        50,   // PROBE_LOCK_FEED: 50 mm/min
+        10,   // PROBE_POS_DEVIATION: 0.010 mm
+        2000  // PROBE_BALL_TIP: 2.000 mm
       };
       // CRC
       uint32_t crc = 0u;

@@ -91,8 +91,10 @@ Result MsgBox::Show(uint32_t z)
   left_btn.Show(z+2);
   right_btn.Show(z+3);
 
-  // Set callback handler for left and right buttons
-  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_LEFT | InputDrv::BTNM_RIGHT, btn_cble);
+  // Set encoder callback handler
+  InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
+  // Set callback handler for all buttons since it modal dialog
+  InputDrv::GetInstance().AddButtonsCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessButtonCallback), this, InputDrv::BTNM_ALL, btn_cble);
 
   // All good
   return Result::RESULT_OK;
@@ -103,6 +105,8 @@ Result MsgBox::Show(uint32_t z)
 // *****************************************************************************
 Result MsgBox::Hide()
 {
+  // Delete encoder callback handler
+  InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
   // Delete buttons callback handler
   InputDrv::GetInstance().DeleteButtonsCallbackHandler(btn_cble);
 
@@ -187,7 +191,7 @@ Result MsgBox::ProcessButtonCallback(MsgBox* obj_ptr, void* ptr)
           ProcessButtonCallback(obj_ptr, &ths.right_btn);
         }
       }
-      else
+      else // Any other button - do nothing
       {
         ; // Do nothing - MISRA rule
       }

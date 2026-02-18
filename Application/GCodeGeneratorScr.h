@@ -165,6 +165,21 @@ class GCodeGeneratorScr : public IScreen
     bool GetGlobalVariableUnits(uint32_t variable_idx, char* ptr, uint32_t n);
 
     // *************************************************************************
+    // ***   Private: GetGlobalVariableCommentString   *************************
+    // *************************************************************************
+    bool GetGlobalVariableEnumValue(uint32_t variable_idx, char* ptr, uint32_t n, uint32_t idx);
+
+    // *************************************************************************
+    // ***   Private: GetGlobalVariableEnumCount   *****************************
+    // *************************************************************************
+    int32_t GetGlobalVariableEnumCount(uint32_t variable_idx);
+
+    // *************************************************************************
+    // ***   Public: IsGlobalVariableEnum   ************************************
+    // *************************************************************************
+    bool IsGlobalVariableEnum(uint32_t variable_idx);
+
+    // *************************************************************************
     // ***   Private: GetGlobalVariableMinVal   ********************************
     // *************************************************************************
     bool GetGlobalVariableMinVal(uint32_t variable_idx, int32_t& min);

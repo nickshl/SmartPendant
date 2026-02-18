@@ -1,9 +1,12 @@
-// Enlarge parameters: Variable name, scaler, units, min value, max value
+// Enlarge parameters:  Variable name, scaler, units, min value, max value
+// For enum parameters: Variable name, 0 to indicate enum, first value, ..., last value
 int endmill_diameter = 6000; // Endmill diameter; 1000; mm; 0; 25400
 int hole_diameter = 10000;   // Hole diameter; 1000; mm; 0; 1000000
 int stepover = 1000;         // Steopver; 1000; mm; 0; 5000
 int feed = 30;               // Feed; 1; mm/min; 1; 1000
-int direction = 0;           // Direction; 1; CW/CCW; 0; 1 
+int speed = 0;               // Speed; 1; rpm; 1; 5000
+int direction = 0;           // Direction; 0; ClockWise; CounterClockWise
+int coolant = 0;             // Coolant; 0; Flood; Mist; None
 
 main()
 {
@@ -18,6 +21,12 @@ main()
     // Switch to relative mode
     println("G91; Relative mode");
     println("G21; Metric mode");
+
+    // Set speed for the rough passes(if any)
+    if(speed != 0) println("M3 S", speed);
+    // Set coolant
+    if(coolant == 0) println("M8"); // Flood
+    if(coolant == 1) println("M7"); // Mist
 
     // Generate cycle
     while((enlarge_progress + stepover * 2) < hole_diameter_corrected)
@@ -51,5 +60,10 @@ main()
 
     // Return to center
     println("G0 X", printfp(-center, 1000));
+
+    // Stop coolant
+    println("M9");
+    // Stop spindle
+    println("M5");
   }
 }

@@ -933,7 +933,7 @@ Result GrblComm::SetAxisPosition(uint8_t axis, int32_t position)
 // *****************************************************************************
 // ***   Public: MoveAxis   ****************************************************
 // *****************************************************************************
-Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, uint32_t &id)
+Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, uint32_t &id, bool is_absolute)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -957,11 +957,11 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, ui
       // Create move command(zero feed mean rapid)
       if(feed_x100)
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG1%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed_str);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%s%sG1%s%sF%s\r", is_absolute ? "G90" : "G91", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed_str);
       }
       else
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG0%s%s\r", GetMeasurementSystemGcode(), axis_str[axis], distance_str);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%s%sG0%s%s\r", is_absolute ? "G90" : "G91", GetMeasurementSystemGcode(), axis_str[axis], distance_str);
       }
 
       // Send message
@@ -1003,11 +1003,11 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
       // Create Set Axis command. Strict uses .2 to produce alarm, non-strict uses .3 to avoid alarm.
       if(strict)
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.2%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.2%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
       }
       else
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.3%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.3%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
       }
 
       // Send message
@@ -1047,7 +1047,7 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint
       // Convert distance value to string
       ValueToString(position_str, NumberOf(position_str), position, GetReportUnitsScaler(axis));
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG38.4%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.4%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
 
       // Send message
       result = SendTaskMessage(&msg);

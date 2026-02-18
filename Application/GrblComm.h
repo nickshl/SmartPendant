@@ -812,7 +812,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: MoveAxis   ************************************************
     // *************************************************************************
-    Result MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, uint32_t &id);
+    Result MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, uint32_t &id, bool is_absolute = true);
 
     // *************************************************************************
     // ***   Public: ProbeAxisTowardWorkpiece   ********************************

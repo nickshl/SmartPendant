@@ -87,6 +87,8 @@ class InputDrv : public AppTask
       BTNM_RIGHT_DOWN = (1u << BTN_RIGHT_DOWN), // Side Right Down button
       BTNM_USR =        (1u << BTN_USR),        // Key button on BlackPill
     } ButtonMaskType;
+    // All buttons mask
+    static constexpr uint8_t BTNM_ALL = (BTNM_LEFT | BTNM_RIGHT | BTNM_LEFT_UP | BTNM_LEFT_DOWN | BTNM_RIGHT_UP | BTNM_RIGHT_DOWN | BTNM_USR);
 
     // *************************************************************************
     // ***   Structure to describe callback   **********************************

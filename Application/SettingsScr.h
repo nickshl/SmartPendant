@@ -95,13 +95,13 @@ class SettingsScr : public IScreen
     {
       "Version",
       // General
-      "MPG request", "Display Inversion", "Auto MPG on startup",
+      "MPG request", "Display Inversion", "Auto MPG on startup", "Save script result",
       // MPG
       "Metric Feed 1", "Metric Feed 2", "Metric Feed 3", "Metric Feed 4",
       "Imperial Feed 1", "Imperial Feed 2", "Imperial Feed 3", "Imperial Feed 4",
       "Rotary Feed 1", "Rotary Feed 2", "Rotary Feed 3", "Rotary Feed 4",
       // Probe
-      "Probe search speed", "Probe lock speed", "Probe ball tip"
+      "Search speed", "Lock speed", "Position deviation", "Ball tip"
     };
 
     // Pages

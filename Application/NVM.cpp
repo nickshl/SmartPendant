@@ -56,7 +56,7 @@ Result NVM::ReadData()
   result = eep->Read(0u, (uint8_t*)&data, sizeof(data));
 
   // Check version
-  if(result.IsGood() && (data.value[VERSION] != ((VERSION_MAJOR << 24u) | (VERSION_MINOR << 8u) | (VERSION_BUILD))))
+  if(result.IsGood() && (data.value[VERSION] != EEP_VERSION))
   {
     // Handle conversion there
   }

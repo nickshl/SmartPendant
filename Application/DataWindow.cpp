@@ -212,6 +212,15 @@ bool DataWindow::SetNumber(int32_t n)
 }
 
 // *****************************************************************************
+// ***   SetString   ***********************************************************
+// *****************************************************************************
+void DataWindow::SetString(const char* str)
+{
+  data_str.SetString(data_str_buf, NumberOf(data_str_buf), "%s", str);
+  data_str.Move((width - data_str.GetWidth()) / 2u, (height - data_str.GetHeight()) / 2, false);
+}
+
+// *****************************************************************************
 // ***   UpdateStringPositions   ***********************************************
 // *****************************************************************************
 void DataWindow::UpdateStringPositions(void)

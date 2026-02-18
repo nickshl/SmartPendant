@@ -51,6 +51,11 @@ class ChangeValueBox
     ChangeValueBox() {};
 
     // *************************************************************************
+    // ***   Public: GetResult   ***********************************************
+    // *************************************************************************
+    bool GetResult() {return is_ok_pressed;}
+
+    // *************************************************************************
     // ***   Public: GetValue   ************************************************
     // *************************************************************************
     int32_t GetValue() {return value_dw.GetNumber();}
@@ -59,6 +64,11 @@ class ChangeValueBox
     // ***   Public: Setup function   ******************************************
     // *************************************************************************
     Result Setup(const char* title, const char* units, int32_t val, int32_t min, int32_t max, uint32_t point_pos, uint8_t title_scale = 2u);
+
+    // *************************************************************************
+    // ***   Public: Setup function   ******************************************
+    // *************************************************************************
+    Result Setup(const char* title, const char* const* itms, int32_t n, int32_t val, uint8_t title_scale = 2u);
 
     // *************************************************************************
     // ***   Set callback function   *******************************************
@@ -95,9 +105,15 @@ class ChangeValueBox
 
     // ID for caller
     uint32_t id = 0u;
+    // Result of changing value
+    bool is_ok_pressed = false;
 
     // Scale to move axis
     int32_t scale = 10u;
+
+    // Items list pointer and count variables
+    const char* const* items = nullptr;
+    int32_t items_cnt = 0u;
 
     // List that contains all menu elements
     VisList list;

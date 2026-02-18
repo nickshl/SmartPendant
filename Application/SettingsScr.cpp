@@ -133,24 +133,28 @@ Result SettingsScr::ProcessCallback(const void* ptr)
   // Process change box callback
   else if(ptr == &change_box)
   {
-    // MPG tab
-    if(tabs.GetSelectedTab() == MPG_TAB)
+    // Update variable and strings only if user pressed "OK" button
+    if(change_box.GetResult())
     {
-      // Save value as is since we have separate values for metric and imperial
-      nvm.SetValue((NVM::Parameters)(change_box.GetId() + NVM::MPG_METRIC_FEED_1), change_box.GetValue());
+      // MPG tab
+      if(tabs.GetSelectedTab() == MPG_TAB)
+      {
+        // Save value as is since we have separate values for metric and imperial
+        nvm.SetValue((NVM::Parameters)(change_box.GetId() + NVM::MPG_METRIC_FEED_1), change_box.GetValue());
+      }
+      // Probe tab
+      else if(tabs.GetSelectedTab() == PROBE_TAB)
+      {
+        // Save value - probe parameters always saved as metric
+        nvm.SetValue((NVM::Parameters)(change_box.GetId() + NVM::PROBE_SEARCH_FEED), grbl_comm.ConvertUnitsToMetric(change_box.GetValue()));
+      }
+      else
+      {
+        ; // Do nothing - MISRA rule
+      }
+      // Update strings on display
+      UpdateStrings();
     }
-    // Probe tab
-    else if(tabs.GetSelectedTab() == PROBE_TAB)
-    {
-      // Save value - probe parameters always saved as metric
-      nvm.SetValue((NVM::Parameters)(change_box.GetId() + NVM::PROBE_SEARCH_FEED), grbl_comm.ConvertUnitsToMetric(change_box.GetValue()));
-    }
-    else
-    {
-      ; // Do nothing - MISRA rule
-    }
-    // Update strings on display
-    UpdateStrings();
   }
   // Process message box with an error
   if(ptr == &Application::GetInstance().GetMsgBox())
@@ -203,6 +207,10 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       else if(nvm_idx == NVM::AUTO_MPG_ON_START)
       {
         ths.nvm.SetValue(NVM::AUTO_MPG_ON_START, !ths.nvm.GetValue(NVM::AUTO_MPG_ON_START));
+      }
+      else if(nvm_idx == NVM::SAVE_SCRIPT_RESULT)
+      {
+        ths.nvm.SetValue(NVM::SAVE_SCRIPT_RESULT, !ths.nvm.GetValue(NVM::SAVE_SCRIPT_RESULT));
       }
       else
       {
@@ -260,7 +268,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       const char* units = nullptr;
       uint32_t precision = 0;
 
-      if(nvm_idx == NVM::PROBE_BALL_TIP)
+      if((nvm_idx == NVM::PROBE_BALL_TIP) || (nvm_idx == NVM::PROBE_POS_DEVIATION))
       {
         units = ths.grbl_comm.GetReportUnits();
         precision = ths.grbl_comm.GetReportUnitsPrecision();
@@ -364,6 +372,7 @@ void SettingsScr::UpdateStrings(void)
     menu.CreateString(menu_items[cnt++], menu_strings[NVM::TX_CONTROL], (nvm.GetCtrlTx() == GrblComm::CTRL_GPIO_PIN) ? "dedicated pin" : (nvm.GetCtrlTx() == GrblComm::CTRL_SW_COMMAND) ? "sw command" : (nvm.GetCtrlTx() == GrblComm::CTRL_PIN_AND_SW_CMD) ? "pin & sw cmd": "full control");
     menu.CreateString(menu_items[cnt++], menu_strings[NVM::SCREEN_INVERT], nvm.GetValue(NVM::SCREEN_INVERT) ? "inverted" : "normal");
     menu.CreateString(menu_items[cnt++], menu_strings[NVM::AUTO_MPG_ON_START], nvm.GetValue(NVM::AUTO_MPG_ON_START) ? "enabled" : "disabled");
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::SAVE_SCRIPT_RESULT], nvm.GetValue(NVM::SAVE_SCRIPT_RESULT) ? "enabled" : "disabled");
   }
   // MPG tab
   else if(tabs.GetSelectedTab() == MPG_TAB)
@@ -386,9 +395,10 @@ void SettingsScr::UpdateStrings(void)
   else if(tabs.GetSelectedTab() == PROBE_TAB)
   {
     // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_SEARCH_FEED], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_SEARCH_FEED)), grbl_comm.GetReportSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_LOCK_FEED],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_LOCK_FEED)), grbl_comm.GetReportSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_BALL_TIP],    grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_BALL_TIP)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_SEARCH_FEED],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_SEARCH_FEED)), grbl_comm.GetReportSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_LOCK_FEED],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_LOCK_FEED)), grbl_comm.GetReportSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_POS_DEVIATION], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_POS_DEVIATION)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_BALL_TIP],      grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_BALL_TIP)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
   }
   else
   {

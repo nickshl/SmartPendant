@@ -103,8 +103,15 @@ class MsgBox
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
 
+    // Encoder callback entry
+    InputDrv::CallbackListEntry enc_cble;
     // Button callback entry
     InputDrv::CallbackListEntry btn_cble;
+
+    // *************************************************************************
+    // ***   Private: ProcessEncoderCallback function   ************************
+    // *************************************************************************
+    static Result ProcessEncoderCallback(MsgBox* obj_ptr, void* ptr) {return Result::RESULT_OK;}
 
     // *************************************************************************
     // ***   Private: ProcessButtonCallback function   *************************

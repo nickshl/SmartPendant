@@ -22,7 +22,9 @@
 // ***   Version TODO: DON'T FORGET TO CHANGE IT!   ****************************
 // *****************************************************************************
 static constexpr uint8_t VERSION_MAJOR = 0u;
-static constexpr uint16_t VERSION_MINOR = 32u;
+static constexpr uint16_t VERSION_MINOR = 33u;
 static constexpr uint8_t VERSION_BUILD = 0u;
+
+static constexpr uint32_t EEP_VERSION = 0u;
 
 #endif
