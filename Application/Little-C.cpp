@@ -20,6 +20,7 @@ const LittleC::intern_func_type LittleC::intern_func[] =
   "println", &LittleC::call_println,
   "printfp", &LittleC::call_printfp,
   "abs", &LittleC::call_abs,
+  "sqrt", &LittleC::call_sqrt,
   "GetAxisPosX", &LittleC::call_getaxisposx,
   "GetAxisPosY", &LittleC::call_getaxisposy,
   "GetAxisPosZ", &LittleC::call_getaxisposz,
@@ -2328,6 +2329,16 @@ bool LittleC::call_abs(data_type& ret)
 {
   bool result = eval_exp(ret);
   if(result) ret.value = abs(ret.value);
+  return result;
+}
+
+// *****************************************************************************
+// ***   Return square root value   ********************************************
+// *****************************************************************************
+bool LittleC::call_sqrt(data_type& ret)
+{
+  bool result = eval_exp(ret);
+  if(result) ret.value = sqrt(ret.value);
   return result;
 }
 

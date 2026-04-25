@@ -245,6 +245,7 @@ class LittleC
     bool call_print(data_type&);
     bool call_println(data_type&);
     bool call_abs(data_type&);
+    bool call_sqrt(data_type&);
 
     // SmartPendant specific functions
     bool call_getaxisposx(data_type&);

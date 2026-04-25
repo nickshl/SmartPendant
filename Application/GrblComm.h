@@ -936,7 +936,7 @@ class GrblComm : public AppTask
     bool      grbl_useWPos;
     bool      grbl_awaitWCO;
     bool      grbl_absDistance;
-    bool      grbl_mpgMode;
+    bool      grbl_mpgMode = false;
     bool      grbl_xModeDiameter;
     bool      grbl_probe_triggered = false;
     changes_t grbl_changed;

@@ -103,8 +103,8 @@ Result GrblComm::TimerExpired(uint32_t missed_cnt)
   // If SW command used to gain control, MPG control requested and MPG isn't in control
   if(((NVM::GetInstance().GetCtrlTx() == CTRL_SW_COMMAND) || (NVM::GetInstance().GetCtrlTx() == CTRL_PIN_AND_SW_CMD)) && mpg_mode_request && !IsInControl())
   {
-    // If MPG state received(not in control) or if last status was received a while ago
-    if(grbl_received.mpg || (RtosTick::GetTimeMs() - status_rx_timestamp > 300u))
+    // If MPG state received(not in control) or if last status was requested a while ago
+    if(grbl_received.mpg || (RtosTick::GetTimeMs() - status_tx_timestamp > 300u))
     {
       // Send command again
       SendRealTimeCmd(CMD_MPG_MODE_TOGGLE);
@@ -201,7 +201,7 @@ Result GrblComm::ProcessMessage()
       }
 #endif
     }
-    else if (IsInControl() && !respond_pending)
+    else if(IsInControl() && !respond_pending)
     {
       // If previous command successful
       if(grbl_status == Status_OK)

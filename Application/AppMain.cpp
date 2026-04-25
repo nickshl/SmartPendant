@@ -35,7 +35,6 @@
 // Application
 #include "Application.h"
 #include "GrblComm.h"
-#include "GraphDemo.h"
 #include "Tetris.h"
 
 // *****************************************************************************
@@ -100,11 +99,6 @@ extern "C" void AppMain(void)
   {
     // If left up button pressed - run Tetris
     Tetris::GetInstance().InitTask();
-  }
-  else if(btn_ld.IsLow())
-  {
-    // If left down button pressed - run GraphDemo
-    GraphDemo::GetInstance().InitTask();
   }
   else
   {
