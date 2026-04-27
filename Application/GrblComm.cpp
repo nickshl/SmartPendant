@@ -288,9 +288,11 @@ void GrblComm::GainControl()
     if(!mpg_mode_request)
     {
       SendRealTimeCmd(CMD_MPG_MODE_TOGGLE);
-      // Set timestamp when status was received to track if we will get status
+      // Set timestamp when status was requested to track if we will get status
       // in response to CMD_MPG_MODE_TOGGLE command
-      status_rx_timestamp = RtosTick::GetTimeMs();
+      status_tx_timestamp = RtosTick::GetTimeMs();
+      // Status received flag
+      status_received = false;
     }
   }
   else if(NVM::GetInstance().GetCtrlTx() == CTRL_PIN_AND_SW_CMD)
@@ -301,9 +303,11 @@ void GrblComm::GainControl()
     if(!mpg_mode_request)
     {
       SendRealTimeCmd(CMD_MPG_MODE_TOGGLE);
-      // Set timestamp when status was received to track if we will get status
+      // Set timestamp when status was requested to track if we will get status
       // in response to CMD_MPG_MODE_TOGGLE command
-      status_rx_timestamp = RtosTick::GetTimeMs();
+      status_tx_timestamp = RtosTick::GetTimeMs();
+      // Status received flag
+      status_received = false;
     }
   }
   else
