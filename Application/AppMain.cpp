@@ -18,24 +18,18 @@
 // *****************************************************************************
 // ***   Includes   ************************************************************
 // *****************************************************************************
-#include "DevCfg.h"
-// Objects
-#include "StHalSpi.h"
-#include "StHalIicThreadSafe.h"
-#include "StHalUart.h"
-#include "StHalGpio.h"
-#include "ILI9488.h"
-#include "FT6236.h"
-#include "Eeprom24.h"
+#include "DevCore.h"
 // NVM
 #include "NVM.h"
 // Tasks
-#include "DisplayDrv.h"
 #include "InputDrv.h"
 // Application
 #include "Application.h"
 #include "GrblComm.h"
 #include "Tetris.h"
+
+// Hardware
+#include "tim.h"
 
 // *****************************************************************************
 // ***   Functions   ***********************************************************
@@ -65,7 +59,8 @@ static StHalGpio btn_lu(BTN_LU_GPIO_Port, BTN_LU_Pin, IGpio::INPUT);
 static StHalGpio btn_ld(BTN_LD_GPIO_Port, BTN_LD_Pin, IGpio::INPUT);
 static StHalGpio btn_usr(BTN_USR_GPIO_Port, BTN_USR_Pin, IGpio::INPUT);
 // Buzzer
-static StHalGpio buzzer(BUZZER_GPIO_Port, BUZZER_Pin, IGpio::OUTPUT);
+static StHalPwm buzzer_pwm(htim1, TIM_CHANNEL_1);
+static StHalGpio buzzer_pin(BUZZER_GPIO_Port, BUZZER_Pin, IGpio::OUTPUT);
 // Interfaces
 static StHalSpi spi1(hspi1);
 static StHalIicThreadSafe iic1(hi2c1);
@@ -91,7 +86,7 @@ extern "C" void AppMain(void)
   // Init Display Driver Task
   DisplayDrv::GetInstance().InitTask(display, touch);
   // Init sound task
-  SoundDrv::GetInstance().InitTask(htim1, TIM_CHANNEL_1, buzzer);
+  SoundDrv::GetInstance().InitTask(buzzer_pwm);
   // Init input task
   InputDrv::GetInstance().InitTask(htim2, TIM_CHANNEL_1);
   // Check Startup conditions

@@ -9,28 +9,29 @@
 //
 //******************************************************************************
 
+#ifndef DevCfgUsr_h
+#define DevCfgUsr_h
+
 // *****************************************************************************
 // ***   Include for hardware   ************************************************
 // *****************************************************************************
 #include "stm32f4xx.h"
 
 // *****************************************************************************
-// ***   Configuration   *******************************************************
+// ***   RTOS Wrapper   ********************************************************
 // *****************************************************************************
-
-//#define DWT_ENABLED
-#define UITASK_ENABLED
-//#define INPUTDRV_ENABLED
-#define SOUNDDRV_ENABLED
+#define FREERTOS_WRAPPER
 
 // *****************************************************************************
 // ***   Tasks stack size and priorities configuration   ***********************
 // *****************************************************************************
 
-// *** Applications tasks stack sizes   ****************************************
+// *** Input task priority & stack size   **************************************
+#define INPUT_DRV_TASK_PRIORITY (RTOS_IDLE_TASK_PRIORITY + 2u)
+#define INPUT_DRV_TASK_STACK_SIZE RTOS_MINIMAL_STACK_SIZE
+// *** Application task priority & stack size   ********************************
+#define APPLICATION_TASK_PRIORITY (RTOS_IDLE_TASK_PRIORITY + 3u)
 #define APPLICATION_TASK_STACK_SIZE 1536u
-// *** Applications tasks priorities   *****************************************
-#define APPLICATION_TASK_PRIORITY (tskIDLE_PRIORITY + 2u)
 
 // *****************************************************************************
 // ***   Display Configuration   ***********************************************
@@ -61,3 +62,13 @@
 //#define DISPLAY_DEBUG_AREA
 //#define DISPLAY_DEBUG_TOUCH
 
+// *****************************************************************************
+// ***   Break() macro   *******************************************************
+// *****************************************************************************
+
+// Break macro: in case something goes wrong(like error happen), DevCore uses
+// Break() call. This macro should be defined either as break command for
+// debugging purposes, or as assert.
+#define Break() asm volatile("bkpt #0")
+
+#endif

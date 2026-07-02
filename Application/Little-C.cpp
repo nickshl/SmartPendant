@@ -21,11 +21,15 @@ const LittleC::intern_func_type LittleC::intern_func[] =
   "printfp", &LittleC::call_printfp,
   "abs", &LittleC::call_abs,
   "sqrt", &LittleC::call_sqrt,
+
+  // SmartPendant Specific functions
   "GetAxisPosX", &LittleC::call_getaxisposx,
   "GetAxisPosY", &LittleC::call_getaxisposy,
   "GetAxisPosZ", &LittleC::call_getaxisposz,
   "IsLatheDiameterMode", &LittleC::call_islathediametermode,
-  "", 0 // null terminate the list
+
+  // null terminate the list
+  "", 0
 };
 
 // *****************************************************************************

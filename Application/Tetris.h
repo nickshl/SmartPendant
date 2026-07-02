@@ -21,11 +21,9 @@
 // *****************************************************************************
 // ***   Includes   ************************************************************
 // *****************************************************************************
-#include "DevCfg.h"
-#include "AppTask.h"
-#include "DisplayDrv.h"
+#include "DevCore.h"
+
 #include "InputDrv.h"
-#include "SoundDrv.h"
 
 // *****************************************************************************
 // ***   Local const variables   ***********************************************
@@ -73,10 +71,11 @@ class Tetris : public AppTask
     // drop flag
     bool drop = false;
 
-    // Display driver instance
-    DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // Input driver instance
     InputDrv& input_drv = InputDrv::GetInstance();
+
+    // Display driver instance
+    DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // Sound driver instance
     SoundDrv& sound_drv = SoundDrv::GetInstance();
 

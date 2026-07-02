@@ -512,7 +512,7 @@ void Application::InitHeader()
   header.SetText(scr_cnt, "POWER FEED", Font_12x16::GetInstance());
   scr[scr_cnt++] = &DelayControlScr::GetInstance();
   // Rotary Table available only for mill
-  if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_MILL)
+  if(grbl_comm.GetModeOfOperation() != GrblComm::MODE_OF_OPERATION_LATHE)
   {
     header.SetText(scr_cnt, "ROTARY TABLE", Font_12x16::GetInstance());
 //    header.SetImage(scr_cnt, RotaryTable);

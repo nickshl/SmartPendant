@@ -21,12 +21,7 @@
 // *****************************************************************************
 // ***   Includes   ************************************************************
 // *****************************************************************************
-#include "DevCfg.h"
-#include "AppTask.h"
-#include "DisplayDrv.h"
-#include "UiEngine.h"
-#include "Hysteresis.h"
-#include "StHalUart.h"
+#include "DevCore.h"
 
 #include "DataWindow.h"
 #include "Header.h"

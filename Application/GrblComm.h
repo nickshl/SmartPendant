@@ -21,9 +21,7 @@
 // *****************************************************************************
 // ***   Includes   ************************************************************
 // *****************************************************************************
-#include "DevCfg.h"
-#include "AppTask.h"
-#include "StHalUart.h"
+#include "DevCore.h"
 
 #include "NVM.h"
 
@@ -969,7 +967,7 @@ class GrblComm : public AppTask
     // Settings
     uint32_t status_report_options = 0u;
     uint8_t measurement_system = MEASUREMENT_SYSTEM_METRIC;
-    uint8_t mode_of_operation = MODE_OF_OPERATION_MILL;
+    uint8_t mode_of_operation = MODE_OF_OPERATION_CNT;
     uint16_t homing = 0u;
     uint16_t spindle_speed_max = 0u;
     uint16_t spindle_speed_min = 0u;
