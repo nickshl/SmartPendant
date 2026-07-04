@@ -157,7 +157,7 @@ Result SettingsScr::ProcessCallback(const void* ptr)
     }
   }
   // Process message box with an error
-  if(ptr == &Application::GetInstance().GetMsgBox())
+  else if(ptr == &Application::GetInstance().GetMsgBox())
   {
     // Show menu
     menu.Show(100);
@@ -250,7 +250,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       if(units != nullptr)
       {
         // Setup object to change numerical parameters, title scale set to 1
-        ths.change_box.Setup(ths.menu_strings[idx], units, ths.nvm.GetValue((NVM::Parameters)(idx + NVM::MPG_METRIC_FEED_1)), 1, 10000, precision, 1u);
+        ths.change_box.Setup(ths.menu_strings[nvm_idx], units, ths.nvm.GetValue((NVM::Parameters)(nvm_idx)), 1, 10000, precision, 1u);
         // Set AppTask
         ths.change_box.SetCallback(AppTask::GetCurrent());
         // Save axis index as ID
@@ -287,7 +287,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       if(units != nullptr)
       {
         // Setup object to change numerical parameters, title scale set to 1
-        ths.change_box.Setup(ths.menu_strings[idx], units, ths.grbl_comm.ConvertMetricToUnits(ths.nvm.GetValue((NVM::Parameters)(idx + NVM::PROBE_SEARCH_FEED))) , 1, 10000, precision, 1u);
+        ths.change_box.Setup(ths.menu_strings[nvm_idx], units, ths.grbl_comm.ConvertMetricToUnits(ths.nvm.GetValue((NVM::Parameters)(nvm_idx))) , 1, 10000, precision, 1u);
         // Set AppTask
         ths.change_box.SetCallback(AppTask::GetCurrent());
         // Save axis index as ID

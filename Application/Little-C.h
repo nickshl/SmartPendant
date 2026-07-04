@@ -76,7 +76,8 @@ class LittleC
     {
       SYNTAX, UNBAL_PARENS, NO_EXP, NOT_VAR, NOT_STRING, PARAM_ERR, SEMI_EXPECTED, UNBAL_BRACES, FUNC_UNDEF, TYPE_EXPECTED,
       NEST_FUNC, RET_NOCALL, PAREN_EXPECTED, WHILE_EXPECTED, QUOTE_EXPECTED, TOO_MANY_LVARS, DIV_BY_ZERO,
-      DUP_VAR, DUP_FUNC, TOO_LONG_TOKEN, BRACE_EXPECTED, COLON_EXPECTED, UNDEFINED_TOKEN, END_ERR
+      DUP_VAR, DUP_FUNC, TOO_LONG_TOKEN, BRACE_EXPECTED, COLON_EXPECTED, UNDEFINED_TOKEN,
+      TOO_MANY_FUNCS, TOO_MANY_GVARS, END_ERR
     };
 
     const char* prog;  // current location in source code
@@ -192,6 +193,8 @@ class LittleC
       {TOO_MANY_LVARS,  "Too many local variables"},
       {DIV_BY_ZERO,     "Division by zero"},
       {UNDEFINED_TOKEN, "Undefined token"},
+      {TOO_MANY_FUNCS,  "Too many functions"},
+      {TOO_MANY_GVARS,  "Too many global variables"},
       {END_ERR,         "Error Not Found"}
     };
 
@@ -206,6 +209,7 @@ class LittleC
     bool local_push(var_type i);
     bool func_pop(int& param);
     bool func_push(int i);
+    int  get_var_index(char* var_name);
     bool assign_var(char* var_name, data_type data);
     bool find_var(char* s, data_type& data);
     bool is_var(char* s);

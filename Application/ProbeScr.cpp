@@ -325,9 +325,6 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 Result CenterFinderTab::Show()
 {
-  // Set Message Box parameters and callback
-  msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
-
   // Axis data
   for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
@@ -598,6 +595,8 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
         {
           if(iteration == PROBE_ITERATION_FIRST)
           {
+            // Set Message Box parameters and callback
+            msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
             // Show message box with request
             msg_box.Show(10000u);
             // Set iteration to prevent entering this again
@@ -651,12 +650,25 @@ Result CenterFinderTab::ProcessCallback(const void* ptr)
         // Start probing only if at least one data window is selected
         if(dw_real[GrblComm::AXIS_X].IsSelected() || dw_real[GrblComm::AXIS_Y].IsSelected())
         {
-          // Start probe sequence
-          state = PROBE_START;
-          line_state = PROBE_LINE_START;
-          iteration = PROBE_ITERATION_FIRST;
-          // Disable screen change
-          ProbeScr::GetInstance().DisableScreenChange();
+          // For outside probing distance and clearance must be set, otherwise
+          // sequence is degenerate: zero dive and zero travel produces blind
+          // horizontal probe above the workpiece.
+          if(outside_btn.GetPressed() && ((dw_distance.GetNumber() <= 0) || (dw_clearance.GetNumber() <= 0)))
+          {
+            // Show message box with an error
+            msg_box.Setup("Error", "DISTANCE and CLEARANCE\nmust be set for\noutside probing");
+            // Show message box
+            msg_box.Show(10000u);
+          }
+          else
+          {
+            // Start probe sequence
+            state = PROBE_START;
+            line_state = PROBE_LINE_START;
+            iteration = PROBE_ITERATION_FIRST;
+            // Disable screen change
+            ProbeScr::GetInstance().DisableScreenChange();
+          }
         }
       }
     }
@@ -895,11 +907,6 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
 {
   Result result = Result::RESULT_OK;
 
-  // Error flag. We don't need return error immediately.
-  static bool error = false;
-  // Safe Z position
-  static int32_t z_safe_pos = 0;
-
   // ***************************************************************************
   // *** Move line to start position *******************************************
   // ***************************************************************************
@@ -911,7 +918,7 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
     safe_pos = grbl_comm.GetAxisPosition(axis);
     z_safe_pos = grbl_comm.GetAxisPosition(GrblComm::AXIS_Z);
     // Clear error flag
-    error = false;
+    line_error = false;
     // Rapid move axis to the dive point
     result = grbl_comm.MoveAxis(axis, safe_pos + len * dir, 0u, cmd_id);
     // Set next state
@@ -941,7 +948,7 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
         (grbl_comm.IsProbeTriggered() == true) )
     {
       // Set error flag - we need report it at the end of the sequence
-      error = true;
+      line_error = true;
       // Error - probe isn't reached requested depth. Lift the probe and return.
       result = grbl_comm.MoveAxis(GrblComm::AXIS_Z, z_safe_pos, 0u, cmd_id);
       // Skip probing sequence
@@ -1035,7 +1042,7 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
   else if(state == PROBE_LINE_RETURN)
   {
     // Set error
-    if(error)
+    if(line_error)
     {
       result = Result::ERR_CANNOT_EXECUTE;
     }
@@ -1142,9 +1149,6 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 Result EdgeFinderTab::Show()
 {
-  // Set Message Box parameters and callback
-  msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
-
   // Axis data
   for(uint32_t i = 0u; i < grbl_comm.GetLimitedNumberOfAxis(NumberOf(dw_real)); i++)
   {
@@ -1321,6 +1325,8 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
         {
           // Move probe away work piece to give more space to rotate the probe
           result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) - (dw_tip_diameter.GetNumber() / 2 * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
+          // Set Message Box parameters and callback
+          msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
           // Show message box with request
           msg_box.Show(10000u);
           // Set iteration to prevent entering this again

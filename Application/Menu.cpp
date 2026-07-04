@@ -88,12 +88,20 @@ void Menu::SetCount(int32_t in_cnt)
   }
   // Save count
   cnt = in_cnt;
-  // Correct selected line if needed
-  if(cur_pos >= cnt)
+
+  // Correct selected line if needed. For an empty menu cur_pos is -1 - this
+  // value is checked in button callback to prevent use of stale item index.
+  if((cur_pos >= cnt) || (cur_pos < 0)) cur_pos = (cnt > 0) ? 0 : -1;
+
+  // Set selection box parameters only if any item exist
+  if(cur_pos >= 0)
   {
-    cur_pos = 0;
-    // Set selection box parameters
     box.SetParams(ptr[cur_pos].str.GetStartX(), ptr[cur_pos].str.GetStartY(), list.GetWidth(), ptr[cur_pos].str.GetHeight(), COLOR_BLUE, true);
+    box.Show(0);
+  }
+  else
+  {
+    box.Hide();
   }
   // Show all lines
   for(int32_t i = 0u; i < cnt; i++)
@@ -169,8 +177,6 @@ Result Menu::Show(uint32_t z)
   // Check pointer
   if(ptr != nullptr)
   {
-    // Show selection box
-    box.Show(0);
     // Show all lines
     for(int32_t i = 0u; i < cnt; i++)
     {
@@ -180,8 +186,12 @@ Result Menu::Show(uint32_t z)
     // Show list
     list.Show(z);
 
-    // Set selection box parameters
-    box.SetParams(ptr[cur_pos].str.GetStartX(), ptr[cur_pos].str.GetStartY(), list.GetWidth(), ptr[cur_pos].str.GetHeight(), COLOR_BLUE, true);
+    // Set selection box parameters and show it only if any item exist
+    if((cur_pos >= 0) && (cur_pos < cnt))
+    {
+      box.SetParams(ptr[cur_pos].str.GetStartX(), ptr[cur_pos].str.GetStartY(), list.GetWidth(), ptr[cur_pos].str.GetHeight(), COLOR_BLUE, true);
+      box.Show(0);
+    }
 
     // Soft Buttons
     left_btn.Show(z);
@@ -260,7 +270,7 @@ Result Menu::ProcessEncoderCallback(Menu* obj_ptr, void* ptr)
     if(ths.cur_pos < 0) ths.cur_pos = 0;
     if(ths.cur_pos >= ths.cnt) ths.cur_pos = ths.cnt - 1;
     // Set selection box parameters
-    ths.box.SetParams(ths.ptr[ths.cur_pos].str.GetStartX(), ths.ptr[ths.cur_pos].str.GetStartY(), ths.list.GetWidth(), ths.ptr[ths.cur_pos].str.GetHeight(), COLOR_BLUE, true);
+    if(ths.cur_pos >= 0) ths.box.SetParams(ths.ptr[ths.cur_pos].str.GetStartX(), ths.ptr[ths.cur_pos].str.GetStartY(), ths.list.GetWidth(), ths.ptr[ths.cur_pos].str.GetHeight(), COLOR_BLUE, true);
 
     // Set ok result
     result = Result::RESULT_OK;
@@ -308,22 +318,18 @@ Result Menu::ProcessButtonCallback(Menu* obj_ptr, void* ptr)
     // Process Right Soft Button
     else if(ptr == &ths.right_btn)
     {
-      // cur_pos can be -1 if there no any menu items
-      if(ths.cur_pos >= 0)
+      // Call callback
+      if(ths.task != nullptr)
       {
-        // Call callback
-        if(ths.task != nullptr)
-        {
-          ths.task->Callback(ths.func_esc, ths.param, (void*)ths.cur_pos);
-        }
-        else if(ths.func_esc != nullptr)
-        {
-          ths.func_esc(ths.param, (void*)ths.cur_pos);
-        }
-        else
-        {
-          ; // Do nothing - MISRA rule
-        }
+        ths.task->Callback(ths.func_esc, ths.param, (ths.cur_pos >= 0) ? (void*)ths.cur_pos : (void*)nullptr);
+      }
+      else if(ths.func_esc != nullptr)
+      {
+        ths.func_esc(ths.param, (ths.cur_pos >= 0) ? (void*)ths.cur_pos : (void*)nullptr);
+      }
+      else
+      {
+        ; // Do nothing - MISRA rule
       }
     }
     else // Process physical buttons

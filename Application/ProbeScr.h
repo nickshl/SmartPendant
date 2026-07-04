@@ -225,6 +225,10 @@ class CenterFinderTab : public IScreen
     // Copy of x_safe_pos and y_safe_pos for precise measurements
     int32_t x_first_iteration_pos = 0;
     int32_t y_first_iteration_pos = 0;
+    // Safe Z position for outside line sequence
+    int32_t z_safe_pos = 0;
+    // Deferred error flag for outside line sequence
+    bool line_error = false;
 
     // ID to track send message
     uint32_t cmd_id = 0u;

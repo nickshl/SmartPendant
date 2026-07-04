@@ -505,17 +505,11 @@ int32_t GrblComm::GetProbeMachinePosition(uint8_t axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
-    // Check if report in work coordinates
-    if(grbl_useWPos)
-    {
-      // If report in work coordinates, we have to add offset to get machine coordinates
-      value = (int32_t)((grbl_probe_position[axis] + grbl_offset[axis]) * GetReportUnitsScaler(axis));
-    }
-    else
-    {
-      // Copy value
-      value = (int32_t)(grbl_probe_position[axis] * GetReportUnitsScaler(axis));
-    }
+    // Probe position is always reported by the controller in machine
+    // coordinates(see report_probe_parameters() in grblHAL core report.c:
+    // "Report in terms of machine position"), regardless of WPos/MPos
+    // status report setting - use it as is.
+    value = (int32_t)(grbl_probe_position[axis] * GetReportUnitsScaler(axis));
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -535,17 +529,10 @@ int32_t GrblComm::GetProbePosition(uint8_t axis)
   {
     // Lock mutex before copying data
     mutex.Lock();
-    // Check if report in work coordinates
-    if(grbl_useWPos)
-    {
-      // Copy value
-      value = (int32_t)(grbl_probe_position[axis] * GetReportUnitsScaler(axis));
-    }
-    else
-    {
-      // Copy value
-      value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
-    }
+    // Probe position is always reported by the controller in machine
+    // coordinates regardless of WPos/MPos status report setting, so to get
+    // work position offset always have to be subtracted.
+    value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -675,8 +662,12 @@ Result GrblComm::SendRealTimeCmd(uint8_t cmd)
 // *****************************************************************************
 void GrblComm::UpdateStatus()
 {
+  // Timestamp to limit waiting time: controller may stop responding and this
+  // function must not hang the calling task forever.
+  uint32_t start_ms = RtosTick::GetTimeMs();
+
   // If we already requested status, we have to wait until it received before request another one
-  while(status_received == false)
+  while((status_received == false) && (RtosTick::GetTimeMs() - start_ms < 500u))
   {
     RtosTick::DelayMs(1u);
   }
@@ -685,8 +676,8 @@ void GrblComm::UpdateStatus()
   uint32_t prev_status_rx_timestamp = status_rx_timestamp;
   // Send status report request
   SendRealTimeCmd(CMD_STATUS_REPORT_LEGACY);
-  // Wait until report request received
-  while(prev_status_rx_timestamp == status_rx_timestamp)
+  // Wait until report request received or timeout expired
+  while((prev_status_rx_timestamp == status_rx_timestamp) && (RtosTick::GetTimeMs() - start_ms < 1000u))
   {
     RtosTick::DelayMs(1u);
   }
@@ -793,10 +784,19 @@ Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t dis
     ValueToString(distance_y_str, NumberOf(distance_y_str), distance_y, GetReportUnitsScaler());
     ValueToString(distance_z_str, NumberOf(distance_z_str), distance_z, GetReportUnitsScaler());
     ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
-    // Create jog string
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s%s%s%s%s%s%sF%s\r", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91",
-                                                axis_str[AXIS_X], distance_x_str, axis_str[AXIS_Y], distance_y_str,
-                                                axis_str[AXIS_Z], distance_z_str, feed_str);
+    // Create jog string. Axis words added only for axes the controller
+    // reports: axis names come from the AXS report and slots beyond
+    // number_of_axis contain default names, which would produce a
+    // duplicated axis word on controllers with less than 3 axes.
+    int32_t len = snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%s%s", GetMeasurementSystemGcode(), is_absolute ? "G90" : "G91");
+    // X axis word
+    if(AXIS_X < number_of_axis) len += snprintf((char*)msg.cmd + len, NumberOf(msg.cmd) - len, "%s%s", axis_str[AXIS_X], distance_x_str);
+    // Y axis word
+    if(AXIS_Y < number_of_axis) len += snprintf((char*)msg.cmd + len, NumberOf(msg.cmd) - len, "%s%s", axis_str[AXIS_Y], distance_y_str);
+    // Z axis word
+    if(AXIS_Z < number_of_axis) len += snprintf((char*)msg.cmd + len, NumberOf(msg.cmd) - len, "%s%s", axis_str[AXIS_Z], distance_z_str);
+    // Feed word
+    snprintf((char*)msg.cmd + len, NumberOf(msg.cmd) - len, "F%s\r", feed_str);
 
     // Send message
     result = SendTaskMessage(&msg);
@@ -816,18 +816,6 @@ Result GrblComm::JogMultiple(int32_t distance_x, int32_t distance_y, int32_t dis
 Result GrblComm::JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t feed_x100, bool direction, bool is_absolute)
 {
   Result result = Result::RESULT_OK;
-
-  static int32_t x_prev = 0u;
-  static int32_t y_prev = 0u;
-
-  if((x_prev == x) && (y_prev == y))
-  {
-    x_prev = x;
-    y_prev = y;
-  }
-
-  x_prev = x;
-  y_prev = y;
 
   // Jogging possible only in Idle or Jog states
   if(IsInControl() && ((grbl_state == IDLE) || (grbl_state == JOG) || (grbl_state == RUN)))
@@ -1142,8 +1130,10 @@ Result GrblComm::SetSpindleSpeed(int32_t speed, bool dir_ccw)
     // Set ID for command
     msg.id = GetNextId();
 
+    // Negative speed is invalid - clamp it to zero
+    if(speed < 0) speed = 0;
     // Create spindle run command
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sS%lu\r", dir_ccw ? "M4" : "M3", speed);
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sS%ld\r", dir_ccw ? "M4" : "M3", speed);
 
     // Send message
     result = SendTaskMessage(&msg);
@@ -1222,32 +1212,34 @@ Result GrblComm::StopSpindle()
 // *****************************************************************************
 char* GrblComm::ValueToString(char* buf, uint32_t buf_size, int32_t val, int32_t scaler)
 {
-  // Find sign: sigh should be handled separately, because it will be lost
+  // Find sign: sign should be handled separately, because it will be lost
   // for values less than scaler.
   bool is_negative = val < 0;
+  // We can't turn max negative number to equivalent positive, so add one to make it possivle!
+  if(val == INT32_MIN) val++;
   // Remove sign from number
-  val = abs(val);
+  if(is_negative) val = -val;
 
   // Check scaler and use appropriate format
   if(scaler == 10000)
   {
-    snprintf(buf, buf_size, "%s%lu.%04lu", is_negative ? "-" : "", val / scaler, val % scaler);
+    snprintf(buf, buf_size, "%s%ld.%04ld", is_negative ? "-" : "", val / scaler, val % scaler);
   }
   else if(scaler == 1000)
   {
-    snprintf(buf, buf_size, "%s%lu.%03lu", is_negative ? "-" : "", val / scaler, val % scaler);
+    snprintf(buf, buf_size, "%s%ld.%03ld", is_negative ? "-" : "", val / scaler, val % scaler);
   }
   else if(scaler == 100)
   {
-    snprintf(buf, buf_size, "%s%lu.%02lu", is_negative ? "-" : "", val / scaler, val % scaler);
+    snprintf(buf, buf_size, "%s%ld.%02ld", is_negative ? "-" : "", val / scaler, val % scaler);
   }
   else if(scaler == 10)
   {
-    snprintf(buf, buf_size, "%s%lu.%01lu", is_negative ? "-" : "", val / scaler, val % scaler);
+    snprintf(buf, buf_size, "%s%ld.%01ld", is_negative ? "-" : "", val / scaler, val % scaler);
   }
   else
   {
-    snprintf(buf, buf_size, "%s%lu", is_negative ? "-" : "", val);
+    snprintf(buf, buf_size, "%s%ld", is_negative ? "-" : "", val);
   }
 
   return buf;
@@ -1265,12 +1257,18 @@ char* GrblComm::ValueToStringWithUnits(char* buf, uint32_t buf_size, int32_t val
   if(truncate && (scaler > 1))
   {
     // Get string length
-    uint32_t len = strlen(buf) - 1u;
-    // Replace all trailing zeros and point to null-terminator
-    while(len && ((buf[len] == '0') || (buf[len] == '.')))
+    uint32_t len = strlen(buf);
+    // Trim only if string isn't empty to prevent index underflow
+    if(len > 0u)
     {
-      buf[len] = '\0';
+      // Index of the last character
       len--;
+      // Replace all trailing zeros and point to null-terminator
+      while(len && ((buf[len] == '0') || (buf[len] == '.')))
+      {
+        buf[len] = '\0';
+        len--;
+      }
     }
   }
 
@@ -1340,12 +1338,18 @@ bool GrblComm::ParseState(char *data)
 // *****************************************************************************
 bool GrblComm::ParseDecimal(float& value, char* data)
 {
-  // Convert float from string
-  float val = (float)atof(data);
-  // Check if it changed
-  bool changed = (val != value);
-  // If changed - set new value
-  if(changed) value = val;
+  // Result flag = false by default in case of nullptr
+  bool changed = false;
+  // Check if null pointer passed
+  if(data != nullptr)
+  {
+    // Convert float from string
+    float val = (float)atof(data);
+    // Check if it changed
+    changed = (val != value);
+    // If changed - set new value
+    if(changed) value = val;
+  }
   // Return status
   return changed;
 }
@@ -1355,12 +1359,18 @@ bool GrblComm::ParseDecimal(float& value, char* data)
 // *****************************************************************************
 bool GrblComm::ParseInt(int32_t& value, char* data)
 {
-  // Convert int from string
-  int32_t val = (int32_t)atoi(data);
-  // Check if it changed
-  bool changed = (val != value);
-  // If changed - set new value
-  if(changed) value = val;
+  // Result flag = false by default in case of nullptr
+  bool changed = false;
+  // Check if null pointer passed
+  if(data != nullptr)
+  {
+    // Convert int from string
+    int32_t val = (int32_t)atoi(data);
+    // Check if it changed
+    changed = (val != value);
+    // If changed - set new value
+    if(changed) value = val;
+  }
   // Return status
   return changed;
 }
@@ -1497,22 +1507,30 @@ void GrblComm::ParseOffsets(char* data)
 // *****************************************************************************
 void GrblComm::ParseOverrides(char* data)
 {
-  char* next = nullptr;
+  // Pointers array
+  char* value_ptr[3u] = {0};
 
-  next = strchr(data, ','); // Find next comma
-  *next++ = '\0';           // And replace it with zero
+  // Set first pointer
+  value_ptr[0u] = data;
+  // Fill remaining pointers
+  for(uint32_t i = 1u; (i < NumberOf(value_ptr)) && (data != nullptr); i++)
+  {
+    // Find next comma
+    data = strchr(data, ',');
+    // Malformed field - bail out to avoid null dereference
+    if(data != nullptr)
+    {
+      // And replace it with zero, after which advance pointer
+      *data++ = '\0';
+      // Store pointer to next value in array
+      value_ptr[i] = data;
+    }
+  }
 
-  // Parse feed override
-  if(ParseInt(grbl_feed_override, data)) grbl_changed.feed_override = true;
-
-  data = next;              // Update data pointer
-  next = strchr(data, ','); // Find next comma
-  *next++ = '\0';           // And replace it with zero
-
-  // Parse rapid override
-  if(ParseInt(grbl_rapid_override, data)) grbl_changed.rapid_override = true;
-  // Parse RPM override
-  if(ParseInt(spindle_rpm_override, next)) grbl_changed.rpm_override = true;
+  // ParseInt check for nullptr, so can be called even if data only partially there
+  if(ParseInt(grbl_feed_override, value_ptr[0u])) grbl_changed.feed_override = true;
+  if(ParseInt(grbl_rapid_override, value_ptr[1u])) grbl_changed.rapid_override = true;
+  if(ParseInt(spindle_rpm_override, value_ptr[2u])) grbl_changed.rpm_override = true;
 }
 
 // *****************************************************************************
@@ -1520,31 +1538,37 @@ void GrblComm::ParseOverrides(char* data)
 // *****************************************************************************
 void GrblComm::ParseFeedSpeed(char* data)
 {
-  char* next = nullptr;
+  // Pointers array
+  char* value_ptr[3u] = {0};
 
-  next = strchr(data, ','); // Find next comma
-  *next = '\0';             // And replace it with zero
-  next++;                   // Move pointer after comma
-
-  // Parse feed rate
-  if(ParseDecimal(grbl_feed_rate, data)) grbl_changed.feed = true;
-
-  data = next; // Update data pointer
-  // Try to find next comma
-  if((next = strchr(data, ',')))
+  // Set first pointer
+  value_ptr[0u] = data;
+  // Fill remaining pointers
+  for(uint32_t i = 1u; (i < NumberOf(value_ptr)) && (data != nullptr); i++)
   {
-    *next = '\0'; // And replace it with zero
-    next++;       // Move pointer after comma
-  }
-  else
-  {
-    spindle_rpm_actual = 0.0f; // If no actual set it to zero
+    // Find next comma
+    data = strchr(data, ',');
+    // Malformed field - bail out to avoid null dereference
+    if(data != nullptr)
+    {
+      // And replace it with zero, after which advance pointer
+      *data++ = '\0';
+      // Store pointer to next value in array
+      value_ptr[i] = data;
+    }
   }
 
-  // Parse spindle programmed rpm
-  if(ParseDecimal(spindle_rpm_programmed, data)) grbl_changed.rpm = true;
-  // Parse spindle actual rpm
-  if(next && ParseDecimal(spindle_rpm_actual, next)) grbl_changed.rpm = true;
+  // ParseDecimal check for nullptr, so can be called even if data only partially there
+  if(ParseDecimal(grbl_feed_rate, value_ptr[0u])) grbl_changed.feed = true;
+  if(ParseDecimal(spindle_rpm_programmed, value_ptr[1u])) grbl_changed.rpm = true;
+  if(ParseDecimal(spindle_rpm_actual, value_ptr[2u])) grbl_changed.rpm = true;
+  // No actual speed in data - set actual RPM to zero
+  if((value_ptr[2u] == nullptr) && (spindle_rpm_actual != 0.0f))
+  {
+    spindle_rpm_actual = 0.0f;
+    // Set changed flag so UI can update displayed value
+    grbl_changed.rpm = true;
+  }
 }
 
 // *****************************************************************************
@@ -1721,17 +1745,27 @@ void GrblComm::ParseData(void)
     {
       // Move line pointer to number of axis
       line += 4 + 1;
-      // Parse probe value
+      // Parse number of axis
       ParseInt(number_of_axis, line);
-      // Should be less than AXIS_CNT
-      if(number_of_axis >= AXIS_CNT) number_of_axis = AXIS_CNT - 1;
+      // Clamp to valid range: malformed input can produce negative value and
+      // controller can report more axis than supported by the pendant.
+      if(number_of_axis < 0) number_of_axis = 0;
+      if(number_of_axis > AXIS_CNT) number_of_axis = AXIS_CNT;
 
       // Find line where axis names are
-      line = strchr(line, ':') + 1;
-      // Fill axis names array
-      for(int32_t i = 0; i < number_of_axis; i++)
+      line = strchr(line, ':');
+      // Fill axis names only if separator found - malformed input must not fault
+      if(line != nullptr)
       {
-        axis_str[i][0] = line[i];
+        // Skip ':' character
+        line++;
+        // Fill axis names array
+        for(int32_t i = 0; i < number_of_axis; i++)
+        {
+          // Stop at end of string or closing bracket to avoid copying garbage
+          if((line[i] == '\0') || (line[i] == ']')) break;
+          axis_str[i][0] = line[i];
+        }
       }
     }
     else
@@ -1745,6 +1779,8 @@ void GrblComm::ParseData(void)
   }
   else if(!strncmp(line, "error:", 6))
   {
+    // Save cmd response timestamp - error is a command response too
+    cmd_rx_timestamp = RtosTick::GetTimeMs();
     grbl_status = (status_t)atoi(line + 6);
     grbl_changed.error = true;
     respond_pending = false;

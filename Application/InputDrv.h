@@ -204,6 +204,10 @@ class InputDrv : public AppTask
     // Encoder handlers
     CallbackListEntry* enc_callback_list = nullptr;
 
+    // Mutex for synchronization of callback lists add/remove(same approach
+    // as in DevCore ButtonDrv)
+    RtosMutex mutex;
+
     // Ticks variable
     uint32_t last_wake_ticks = 0u;
 

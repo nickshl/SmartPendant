@@ -105,29 +105,46 @@ Result ChangeValueBox::Setup(const char* title, const char* units, int32_t val, 
 // *****************************************************************************
 Result ChangeValueBox::Setup(const char* title, const char* const* itms, int32_t n, int32_t val, uint8_t title_scale)
 {
-  // Use main setup to create box and value caption
-  Setup(title, "", val, 0, n - 1, 0, title_scale);
+  Result result = Result::ERR_BAD_PARAMETER;
 
-  // Save items
-  items = itms;
-  items_cnt = n;
-
-  // Set string instead value
-  value_dw.SetString(itms[val]);
-
-  // No scale buttons for items list, so hide them
-  for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
+  // Setup box only if items array is valid - prevent out of bound access
+  if((itms != nullptr) && (n > 0))
   {
-    scale_btn[i].Hide();
+    // Clamp value into valid range
+    if(val < 0) val = 0;
+    if(val > n - 1) val = n - 1;
+
+    // Use main setup to create box and value caption
+    Setup(title, "", val, 0, n - 1, 0, title_scale);
+
+    // Save items
+    items = itms;
+    items_cnt = n;
+
+    // Set string instead value
+    value_dw.SetString(itms[val]);
+
+    // No scale buttons for items list, so hide them
+    for(uint32_t i = 0u; i < NumberOf(scale_btn); i++)
+    {
+      scale_btn[i].Hide();
+    }
+
+    // Set box parameters to make it smaller
+    box.SetParams(0, 0, box.GetWidth(), value_dw.GetEndY() + BORDER_W*2, COLOR_BLACK, true);
+    box.SetBorderWidth(BORDER_W);
+    box.SetColor(COLOR_YELLOW);
+
+    // All good
+    result = Result::RESULT_OK;
+  }
+  else
+  {
+    ; // Do nothing - MISRA rule
   }
 
-  // Set box parameters to make it smaller
-  box.SetParams(0, 0, box.GetWidth(), value_dw.GetEndY() + BORDER_W*2, COLOR_BLACK, true);
-  box.SetBorderWidth(BORDER_W);
-  box.SetColor(COLOR_YELLOW);
-
-  // All good
-  return Result::RESULT_OK;
+  // Return result
+  return result;
 }
 
 // *****************************************************************************

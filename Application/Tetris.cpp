@@ -375,8 +375,10 @@ bool TetrisShape::CheckShapeCollisionIntoBuffer(uint8_t * buf, int32_t width, in
   {
     for(int32_t x = 0; x < 4; x++)
     {
-      if(    (buf[(shapeTopLeftY + y)*width + shapeTopLeftX + x] != 0x00)
-          && (shapeArray[y*4 + x] == true) )
+      // Check shape cell first: empty cells of the 4x4 shape box at extreme
+      // positions can point one element past the buffer otherwise
+      if(    (shapeArray[y*4 + x] == true)
+          && (buf[(shapeTopLeftY + y)*width + shapeTopLeftX + x] != 0x00) )
       {
         return true;
       }

@@ -85,6 +85,8 @@ Result InputDrv::Loop()
   {
     if(ProcessButtonInput(buttons[i]))
     {
+      // Lock mutex before walking the callback list
+      mutex.Lock();
       // Pointer to callback list element
       CallbackListEntry* btn_cbl = btn_callback_list;
       // Send notification
@@ -92,22 +94,32 @@ Result InputDrv::Loop()
       {
         if(btn_cbl->mask & (1u << i))
         {
+          // Copy callback list entry before releasing the mutex
+          CallbackListEntry btn_cbl_data = *btn_cbl;
+          // Release mutex before call callback: entry data is copied and
+          // callback itself may add/remove handlers
+          mutex.Release();
+
           // If there no AppTask pointer
-          if(btn_cbl->callback_task == nullptr)
+          if(btn_cbl_data.callback_task == nullptr)
           {
             // Call callback directly in InputDrv task(semaphores in other task may be needed!)
-            btn_cbl->callback(btn_cbl->obj_ptr, &btn_callback_data[i][buttons[i].btn_state]);
+            btn_cbl_data.callback(btn_cbl_data.obj_ptr, &btn_callback_data[i][buttons[i].btn_state]);
           }
           else
           {
             // Otherwise call it via AppTask to execute callback in target task
-            btn_cbl->callback_task->Callback(btn_cbl->callback, btn_cbl->obj_ptr, &btn_callback_data[i][buttons[i].btn_state]);
+            btn_cbl_data.callback_task->Callback(btn_cbl_data.callback, btn_cbl_data.obj_ptr, &btn_callback_data[i][buttons[i].btn_state]);
           }
+          // Lock mutex again before break the cycle
+          mutex.Lock();
           // Only first handler gets notification
           break;
         }
         btn_cbl = btn_cbl->next;
       }
+      // Release mutex after callback list is processed
+      mutex.Release();
     }
   }
 
@@ -127,26 +139,37 @@ Result InputDrv::Loop()
     // Calculate speed(clicks per second)
     enc_speed = 1000u / ms_per_click;
 
+    // Lock mutex before walking the callback list
+    mutex.Lock();
     // Pointer to callback list element
     CallbackListEntry* enc_cbl = enc_callback_list;
     // Send notification
     while(enc_cbl != nullptr)
     {
+      // Copy callback list entry before releasing the mutex
+      CallbackListEntry enc_cbl_data = *enc_cbl;
+      // Release mutex before call callback: entry data is copied and
+      // callback itself may add/remove handlers
+      mutex.Release();
+
       // If there no AppTask pointer
-      if(enc_cbl->callback_task == nullptr)
+      if(enc_cbl_data.callback_task == nullptr)
       {
         // Call callback directly in InputDrv task(semaphores in other task may be needed!)
-        enc_cbl->callback(enc_cbl->obj_ptr, (void*)enc_val);
+        enc_cbl_data.callback(enc_cbl_data.obj_ptr, (void*)enc_val);
       }
       else
       {
         // Otherwise call it via AppTask to execute callback in target task
-        enc_cbl->callback_task->Callback(enc_cbl->callback, enc_cbl->obj_ptr, (void*)enc_val);
+        enc_cbl_data.callback_task->Callback(enc_cbl_data.callback, enc_cbl_data.obj_ptr, (void*)enc_val);
       }
+      // Lock mutex again before break the cycle
+      mutex.Lock();
       // Only first handler gets notification
       break;
-      enc_cbl = enc_cbl->next;
     }
+    // Release mutex after callback list is processed
+    mutex.Release();
   }
 
   // Pause until next tick
@@ -202,6 +225,9 @@ void InputDrv::AddButtonsCallbackHandler(AppTask* callback_task, CallbackPtr cal
   cble.obj_ptr = obj_ptr;
   cble.mask = mask;
 
+  // Lock mutex
+  mutex.Lock();
+
   // If callback list is empty
   if(btn_callback_list == nullptr)
   {
@@ -234,6 +260,9 @@ void InputDrv::AddButtonsCallbackHandler(AppTask* callback_task, CallbackPtr cal
       btn_callback_list = &cble;
     }
   }
+
+  // Release mutex
+  mutex.Release();
 }
 
 // *****************************************************************************
@@ -241,11 +270,15 @@ void InputDrv::AddButtonsCallbackHandler(AppTask* callback_task, CallbackPtr cal
 // *****************************************************************************
 void InputDrv::DeleteButtonsCallbackHandler(CallbackListEntry& cble)
 {
+  // Lock mutex
+  mutex.Lock();
+
   // If requested first element in list
   if(btn_callback_list == &cble)
   {
     btn_callback_list = cble.next;
-    btn_callback_list->prev = nullptr;
+    // List may become empty - check pointer before dereference
+    if(btn_callback_list != nullptr) btn_callback_list->prev = nullptr;
   }
   else // Otherwise
   {
@@ -270,6 +303,12 @@ void InputDrv::DeleteButtonsCallbackHandler(CallbackListEntry& cble)
       }
     }
   }
+  // Clear pointers in removed entry to prevent stale links on reuse
+  cble.next = nullptr;
+  cble.prev = nullptr;
+
+  // Release mutex
+  mutex.Release();
 }
 
 // *****************************************************************************
@@ -281,6 +320,9 @@ void InputDrv::AddEncoderCallbackHandler(AppTask* callback_task, CallbackPtr cal
   cble.callback_task = callback_task;
   cble.callback = callback;
   cble.obj_ptr = obj_ptr;
+
+  // Lock mutex
+  mutex.Lock();
 
   // If callback list is empty
   if(enc_callback_list == nullptr)
@@ -314,6 +356,9 @@ void InputDrv::AddEncoderCallbackHandler(AppTask* callback_task, CallbackPtr cal
       enc_callback_list = &cble;
     }
   }
+
+  // Release mutex
+  mutex.Release();
 }
 
 // *****************************************************************************
@@ -321,11 +366,15 @@ void InputDrv::AddEncoderCallbackHandler(AppTask* callback_task, CallbackPtr cal
 // *****************************************************************************
 void InputDrv::DeleteEncoderCallbackHandler(CallbackListEntry& cble)
 {
+  // Lock mutex
+  mutex.Lock();
+
   // If requested first element in list
   if(enc_callback_list == &cble)
   {
     enc_callback_list = cble.next;
-    enc_callback_list->prev = nullptr;
+    // List may become empty - check pointer before dereference
+    if(enc_callback_list) enc_callback_list->prev = nullptr;
   }
   else // Otherwise
   {
@@ -350,6 +399,12 @@ void InputDrv::DeleteEncoderCallbackHandler(CallbackListEntry& cble)
       }
     }
   }
+  // Clear pointers in removed entry to prevent stale links on reuse
+  cble.next = nullptr;
+  cble.prev = nullptr;
+
+  // Release mutex
+  mutex.Release();
 }
 
 // *****************************************************************************
@@ -394,12 +449,13 @@ int32_t InputDrv::GetEncoderState(int32_t& last_enc_val)
 {
   // Get current state - atomic operation, prevent multitasking problems
   int32_t enc_val = htim->Instance->CNT;
-  // Divide value by 2
-  enc_val /= 2;
-  // Calculate return value
-  int32_t retval = enc_val - last_enc_val;
-  // Save current count to user provided variable
-  last_enc_val = enc_val;
+  // Calculate difference on raw counts using 16-bit unsigned wraparound
+  // subtraction: correct for a counter with 16-bit period and for a 32-bit
+  // counter as well, since the difference between polls is always small.
+  // Divide by 2 after that to convert counts to clicks.
+  int32_t retval = (int32_t)((int16_t)((uint16_t)enc_val - (uint16_t)last_enc_val)) / 2;
+  // Advance saved value only by consumed clicks to keep half-click remainder
+  last_enc_val += retval * 2;
   // return result
   return retval;
 }

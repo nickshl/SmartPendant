@@ -196,8 +196,10 @@ bool DataWindow::SetNumber(int32_t n)
     else
     {
       data_str.SetString(data_str_buf, NumberOf(data_str_buf), format_str_buf, data / decimal_multiplier, abs(data % decimal_multiplier));
-      // If n less than 0, but will give 0 in first part - we have to handle sign differently
-      if((data < 0) && ((data / decimal_multiplier) == 0))
+      // If n less than 0, but will give 0 in first part - we have to handle
+      // sign differently. Check field width to prevent out of bound access
+      // for windows with less than two integer digits.
+      if((data < 0) && ((data / decimal_multiplier) == 0) && (before_decimal >= 2))
       {
         data_str_buf[before_decimal - 2] = '-';
       }

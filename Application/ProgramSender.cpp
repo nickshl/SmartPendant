@@ -96,7 +96,12 @@ Result ProgramSender::Show()
   Application::GetInstance().ShowMemoryInfo();
 
   // Update text - in case it is generated, we have to count lines
-  text_box.SetText(p_text);
+  if(!text_box.SetText(p_text))
+  {
+    // If program contains lines longer than 80 characters - show message
+    // instead, otherwise lines would be silently truncated during streaming
+    text_box.SetText("; Program contain lines longer\n\r; than 80 characters");
+  }
   // Show text box
   text_box.Show(100);
 
@@ -277,8 +282,18 @@ Result ProgramSender::TimerExpired(uint32_t interval)
                   // If we read line longer than 80 characters + possible CR & LF characters
                   if(strlen(str) > 80 + 2)
                   {
-                    // Rewind to the end of file
+                    // Stop streaming - silently skipping the rest of the
+                    // program is dangerous on a CNC, operator must know.
+                    run = false;
+                    // Set finished flag to prevent further streaming attempts
+                    finished = true;
+                    // Rewind to the end of file so program can't be continued
                     f_lseek(&SDFile, SDFile.obj.objsize);
+                    // Show the reason in the text box
+                    text_box.AddLine("; ERROR: line >80 chars - STOPPED");
+                    // And in the message box
+                    Application::GetInstance().GetMsgBox().Setup("PROGRAM STOPPED", "Line longer than 80 characters\nencountered during streaming.\nRemaining program was skipped.");
+                    Application::GetInstance().GetMsgBox().Show(10000u);
                   }
                   else
                   {
@@ -471,12 +486,14 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
 
     // Buffer for the file name, filled with 0
     char fn[20u] = {0};
-    // Copy filename(max 19 characters
+    // Copy filename(max 19 characters)
     for(uint32_t i = 0u; i < NumberOf(fn); i++)
     {
       fn[i] = ths.menu_items[(uint32_t)ptr].text[i];
       if(fn[i] == '\0') break;
     }
+    // Null-terminate it
+    fn[NumberOf(fn) - 1] = '\0';
     // Go from the end of array and replace all spaces to null-terminator until
     // we found first non-space character
     for(uint32_t i = NumberOf(fn) - 1u; i > 0u; i--)
@@ -522,8 +539,16 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
         // Fill all visible lines
         for(int32_t i = 0; i < ths.text_box.GetNumberOfVisibleLines(); i++)
         {
-          // Read line from file
-          f_gets(str, NumberOf(str), &SDFile);
+          // Read line from file, break the cycle at the end of file
+          if(f_gets(str, NumberOf(str), &SDFile) == nullptr)
+          {
+            // Close file - we can't continue
+            f_close(&SDFile);
+            // If beginning of program contains lines longer than 80 characters - show message
+            ths.text_box.SetText("; File read error");
+            // Break the cycle
+            break;
+          }
           // Null-terminate just in case
           str[NumberOf(str) - 1] = '\0';
           // If we read line longer than 80 characters + possible CR & LF characters
@@ -692,8 +717,8 @@ Result ProgramSender::ProcessCallback(const void* ptr)
         uint32_t i = 0u;
         // Find end of the filename
         for(; i < NumberOf(fno.fname); i++) if(fno.fname[i] == '\0') break;
-        // Check extension
-        for(i -= 3u; i > 0; i--)
+        // Check extension (only if the name is long enough, otherwise i -= 3u underflows)
+        for(i -= ((i >= 3u) ? 3u : 0u); i > 0; i--)
         {
           // Check if extension is .nc* or .gc*
           if((fno.fname[i] == '.') && (tolower(fno.fname[i+2]) == 'c'))
@@ -708,9 +733,15 @@ Result ProgramSender::ProcessCallback(const void* ptr)
         // It isn't a directory
         if(!(fno.fattrib & AM_DIR) && add_file)
         {
-          menu_items[idx].str.SetString(menu_items[idx].text, menu_items[idx].n, "%-19s%12lub", fno.fname, fno.fsize);
+          menu_items[idx].str.SetString(menu_items[idx].text, menu_items[idx].n, "%-19.19s%12lub", fno.fname, fno.fsize);
           idx++;
-          if(idx == NumberOf(menu_items)) break;
+          // If menu is full - replace last item with a marker, otherwise the
+          // rest of the files would be missing without any indication
+          if(idx == NumberOf(menu_items))
+          {
+            menu_items[idx - 1u].str.SetString(menu_items[idx - 1u].text, menu_items[idx - 1u].n, "-- Too many files! --");
+            break;
+          }
         }
       }
       f_closedir(&dir);
@@ -786,7 +817,7 @@ char* ProgramSender::AllocateDataBuffer(uint32_t& size)
   }
 
   // Allocate memory for data
-  p_text = new char[size];
+  p_text = new(std::nothrow) char[size];
   // If allocation is successful
   if(p_text != nullptr)
   {
@@ -812,7 +843,7 @@ void ProgramSender::ReleaseDataPointer()
     // Hide text box before delete buffer
     text_box.Hide();
     // Delete previously allocated buffer
-    delete [] p_text;
+    delete[] p_text;
     // Set text to nullptr
     p_text = nullptr;
   }

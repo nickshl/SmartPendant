@@ -88,7 +88,7 @@ class ProgramSender : public IScreen
     // *************************************************************************
     // ***   Public: GetDataBufferLength   *************************************
     // *************************************************************************
-    uint32_t GetDataBufferLength() {return strlen(p_text);}
+    uint32_t GetDataBufferLength() {return (p_text != nullptr) ? strlen(p_text) : 0u;}
 
     // *************************************************************************
     // ***   Public: ReleaseDataPointer   **************************************

@@ -161,10 +161,14 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
                   FRESULT fres = f_mount(&SDFatFS, (TCHAR const*)SDPath, 0);
                   // Open file
                   if(fres == FR_OK) fres = f_open(&SDFile, "Result.nc", FA_CREATE_ALWAYS | FA_WRITE);
-                  // Write data to file
-                  if(fres == FR_OK) fres = f_write(&SDFile, ProgramSender::GetInstance().GetDataBufferPtr(), ProgramSender::GetInstance().GetDataBufferLength(), &wbytes);
-                  // Close file
-                  if(fres == FR_OK) fres = f_close(&SDFile);
+                  // If file was opened - write data and close it regardless of the write result
+                  if(fres == FR_OK)
+                  {
+                    // Write data to file
+                    fres = f_write(&SDFile, ProgramSender::GetInstance().GetDataBufferPtr(), ProgramSender::GetInstance().GetDataBufferLength(), &wbytes);
+                    // Close file even if the write failed to avoid leaking the file handle
+                    f_close(&SDFile);
+                  }
                   // Restart timer
                   AppTask::GetCurrent()->StartTimer();
                 }
@@ -178,6 +182,13 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
                 // Show message box with request
                 ths.msg_box.Show(10000u);
               }
+            }
+            else
+            {
+              // If output buffer can't be set(allocation failed) - display message box with an error
+              ths.msg_box.Setup("Error", "Can't allocate buffer\nfor the result.\n");
+              // Show message box with request
+              ths.msg_box.Show(10000u);
             }
           }
           else
@@ -252,6 +263,8 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
         pfn[i] = ths.menu_items[idx].text[i];
         if(pfn[i] == '\0') break;
       }
+      // Null-terminate it
+      fn[NumberOf(fn) - 1] = '\0';
       // Go from the end of array and replace all spaces to null-terminator until
       // we found first non-space character
       for(uint32_t i = NumberOf(fn) - 1u; i > 0u; i--)
@@ -292,8 +305,9 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
           if(ths.interpreter.Prescan()) // If prescan successful
           {
             uint32_t i = 0u;
-            // Copy string
-            for(i = 0u; i < NumberOf(script_caption_str); i++)
+            // Copy string. Last array element reserved for null-terminator
+            // written after the cycle, so i can't exceed NumberOf() - 1u.
+            for(i = 0u; i < NumberOf(script_caption_str) - 1u; i++)
             {
               // Copy character
               ths.script_caption_str[i] = ths.menu_items[idx].text[i];
@@ -331,6 +345,13 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
           // Show message box with request
           ths.msg_box.Show(10000u);
         }
+      }
+      else
+      {
+        // If file can't be opened - display message box with an error
+        ths.msg_box.Setup("Error", "Can't open the file!\n");
+        // Show message box
+        ths.msg_box.Show(10000u);
       }
       // Close file
       fres = f_close(&SDFile);
@@ -430,8 +451,8 @@ Result GCodeGeneratorScr::ProcessCallback(const void* ptr)
           uint32_t i = 0u;
           // Find end of the filename
           for(; i < NumberOf(fno.fname); i++) if(fno.fname[i] == '\0') break;
-          // Check extension
-          for(i -= 3u; i > 0; i--)
+          // Check extension(only if the name is long enough, otherwise i -= 3u underflows)
+          for(i -= ((i >= 3u) ? 3u : 0u); i > 0; i--)
           {
             // Check if extension is .ms* or .ls*
             if((fno.fname[i] == '.') && (tolower(fno.fname[i+2]) == 's'))
@@ -454,9 +475,15 @@ Result GCodeGeneratorScr::ProcessCallback(const void* ptr)
           // It isn't a directory
           if(!(fno.fattrib & AM_DIR) && add_file)
           {
-            menu_items[idx].str.SetString(menu_items[idx].text, menu_items[idx].n, "%-19s%12lub", fno.fname, fno.fsize);
+            menu_items[idx].str.SetString(menu_items[idx].text, menu_items[idx].n, "%-19.19s%12lub", fno.fname, fno.fsize);
             idx++;
-            if(idx == NumberOf(menu_items)) break;
+            // If menu is full - replace last item with a marker, otherwise the
+            // rest of the files would be missing without any indication
+            if(idx == NumberOf(menu_items))
+            {
+              menu_items[idx - 1u].str.SetString(menu_items[idx - 1u].text, menu_items[idx - 1u].n, "-- Too many files! --");
+              break;
+            }
           }
         }
         f_closedir(&dir);
@@ -571,7 +598,7 @@ char* GCodeGeneratorScr::AllocateDataBuffer(uint32_t size)
   // Always release data buffer before allocate it again
   ReleaseDataPointer();
   // Allocate memory for data
-  p_text = new char[size];
+  p_text = new(std::nothrow) char[size];
   // If allocation is successful
   if(p_text != nullptr)
   {
@@ -593,7 +620,7 @@ void GCodeGeneratorScr::ReleaseDataPointer()
   if(p_text != nullptr)
   {
     // Delete previously allocated buffer
-    delete [] p_text;
+    delete[] p_text;
     // Set text to nullptr
     p_text = nullptr;
   }
