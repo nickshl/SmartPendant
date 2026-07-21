@@ -725,7 +725,7 @@ Result GrblComm::Jog(uint8_t axis, int32_t distance, uint32_t feed_x100, bool is
 // *****************************************************************************
 // ***   Public: JogInMachineCoodinates   **************************************
 // *****************************************************************************
-Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t feed)
+Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t feed_x100)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -739,12 +739,15 @@ Result GrblComm::JogInMachineCoodinates(uint8_t axis, int32_t distance, uint32_t
       // Set ID for command
       msg.id = GetNextId();
 
-      // Buffer for distance string
+      // Buffers for distance and feed strings
       char distance_str[16u];
-      // Convert distance value to string
+      char feed_str[16u];
+      // Convert distance & feed values to strings. Feed passed as value * 100
+      // to keep resolution for slow feeds in inches/min(imperial system).
       ValueToString(distance_str, NumberOf(distance_str), distance, GetReportUnitsScaler(axis));
+      ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
       // Create jog string
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%sG53G90%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "$J=%sG53G90%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed_str);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -974,7 +977,7 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, ui
 // *****************************************************************************
 // ***   Public: ProbeAxisTowardWorkpiece   ************************************
 // *****************************************************************************
-Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id, bool strict)
+Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed_x100, uint32_t &id, bool strict)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -988,18 +991,21 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
       // Set ID for command
       msg.id = GetNextId();
 
-      // Buffer for distance string
+      // Buffers for distance and feed strings
       char position_str[16u];
-      // Convert distance value to string
+      char feed_str[16u];
+      // Convert distance & feed values to strings. Feed passed as value * 100
+      // to keep resolution for slow feeds in inches/min(imperial system).
       ValueToString(position_str, NumberOf(position_str), position, GetReportUnitsScaler(axis));
+      ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
       // Create Set Axis command. Strict uses .2 to produce alarm, non-strict uses .3 to avoid alarm.
       if(strict)
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.2%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.2%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed_str);
       }
       else
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.3%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.3%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed_str);
       }
 
       // Send message
@@ -1020,7 +1026,7 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
 // *****************************************************************************
 // ***   Public: ProbeAxisAwayFromWorkpiece   **********************************
 // *****************************************************************************
-Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id)
+Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t feed_x100, uint32_t &id)
 {
   Result result = Result::ERR_BAD_PARAMETER;
 
@@ -1034,12 +1040,15 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint
       // Set ID for command
       msg.id = GetNextId();
 
-      // Buffer for distance string
+      // Buffers for distance and feed strings
       char position_str[16u];
-      // Convert distance value to string
+      char feed_str[16u];
+      // Convert distance & feed values to strings. Feed passed as value * 100
+      // to keep resolution for slow feeds in inches/min(imperial system).
       ValueToString(position_str, NumberOf(position_str), position, GetReportUnitsScaler(axis));
+      ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.4%s%sF%lu\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.4%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed_str);
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -1256,18 +1265,24 @@ char* GrblComm::ValueToStringWithUnits(char* buf, uint32_t buf_size, int32_t val
   // If truncate requested - remove trailing zeros after point
   if(truncate && (scaler > 1))
   {
-    // Get string length
-    uint32_t len = strlen(buf);
-    // Trim only if string isn't empty to prevent index underflow
-    if(len > 0u)
+    // Find the decimal point: only fractional zeros after it may be trimmed,
+    // trimming past it would eat integer digits(e.g. "10.000" -> "1").
+    char* point = strchr(buf, '.');
+    // Trim only if the number has a fractional part
+    if(point != nullptr)
     {
-      // Index of the last character
-      len--;
-      // Replace all trailing zeros and point to null-terminator
-      while(len && ((buf[len] == '0') || (buf[len] == '.')))
+      // Index of the last character. String isn't empty since point is found.
+      uint32_t len = strlen(buf) - 1u;
+      // Replace trailing zeros with null-terminator, but not beyond the point
+      while((&buf[len] > point) && (buf[len] == '0'))
       {
         buf[len] = '\0';
         len--;
+      }
+      // If the whole fractional part was trimmed - remove the point as well
+      if(&buf[len] == point)
+      {
+        buf[len] = '\0';
       }
     }
   }

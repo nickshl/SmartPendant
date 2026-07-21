@@ -143,6 +143,18 @@ Result DirectControlScr::Show()
     dw[i].SetSelected(false);
   }
 
+  // Clear jog values and directions: encoder clicks buffered between the last
+  // timer tick and Hide() are never consumed while the screen is hidden and
+  // would cause unexpected movement on the first tick after the screen is
+  // shown again.
+  for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
+  {
+    axis_jog_val[i] = 0;
+    axis_jog_dir[i] = 0;
+  }
+  // Clear spindle speed change value for the same reason
+  jog_val = 0;
+
   // In Lathe mode show Radius/Diameter string on top of X window and button to change it
   if(grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE)
   {
@@ -547,9 +559,16 @@ Result DirectControlScr::ProcessEncoderCallback(DirectControlScr* obj_ptr, void*
     {
       ths.axis_jog_val[ths.axis] += enc_val;
     }
+    else if(ths.spindle_dw.IsSelected())
+    {
+      // Spindle speed can be changed by the encoder only if spindle data
+      // window is explicitly selected, otherwise wheel rotation right after
+      // the screen is shown(no axis selected yet) would change spindle speed.
+      ths.jog_val += enc_val;
+    }
     else
     {
-      ths.jog_val += enc_val;
+      ; // Neither axis nor spindle selected - ignore encoder input
     }
 
     // Set ok result

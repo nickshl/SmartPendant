@@ -130,6 +130,13 @@ Result OverrideCtrlScr::Show()
   // Stop button
   right_btn.Show(102);
 
+  // Clear override change values: encoder clicks buffered between the last
+  // timer tick and Hide() are never consumed while the screen is hidden and
+  // would send unexpected override steps on the first ticks after the screen
+  // is shown again.
+  feed_val = 0;
+  speed_val = 0;
+
   // Set encoder callback handler
   InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
 
