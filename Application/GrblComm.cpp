@@ -135,8 +135,12 @@ Result GrblComm::TimerExpired(uint32_t missed_cnt)
     status_tx_timestamp = RtosTick::GetTimeMs();
     // Status received flag
     status_received = false;
+    // Copy command to the dedicated transmit byte: Write() is DMA based and
+    // reads memory asynchronously, so transmitting from
+    // status_request_command directly would send the reverted value.
+    status_request_tx_byte = status_request_command;
     // Request status
-    uart->Write(&status_request_command, 1u);
+    uart->Write(&status_request_tx_byte, 1u);
     // Revert status command to short one
     status_request_command = CMD_STATUS_REPORT_LEGACY;
 

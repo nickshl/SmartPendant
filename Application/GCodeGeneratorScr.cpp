@@ -182,6 +182,10 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
                 // Show message box with request
                 ths.msg_box.Show(10000u);
               }
+              // Interpreter is done with the output buffer which belongs to
+              // program sender from now on: clear the pointer so a later
+              // variable reset(Cancel) or error report can't write into it
+              ths.interpreter.SetOutputBuf(nullptr, 0);
             }
             else
             {
@@ -280,6 +284,9 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
       {
         // Get file size
         uint32_t fsize = f_size(&SDFile) + 1u;
+        // Clear interpreter output pointer: it may still reference the
+        // buffer released below and must not be written after the free
+        ths.interpreter.SetOutputBuf(nullptr, 0);
         // Release buffer in program sender before allocation
         ProgramSender::GetInstance().ReleaseDataPointer();
         // Allocate memory for data and check if allocation was successful
@@ -291,6 +298,9 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
           fres = f_read(&SDFile, ths.p_text, fsize, &wbytes);
           // And null-terminator to it
           ths.p_text[wbytes] = 0x00;
+          // Read result: on SD error f_read() can return partial data and
+          // a partially read script must not be interpreted
+          bool loaded = ((fres == FR_OK) && (wbytes == fsize - 1u));
 
           // Set program buffer
           ths.interpreter.SetPgmBuffer(ths.p_text, fsize);
@@ -302,7 +312,7 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
           ths.interpreter.SetOutputBuf(txt, size);
 
           // Prescan program to find all global variables and functions
-          if(ths.interpreter.Prescan()) // If prescan successful
+          if(loaded && ths.interpreter.Prescan()) // If read and prescan successful
           {
             uint32_t i = 0u;
             // Copy string. Last array element reserved for null-terminator
@@ -325,15 +335,20 @@ Result GCodeGeneratorScr::ProcessMenuOkCallback(GCodeGeneratorScr* obj_ptr, void
             ths.UpdateMenuStrings();
             ths.menu.Show(100);
             ths.tabs.SetSelectedTab(0u);
+            // Interpreter is done with the output buffer - clear the pointer
+            // before the buffer is released, otherwise a later variable
+            // reset(Cancel) or error report would write into freed memory
+            ths.interpreter.SetOutputBuf(nullptr, 0);
             // We don't need this data pointer - it will allocate again before execution
             ProgramSender::GetInstance().ReleaseDataPointer();
           }
           else
           {
-            // If prescan failed - release allocated memory
+            // If read or prescan failed - release allocated memory
             ths.ReleaseDataPointer();
-            // Display message box with an error
-            ths.msg_box.Setup("Error", txt);
+            // Display message box with an error: for failed prescan the
+            // interpreter wrote error text into the output buffer
+            ths.msg_box.Setup("Error", loaded ? txt : "Can't read the file!\n");
             // Show message box with request
             ths.msg_box.Show(10000u);
           }
@@ -533,6 +548,9 @@ Result GCodeGeneratorScr::ProcessCallback(const void* ptr)
   // Process message box with an error
   else if(ptr == &msg_box)
   {
+    // Interpreter may still hold the buffer as the output(error text was
+    // written into it) - clear the pointer before the buffer is released
+    interpreter.SetOutputBuf(nullptr, 0);
     // Release buffer in program sender after message box with an error cleared
     ProgramSender::GetInstance().ReleaseDataPointer();
   }

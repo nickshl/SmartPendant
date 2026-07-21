@@ -1709,6 +1709,20 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
   // Set actual tool offset
   dw_tool.SetNumber(grbl_comm.GetToolLengthOffset());
 
+  // Error check - if state isn't IDLE, RUN or HOLD we should abort probing
+  // sequence: probe alarm(missed tool setter, e-stop, limit) produces
+  // neither "ok" nor "error" response, so the sequence would wait for the
+  // command result forever with the screen change disabled.
+  if((grbl_comm.GetState() != GrblComm::IDLE) && (grbl_comm.GetState() != GrblComm::RUN) && (grbl_comm.GetState() != GrblComm::HOLD))
+  {
+    // Clear cmd
+    cmd_id = 0u;
+    // Clear state
+    state = PROBE_CNT;
+    // Enable screen change
+    ProbeScr::GetInstance().EnableScreenChange();
+  }
+
   // If we in probing cycle
   if(state != PROBE_CNT)
   {

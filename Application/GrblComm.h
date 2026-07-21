@@ -900,6 +900,11 @@ class GrblComm : public AppTask
     // Command to request status. On MPG gain control request it would be replaced
     // request full status report command. Then it will reverted back.
     uint8_t status_request_command = CMD_STATUS_REPORT_LEGACY;
+    // Copy of the status request command used as the transmit buffer: UART
+    // Write() is DMA based and reads memory asynchronously, so it can't
+    // transmit directly from status_request_command which is reverted right
+    // after the write call.
+    uint8_t status_request_tx_byte = CMD_STATUS_REPORT_LEGACY;
     // Flag show that status received after request. New status request will
     // not send until previous response received.
     bool status_received = true;

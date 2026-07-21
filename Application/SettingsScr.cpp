@@ -97,6 +97,10 @@ Result SettingsScr::Hide()
   // Delete buttons callback handler
   InputDrv::GetInstance().DeleteButtonsCallbackHandler(btn_cble);
 
+  // In case if it shown, we should hide it. Otherwise a stale box callback
+  // would be routed to the next screen and misinterpreted there.
+  change_box.Hide();
+
   // Hide menu
   menu.Hide();
   // Show tabs
