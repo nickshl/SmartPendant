@@ -97,6 +97,10 @@ Result SettingsScr::Hide()
   // Delete buttons callback handler
   InputDrv::GetInstance().DeleteButtonsCallbackHandler(btn_cble);
 
+  // In case if it shown, we should hide it. Otherwise a stale box callback
+  // would be routed to the next screen and misinterpreted there.
+  change_box.Hide();
+
   // Hide menu
   menu.Hide();
   // Show tabs
@@ -145,8 +149,23 @@ Result SettingsScr::ProcessCallback(const void* ptr)
       // Probe tab
       else if(tabs.GetSelectedTab() == PROBE_TAB)
       {
-        // Save value - probe parameters always saved as metric
-        nvm.SetValue((NVM::Parameters)(change_box.GetId() + NVM::PROBE_SEARCH_FEED), grbl_comm.ConvertUnitsToMetric(change_box.GetValue()));
+        // Convert menu index to NVM index
+        uint32_t nvm_idx = change_box.GetId() + NVM::PROBE_SEARCH_FEED;
+        // Check if edited parameter is one of the probe feeds
+        if((nvm_idx == NVM::PROBE_SEARCH_FEED) || (nvm_idx == NVM::PROBE_LOCK_FEED))
+        {
+          // Value edited as whole mm/min in metric and as inches/min * 100 in imperial
+          int32_t feed = grbl_comm.IsMetric() ? change_box.GetValue() : (int32_t)grbl_comm.ConvertUnitsFeedX100ToMetric(change_box.GetValue());
+          // Feed is always stored as whole mm/min, zero feed is invalid
+          if(feed < 1) feed = 1;
+          // Save value
+          nvm.SetValue((NVM::Parameters)(nvm_idx), feed);
+        }
+        else
+        {
+          // Save value - probe parameters always saved as metric
+          nvm.SetValue((NVM::Parameters)(nvm_idx), grbl_comm.ConvertUnitsToMetric(change_box.GetValue()));
+        }
       }
       else
       {
@@ -267,16 +286,22 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       // Units and precision variables
       const char* units = nullptr;
       uint32_t precision = 0;
+      // Value in display units
+      int32_t value = 0;
 
       if((nvm_idx == NVM::PROBE_BALL_TIP) || (nvm_idx == NVM::PROBE_POS_DEVIATION))
       {
         units = ths.grbl_comm.GetReportUnits();
         precision = ths.grbl_comm.GetReportUnitsPrecision();
+        value = ths.grbl_comm.ConvertMetricToUnits(ths.nvm.GetValue((NVM::Parameters)(nvm_idx)));
       }
       else if((nvm_idx == NVM::PROBE_SEARCH_FEED) || (nvm_idx == NVM::PROBE_LOCK_FEED))
       {
         units = ths.grbl_comm.GetReportSpeedUnits();
-        precision = 0;
+        // Feed edited as whole mm/min in metric and as inches/min with two
+        // decimal places in imperial(1 mm/min is only ~0.04 inches/min)
+        precision = ths.grbl_comm.IsMetric() ? 0u : 2u;
+        value = ths.grbl_comm.IsMetric() ? ths.nvm.GetValue((NVM::Parameters)(nvm_idx)) : (int32_t)ths.grbl_comm.ConvertMetricFeedToUnitsX100(ths.nvm.GetValue((NVM::Parameters)(nvm_idx)));
       }
       else
       {
@@ -287,7 +312,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       if(units != nullptr)
       {
         // Setup object to change numerical parameters, title scale set to 1
-        ths.change_box.Setup(ths.menu_strings[nvm_idx], units, ths.grbl_comm.ConvertMetricToUnits(ths.nvm.GetValue((NVM::Parameters)(nvm_idx))) , 1, 10000, precision, 1u);
+        ths.change_box.Setup(ths.menu_strings[nvm_idx], units, value, 1, 10000, precision, 1u);
         // Set AppTask
         ths.change_box.SetCallback(AppTask::GetCurrent());
         // Save axis index as ID
@@ -362,7 +387,9 @@ Result SettingsScr::ProcessButtonCallback(SettingsScr* obj_ptr, void* ptr)
 // *****************************************************************************
 void SettingsScr::UpdateStrings(void)
 {
-  char tmp_str[16u] = {0};
+  // Buffer must fit the longest string: "393.70 inches/min" for feed
+  // converted from 10000 mm/min maximum
+  char tmp_str[20u] = {0};
   // Count for menu
   uint32_t cnt = 0;
   // General tab
@@ -395,8 +422,8 @@ void SettingsScr::UpdateStrings(void)
   else if(tabs.GetSelectedTab() == PROBE_TAB)
   {
     // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_SEARCH_FEED],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_SEARCH_FEED)), grbl_comm.GetReportSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_LOCK_FEED],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_LOCK_FEED)), grbl_comm.GetReportSpeedScaler(), grbl_comm.GetReportSpeedUnits()));
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_SEARCH_FEED],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricFeedToUnitsX100(nvm.GetValue(NVM::PROBE_SEARCH_FEED)), 100, grbl_comm.GetReportSpeedUnits(), true));
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_LOCK_FEED],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricFeedToUnitsX100(nvm.GetValue(NVM::PROBE_LOCK_FEED)), 100, grbl_comm.GetReportSpeedUnits(), true));
     menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_POS_DEVIATION], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_POS_DEVIATION)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
     menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_BALL_TIP],      grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_BALL_TIP)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
   }

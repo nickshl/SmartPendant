@@ -795,8 +795,10 @@ Result CenterFinderTab::ProcessEncoderCallback(CenterFinderTab* obj_ptr, void* p
     // Cast pointer itself to integer value
     int32_t enc_val = (int32_t)ptr;
 
-    // Process it
-    if(enc_val != 0)
+    // Process it. Change anything only if probing isn't started: the probing
+    // sequence reads these windows at every step, so a change mid-sequence
+    // would corrupt already calculated motion targets.
+    if((enc_val != 0) && (ths.state == PROBE_CNT))
     {
       // Change clearance
       if(ths.dw_clearance.IsShow() && ths.dw_clearance.IsSelected())
@@ -852,7 +854,7 @@ Result CenterFinderTab::ProbeInsideLineSequence(probe_line_state_t& state, uint8
     // Get current axis position to return probe back after probing
     safe_pos = grbl_comm.GetAxisPosition(axis);
     // Try to probe axis +/- 1 meter at search feed
-    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (grbl_comm.ConvertMetricToUnits(1000000) * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
+    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (grbl_comm.ConvertMetricToUnits(1000000) * dir), grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
     // Set next state
     state = PROBE_LINE_FAST;
   }
@@ -861,14 +863,14 @@ Result CenterFinderTab::ProbeInsideLineSequence(probe_line_state_t& state, uint8
     // Get probe axis position
     measured_pos = grbl_comm.GetProbePosition(axis);
     // Move away from workpiece at search feed
-    result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
+    result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
     // Set next state
     state = PROBE_LINE_FAST_RETURN;
   }
   else if(state == PROBE_LINE_FAST_RETURN)
   {
     // Try to probe axis at measured position +/- 1 mm at lock feed
-    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_LOCK_FEED)), cmd_id);
+    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * dir), grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_LOCK_FEED)), cmd_id);
     // Set next state
     state = PROBE_LINE_SLOW;
   }
@@ -930,7 +932,7 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
   else if(state == PROBE_LINE_MOVE)
   {
     // Dive before probing. We use probing command to avoid probe damage if distance is incorrect.
-    result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, z_safe_pos - dive, grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
+    result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, z_safe_pos - dive, grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
     // Set next state
     state = PROBE_LINE_DIVE;
   }
@@ -957,7 +959,7 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
     else
     {
       // Try to probe axis +/- 1 meter at search feed
-      result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (grbl_comm.ConvertMetricToUnits(1000000) * (-dir)), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
+      result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (grbl_comm.ConvertMetricToUnits(1000000) * (-dir)), grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
       // Set next state
       state = PROBE_LINE_FAST;
     }
@@ -970,7 +972,7 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
     // Get probe axis position
     measured_pos = grbl_comm.GetProbePosition(axis);
     // Move away from workpiece at search feed
-    result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos + len * dir, grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
+    result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos + len * dir, grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
     // Set next state
     state = PROBE_LINE_FAST_RETURN;
   }
@@ -980,7 +982,7 @@ Result CenterFinderTab::ProbeOutsideLineSequence(probe_line_state_t& state, uint
   else if(state == PROBE_LINE_FAST_RETURN)
   {
     // Try to probe axis at measured position +/- 1 mm at lock feed
-    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * (-dir)), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_LOCK_FEED)), cmd_id);
+    result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * (-dir)), grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_LOCK_FEED)), cmd_id);
     // Set next state
     state = PROBE_LINE_SLOW;
   }
@@ -1259,7 +1261,7 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
         // Get current axis position to return probe back after probing
         safe_pos = grbl_comm.GetAxisPosition(axis);
         // Try to probe axis +/- 1 meter at search feed
-        result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (grbl_comm.ConvertMetricToUnits(1000000) * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
+        result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) + (grbl_comm.ConvertMetricToUnits(1000000) * dir), grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
         // Set next state
         state = PROBE_FAST;
       }
@@ -1268,14 +1270,14 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
         // Get probe axis position
         measured_pos = grbl_comm.GetProbePosition(axis);
         // Move away from workpiece at search feed
-        result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
+        result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
         // Set next state
         state = PROBE_FAST_RETURN;
       }
       else if(state == PROBE_FAST_RETURN)
       {
         // Try to probe axis at measured position +/- 1 mm at lock feed
-        result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_LOCK_FEED)), cmd_id);
+        result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (grbl_comm.ConvertMetricToUnits(1000) * dir), grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_LOCK_FEED)), cmd_id);
         // Set next state
         state = PROBE_SLOW;
       }
@@ -1293,7 +1295,7 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
           first_iteration_measured_pos = measured_pos;
         }
         // Move away from workpiece at search feed
-        result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
+        result = grbl_comm.ProbeAxisAwayFromWorkpiece(axis, safe_pos, grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id);
         // Return after axis probing
         state = PROBE_SLOW_RETURN;
       }
@@ -1324,7 +1326,7 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
         else if(precise_btn.GetPressed() && (iteration == PROBE_ITERATION_FIRST))
         {
           // Move probe away work piece to give more space to rotate the probe
-          result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) - (dw_tip_diameter.GetNumber() / 2 * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
+          result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) - (dw_tip_diameter.GetNumber() / 2 * dir), grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
           // Set Message Box parameters and callback
           msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
           // Show message box with request
@@ -1345,7 +1347,7 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
         // Use probe command to move axis over the edge. Strict flag set to false
         // because we don't expect probe to be triggered, we using it as safety
         // to prevent probe damage in case clearance not big enough.
-        result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (dw_tip_diameter.GetNumber() / 2 * dir), grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
+        result = grbl_comm.ProbeAxisTowardWorkpiece(axis, measured_pos + (dw_tip_diameter.GetNumber() / 2 * dir), grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
         // Probe max state - done sequence
         state = PROBE_RETURN;
       }
@@ -1526,8 +1528,11 @@ Result EdgeFinderTab::ProcessEncoderCallback(EdgeFinderTab* obj_ptr, void* ptr)
     // Cast pointer itself to integer value
     int32_t enc_val = (int32_t)ptr;
 
-    // Process it
-    if(enc_val != 0)
+    // Process it. Change anything only if probing isn't started: the probing
+    // sequence reads these windows at every step, so a change mid-sequence
+    // would corrupt already calculated motion targets and the tip diameter
+    // stored in NVM.
+    if((enc_val != 0) && (ths.state == PROBE_CNT))
     {
       // Change clearance
       if(ths.dw_clearance.IsSelected())
@@ -1704,6 +1709,20 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
   // Set actual tool offset
   dw_tool.SetNumber(grbl_comm.GetToolLengthOffset());
 
+  // Error check - if state isn't IDLE, RUN or HOLD we should abort probing
+  // sequence: probe alarm(missed tool setter, e-stop, limit) produces
+  // neither "ok" nor "error" response, so the sequence would wait for the
+  // command result forever with the screen change disabled.
+  if((grbl_comm.GetState() != GrblComm::IDLE) && (grbl_comm.GetState() != GrblComm::RUN) && (grbl_comm.GetState() != GrblComm::HOLD))
+  {
+    // Clear cmd
+    cmd_id = 0u;
+    // Clear state
+    state = PROBE_CNT;
+    // Enable screen change
+    ProbeScr::GetInstance().EnableScreenChange();
+  }
+
   // If we in probing cycle
   if(state != PROBE_CNT)
   {
@@ -1711,7 +1730,7 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
     if(cmd_id == 0u)
     {
       // Try to probe Z axis -1 meter at feed 100 mm/min
-      result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(100u), cmd_id);
+      result = grbl_comm.ProbeAxisTowardWorkpiece(GrblComm::AXIS_Z, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z) - grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricFeedToUnitsX100(100u), cmd_id);
       // Check result
       if(result == Result::ERR_CANNOT_EXECUTE)
       {
@@ -1748,7 +1767,7 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
       if(result.IsGood())
       {
         // Move Z axis to the point before probing at feed 500 mm/min
-        grbl_comm.JogInMachineCoodinates(GrblComm::AXIS_Z, z_position, grbl_comm.ConvertMetricToUnits(500u));
+        grbl_comm.JogInMachineCoodinates(GrblComm::AXIS_Z, z_position, grbl_comm.ConvertMetricFeedToUnitsX100(500u));
         // Clear cmd
         cmd_id = 0u;
         // Clear state

@@ -468,6 +468,22 @@ class GrblComm : public AppTask
     inline int32_t ConvertUnitsToMetric(int32_t units) {return (IsMetric() ? units : units * 254 / 100);}
 
     // *************************************************************************
+    // ***   Public: ConvertMetricFeedToUnitsX100 function   *******************
+    // *************************************************************************
+    // Convert feed in mm/min to feed * 100 in current report units(mm/min or
+    // inches/min). Feed conversion is 1 inch = 25.4 mm, unlike position
+    // conversion in ConvertMetricToUnits() which converts between fixed point
+    // representations(1 um and 0.0001 inch).
+    inline uint32_t ConvertMetricFeedToUnitsX100(uint32_t feed) {return (IsMetric() ? feed * 100u : feed * 1000u / 254u);}
+
+    // *************************************************************************
+    // ***   Public: ConvertUnitsFeedX100ToMetric function   *******************
+    // *************************************************************************
+    // Convert feed * 100 in current report units back to whole mm/min. Result
+    // is rounded to make the conversion above reversible.
+    inline uint32_t ConvertUnitsFeedX100ToMetric(uint32_t feed_x100) {return (IsMetric() ? (feed_x100 + 50u) / 100u : (feed_x100 * 254u + 500u) / 1000u);}
+
+    // *************************************************************************
     // ***   Public: GetUnits function   ***************************************
     // *************************************************************************
     inline static const char* GetUnits(uint8_t ms) {return units[ms];}
@@ -815,12 +831,12 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: ProbeAxisTowardWorkpiece   ********************************
     // *************************************************************************
-    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id, bool strict = true);
+    Result ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32_t feed_x100, uint32_t &id, bool strict = true);
 
     // *************************************************************************
     // ***   Public: ProbeAxisAwayFromWorkpiece   ******************************
     // *************************************************************************
-    Result ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t feed, uint32_t &id);
+    Result ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint32_t feed_x100, uint32_t &id);
 
     // *************************************************************************
     // ***   Public: SetToolLengthOffset   *************************************
@@ -884,6 +900,11 @@ class GrblComm : public AppTask
     // Command to request status. On MPG gain control request it would be replaced
     // request full status report command. Then it will reverted back.
     uint8_t status_request_command = CMD_STATUS_REPORT_LEGACY;
+    // Copy of the status request command used as the transmit buffer: UART
+    // Write() is DMA based and reads memory asynchronously, so it can't
+    // transmit directly from status_request_command which is reverted right
+    // after the write call.
+    uint8_t status_request_tx_byte = CMD_STATUS_REPORT_LEGACY;
     // Flag show that status received after request. New status request will
     // not send until previous response received.
     bool status_received = true;

@@ -156,6 +156,13 @@ Result Application::TimerExpired(uint32_t missed_cnt)
   // handling of Metric/Imperial or Mill/Lathe change
   if(grbl_comm.IsSettingsChanged())
   {
+    // Hide modal boxes if any is on the screen: all screens are about to be
+    // re-initialized and screen 0 shown, so a callback from a stale box
+    // would be routed to the wrong screen and misinterpreted there(the box
+    // objects are shared between screens).
+    change_value_box.Hide();
+    msg_box.Hide();
+
     // Check controller settings
     if(!grbl_comm.IsWorkOffsetReportEnabled())
     {

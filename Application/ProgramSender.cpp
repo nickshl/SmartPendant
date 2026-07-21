@@ -301,6 +301,20 @@ Result ProgramSender::TimerExpired(uint32_t interval)
                     text_box.AddLine(str);
                   }
                 }
+                else
+                {
+                  // Read failed but end of file isn't reached: SD error or
+                  // file isn't open anymore. Stop streaming, otherwise the
+                  // same selected line would be sent again on every tick.
+                  run = false;
+                  // Set finished flag to prevent further streaming attempts
+                  finished = true;
+                  // Show the reason in the text box
+                  text_box.AddLine("; ERROR: file read failed - STOPPED");
+                  // And in the message box
+                  Application::GetInstance().GetMsgBox().Setup("PROGRAM STOPPED", "File read error encountered\nduring streaming.\nRemaining program was skipped.");
+                  Application::GetInstance().GetMsgBox().Show(10000u);
+                }
               }
             }
             else
@@ -346,9 +360,10 @@ Result ProgramSender::TimerExpired(uint32_t interval)
   }
   else
   {
-    // Safety measure: allow run program only from the beginning
+    // Safety measure: allow run program only from the beginning and only
+    // if there is a program to run
     // TODO: add dialog box "Are you sure you want to run program from current position?" instead
-    if(text_box.GetSelect() == 0)
+    if((text_box.GetSelect() == 0) && (text_box.GetNumberOfLines() > 0))
     {
       left_btn.Enable();
     }
@@ -520,11 +535,25 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
         fres = f_read(&SDFile, ths.p_text, fsize, &wbytes);
         // And null-terminator to it
         ths.p_text[wbytes] = 0x00;
+        // Check read result: on SD error f_read() can return partial data
+        // which would be displayed and runnable as a valid program with the
+        // tail(possibly mid-line) missing
+        if((fres != FR_OK) || (wbytes != fsize - 1u))
+        {
+          // Release partially read data
+          ths.ReleaseDataPointer();
+          // Show an error message instead of the partially read program
+          ths.text_box.SetText("; File read error!");
+        }
         // Set text to text box
-        if(!ths.text_box.SetText(ths.p_text))
+        else if(!ths.text_box.SetText(ths.p_text))
         {
           // If program contains lines longer than 80 characters - show message
           ths.text_box.SetText("; Program contain lines longer\n\r; than 80 characters");
+        }
+        else
+        {
+          ; // Do nothing - MISRA rule
         }
         // Close file
         fres = f_close(&SDFile);
@@ -638,8 +667,11 @@ Result ProgramSender::ProcessCallback(const void* ptr)
   // button, we have to check if Run button is active.
   if(ptr == &left_btn)
   {
-    // We should run program only if it doesn't already run, we in control and state is Idle
-    if(!run && grbl_comm.IsInControl() && (grbl_comm.GetState() == GrblComm::IDLE))
+    // We should run program only if it doesn't already run, we in control,
+    // state is Idle and there is a program to run: without the line check
+    // Run with nothing loaded(or after the SD file was closed by leaving
+    // the screen) would stream empty commands indefinitely.
+    if(!run && grbl_comm.IsInControl() && (grbl_comm.GetState() == GrblComm::IDLE) && (text_box.GetNumberOfLines() > 0))
     {
       // Clear id to run program
       id = 0u;
@@ -810,14 +842,17 @@ char* ProgramSender::AllocateDataBuffer(uint32_t& size)
   // If size is zero
   if(size == 0u)
   {
-    // Get maximum available block size from FreeRTOS and use it
+    // Get maximum available block size from FreeRTOS and use it. Reserve
+    // heap block overhead, guarding against underflow for tiny blocks.
     HeapStats_t HeapStats;
     vPortGetHeapStats(&HeapStats);
-    size = HeapStats.xSizeOfLargestFreeBlockInBytes - 32u;
+    size = (HeapStats.xSizeOfLargestFreeBlockInBytes > 32u) ? (HeapStats.xSizeOfLargestFreeBlockInBytes - 32u) : 0u;
   }
 
-  // Allocate memory for data
-  p_text = new(std::nothrow) char[size];
+  // Allocate memory for data. Zero size is degenerate - nothing can be
+  // stored in such buffer, and writing the null-terminator below would be
+  // out of bounds.
+  p_text = (size != 0u) ? new(std::nothrow) char[size] : nullptr;
   // If allocation is successful
   if(p_text != nullptr)
   {
