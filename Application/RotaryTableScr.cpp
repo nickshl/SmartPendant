@@ -291,57 +291,89 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
   // *** Process radius change *************************************************
   if(radius_change != 0)
   {
-    // Recalculate new current points using change in radius
-    FindNewPointByRadius(current_x, current_y, center_x, center_y, radius_change);
-    // Recalculate radius itself
-    radius = (uint32_t)(sqrt(pow(current_x - center_x, 2) + pow(current_y - center_y, 2)));
-    // Update radius window with new value
-    radius_dw.SetNumber(radius);
+    // Recalculate new current point using change in radius. Use copies:
+    // the model must be committed only if the controller accepts the move.
+    double new_x = current_x;
+    double new_y = current_y;
+    FindNewPointByRadius(new_x, new_y, center_x, center_y, radius_change);
     // Clear radius change
     radius_change = 0;
-    // Update start points
-    start_x = current_x;
-    start_y = current_y;
-    // Clear arc length
-    arc_length = 0;
-    // Set arc length
-    arc_dw.SetNumber(arc_length);
     // Move tool for new radius
-    result = grbl_comm.JogMultiple(start_x, start_y, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z), feed, true);
+    result = grbl_comm.JogMultiple((int32_t)new_x, (int32_t)new_y, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z), feed, true);
+    // Commit the model only if the command was accepted, otherwise the
+    // software position diverges from the machine and the next move would
+    // be computed from a phantom point.
+    if(result == Result::RESULT_OK)
+    {
+      // Save new point
+      current_x = new_x;
+      current_y = new_y;
+      // Recalculate radius itself
+      radius = (uint32_t)(sqrt(pow(current_x - center_x, 2) + pow(current_y - center_y, 2)));
+      // Update radius window with new value
+      radius_dw.SetNumber(radius);
+      // Update start points
+      start_x = current_x;
+      start_y = current_y;
+      // Clear arc length
+      arc_length = 0;
+      // Set arc length
+      arc_dw.SetNumber(arc_length);
+    }
   }
 
   // *** Process arc length change *********************************************
   if(arc_length != arc_dw.GetNumber())
   {
-    // Find difference between old and new length
-    int32_t diff = arc_dw.GetNumber() - arc_length;
-    // Update length window with new value
-    arc_dw.SetNumber(arc_length);
-
-    // Set current points to arc start for calculation
-    double new_x = start_x;
-    double new_y = start_y;
-    // Calculate new position
-    FindArcSecondPoint(new_x, new_y, center_x, center_y, abs(arc_length), arc_length >= 0);
-
-    // Since we have finite resolution in 1 um, we have to check if new point is the same as old point after round
-    if(((int32_t)new_x != (int32_t)current_x) || ((int32_t)new_y != (int32_t)current_y))
+    // Arc move is possible only with non-zero radius: the endpoint math
+    // divides the arc length by the radius, and zero radius(machine parked
+    // exactly at the center, e.g. right after the center was captured)
+    // produces NaN coordinates.
+    if(radius == 0)
     {
-      // Save new point
-      current_x = new_x;
-      current_y = new_y;
-      // Run Jog command
-      result = grbl_comm.JogArcXYR((int32_t)current_x, (int32_t)current_y, radius, feed, diff < 0, true);
+      // Revert the dialed value
+      arc_length = arc_dw.GetNumber();
     }
-
-    // *** TODO: REMOVE ! ******************************************************
+    else
     {
-//      double tpx = dpx;
-//      double tpy = dpy;
-//      FindArcSecondPoint(tpx, tpy, dcx, dcy, abs(dl), dl >= 0);
-//      cir.Move(tpx, tpy);
+      // Find difference between old and new length
+      int32_t diff = arc_dw.GetNumber() - arc_length;
+
+      // Set current points to arc start for calculation
+      double new_x = start_x;
+      double new_y = start_y;
+      // Calculate new position
+      FindArcSecondPoint(new_x, new_y, center_x, center_y, abs(arc_length), arc_length >= 0);
+
+      // Since we have finite resolution in 1 um, we have to check if new point is the same as old point after round
+      if(((int32_t)new_x != (int32_t)current_x) || ((int32_t)new_y != (int32_t)current_y))
+      {
+        // Run Jog command
+        result = grbl_comm.JogArcXYR((int32_t)new_x, (int32_t)new_y, radius, feed, diff < 0, true);
+        // Commit the model only if the command was accepted, otherwise the
+        // software position diverges from the machine and the next arc
+        // would be computed from a phantom point.
+        if(result == Result::RESULT_OK)
+        {
+          // Save new point
+          current_x = new_x;
+          current_y = new_y;
+          // Update length window with new value
+          arc_dw.SetNumber(arc_length);
+        }
+        else
+        {
+          // Command rejected(no control or wrong state) - revert the dialed
+          // value, otherwise the motion would fire later without user input.
+          arc_length = arc_dw.GetNumber();
+        }
+      }
+      else
+      {
+        // Same point after rounding - just sync the window
+        arc_dw.SetNumber(arc_length);
+      }
     }
-    // *** TODO: REMOVE ! ******************************************************
   }
 
   // Return result
@@ -489,11 +521,12 @@ Result RotaryTableScr::ProcessButtonCallback(RotaryTableScr* obj_ptr, void* ptr)
         // If button pressed
         if(btn.state == true)
         {
-          // Reset numbers with current position
-          for(uint32_t i = 0u; i < NumberOf(center_dw); i++)
-          {
-            ths.center_dw[i].SetNumber(ths.grbl_comm.GetAxisPosition(i));
-          }
+          // Capture current machine position as the rotation center. Members
+          // are authoritative: TimerExpired() syncs the windows from them,
+          // recalculates radius and clears arc length. Writing only the
+          // windows would be reverted on the next timer tick.
+          ths.center_x = ths.grbl_comm.GetAxisPosition(GrblComm::AXIS_X);
+          ths.center_y = ths.grbl_comm.GetAxisPosition(GrblComm::AXIS_Y);
         }
         // Set ok result
         result = Result::RESULT_OK;
