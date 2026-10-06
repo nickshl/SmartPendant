@@ -730,7 +730,11 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: Stop   ****************************************************
     // *************************************************************************
-    inline Result Stop() {respond_pending = false; send_id = next_id; return SendRealTimeCmd(CMD_STOP);}
+    // Clears the last command status like Reset()/Unlock(): send_id advances,
+    // so earlier commands still read Status_Next_Cmd_Executed and only the
+    // send gate in ProcessMessage() reopens. This is the operator's recovery
+    // from Status_Comm_Error(Nak, write failure) and from controller errors.
+    inline Result Stop() {grbl_status = Status_OK; respond_pending = false; send_id = next_id; return SendRealTimeCmd(CMD_STOP);}
 
     // *************************************************************************
     // ***   Public: Reset   ***************************************************
@@ -1147,6 +1151,11 @@ class GrblComm : public AppTask
     // ***   Private: ParseAxisData function   *********************************
     // *************************************************************************
     bool ParseAxisData(char* data, float (&axis)[AXIS_CNT]);
+
+    // *************************************************************************
+    // ***   Private: ParseProbeReport   ***************************************
+    // *************************************************************************
+    void ParseProbeReport(char* data);
 
     // *************************************************************************
     // ***   Private: ParseOffsets function   **********************************

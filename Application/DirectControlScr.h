@@ -89,6 +89,10 @@ class DirectControlScr : public IScreen
     int32_t axis_jog_val[GrblComm::AXIS_CNT] = {0};
     // Jogging direction
     int32_t axis_jog_dir[GrblComm::AXIS_CNT] = {0};
+    // Distance(in axis units) the selected axis could travel at its maximum
+    // rate, but wasn't asked to. Used when "Match machine speed limits"
+    // option is enabled to limit jog to what the axis is able to do.
+    int32_t jog_allowance = 0;
 
     // Current selected axis
     GrblComm::Axis_t axis = GrblComm::AXIS_CNT;

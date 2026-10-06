@@ -52,6 +52,11 @@ The firmware as a whole only runs on hardware, but **several components build an
 
 `arm-none-eabi-gcc -Os -fstack-usage` and `arm-none-eabi-size` give real stack/flash numbers — prefer measuring to estimating.
 
+`Tests/host/run.py` builds the interpreter and communication layers with HAL/RTOS
+stubs under AddressSanitizer and UndefinedBehaviorSanitizer, checks ProgramSender's
+streaming timer, and compares all bundled scripts against a git baseline. See
+`Tests/host/README.md`.
+
 **When verifying, delete the old binaries before rebuilding.** Stale executables printing "all tests passed" after a failed compile has caused false confidence more than once.
 
 ## Flashing / bootloader entry
@@ -88,7 +93,7 @@ Singleton UART task, 1 ms tick. Parses real-time status reports (`<...>`), messa
 Three things that are easy to get wrong:
 - **`[PRB:...]` is always in machine coordinates**, regardless of the `$10` WPos/MPos setting (grblHAL `report_probe_parameters()`). The axis-position getters convert by report frame; the probe getters must not.
 - **Real-time commands are always a single-byte write** (`msg.id == 0`, `msg.cmd[1] = '\0'`), while g-code lines always carry a terminator and are ≥2 bytes. The framed transport relies on this to pick its channel — keep the invariant.
-- **`PollSerial()` reassembles lines across read boundaries** and must keep doing so. Two control bytes are handled there, and **neither branch is dead code** even though nothing in `GrblComm` ever sends them — `FramedUart` injects both (see below). `ASCII_CAN` (0x18) clears the partial line and sets `skip_until_lf`, which discards everything up to the next terminator. `ASCII_NAK` (0x15) means the command still awaiting a response was given up on and never arrived; it is handled like an `error:` response so a caller streaming a program stops rather than moving on.
+- **`PollSerial()` reassembles lines across read boundaries** and must keep doing so. Two control bytes are handled there, and **neither branch is dead code** even though nothing in `GrblComm` ever sends them — `FramedUart` injects both (see below). `ASCII_CAN` (0x18) clears the partial line and sets `skip_until_lf`, which discards everything up to the next terminator. `ASCII_NAK` (0x15) means the transport gave up on a command whose delivery is uncertain; it is handled like an `error:` response so a caller streaming a program stops rather than moving on.
 
 ### UART link layer (`Application/FramedUart.*`)
 `FramedUart` is an `IUart` that wraps another `IUart`, adding framing, CRC, sequencing, acknowledgement and retransmission for the grblHAL MPG link. The controller side is the **`Plugin_mpg_transport`** plugin; its `PROTOCOL.md` is normative, and when the document and `mpg_transport.c` disagree, **the code is correct**. `AppMain` decides which object to hand over, after reading settings and before creating the task. **Reboot only**; both ends must be configured to match, there is no negotiation and no fallback.
@@ -102,7 +107,12 @@ The block comment at the top of `FramedUart.h` is the design summary — read it
 - Sequence 0 is reserved for the first frame after a reset; rotation is 1..255 wrapping to 1 (`NextSeq()`). Duplicate detection is the **sequence number alone** — adding the CRC would make suppression depend on the peer retransmitting byte-identically, and a peer that rebuilds a frame would get a move executed twice.
 - **A command is always one frame and is never split.** The controller counts an inbound gap but deliberately does not act on it, so a split command lost mid-way would leave a fragment in grblHAL's line buffer that can still parse as valid g-code.
 - When frames are lost, `FramedUart` writes `RESYNC_MARKER` (0x18) into the receive buffer ahead of the next payload, **atomically with it** — a payload must never reach the reader without it. This keeps the transport unaware of its reader; `GrblComm` already gave that byte the right meaning.
-- When a **command** frame is given up on, `FramedUart` writes `CMD_LOST_MARKER` (0x15). Without it the reader waits for a response that can never arrive, and the 300 ms status watchdog then advances `send_id`, so `GetCmdResult()` reports `Status_Next_Cmd_Executed` — which `ProgramSender` reads as success and streams the next line. A silently skipped g-code line moves the machine somewhere nobody asked for. Only the command channel reports (`tx_channel_t::report_loss`); a real time frame has no response outstanding. The byte is **retried rather than dropped** if the receive buffer is full, since a full buffer means the reader is stalled — exactly when losing it would cost a line.
+- When a **command** frame is given up on, `FramedUart` writes `CMD_LOST_MARKER` (0x15).
+  This reports failure even while status reports keep arriving, when the status
+  watchdog would not fire. Delivery is uncertain: the controller may have received
+  the command and lost its acknowledgements. Only the command channel reports
+  (`tx_channel_t::report_loss`); a real time frame has no response outstanding.
+  The byte is **retried rather than dropped** if the receive buffer is full.
 
 ### Settings / NVM (`Application/NVM.*`)
 Settings are a struct persisted to FRAM over I2C (`Eeprom24`), CRC-protected (`crc` is the last field; the CRC covers everything before it). Parameters are addressed by the `NVM::Parameters` enum, and `menu_strings[NVM::MAX_VALUES]` in `SettingsScr` is indexed by that **absolute** enum value — the two must stay in step.
@@ -125,6 +135,16 @@ int coolant = 0;      // Coolant; 0; Flood; Mist; None
 
 `main()` emits G-code via built-ins: `println(...)`/`print(...)`/`puts(...)`/`putch(...)`, `GetAxisPosX/Y/Z()`, `abs()`, `sqrt()`. The interpreter has a fixed 80-byte token buffer (so **no string literal in a script may reach 80 characters** — build long output lines from several `print`/`println` calls), a variable stack split into local-frame and global regions, a function table, and a nesting-depth limit that bounds recursion. Output can be written to `Result.nc` when `NVM::SAVE_SCRIPT_RESULT` is enabled.
 
+Each prescan, execution, and global-value reset also receives a **250,000-token
+budget** (`LittleC::TOKEN_BUDGET`). Exhaustion returns a script error instead of
+freezing the Application task. Tokenization finishes normally; statement/expression
+entry points unwind the failure without invalidating token pointers. This is a
+work limit, not a wall-clock deadline or a hardware watchdog.
+
+Probe reports are parsed separately from ordinary axis status: all configured
+coordinates must be finite and followed by exactly `:0]` or `:1]`. Malformed
+reports invalidate freshness and success without changing cached coordinates.
+
 ## Conventions (match these when editing)
 
 - **File-scoped singletons**: `X::GetInstance()`. Members initialized inline in the header.
@@ -146,7 +166,17 @@ int coolant = 0;      // Coolant; 0; Flood; Mist; None
 - Robustness matters: this parses live, sometimes noisy, UART data and reads arbitrary SD card filenames — guard string parsing (`strchr`/length math) and array bounds; malformed input must not fault.
 - G-code lines are limited to **80 characters** (`TextBox::MAX_LINE_LEN`). Programs are checked at load; a longer line means the file is refused, not truncated mid-run.
 - The status watchdog sets `grbl_state = UNKNOWN` after 300 ms without a report, but does **not** clear `grbl_mpgMode`, so `IsInControl()` stays true after a link loss.
-- **`GrblComm::TimerExpired()` advances `send_id` on its watchdog recovery path**, which turns a command whose fate is unknown into `Status_Next_Cmd_Executed` — and `ProgramSender` treats that as success, skipping the line. `FramedUart` preempts this by reporting the loss directly, but **plain transport has no loss detection**, so the hazard remains there. The fix is to not advance `send_id`; `GrblComm.cpp` has one branch that reads `Status_Next_Cmd_Executed` as meaningful rather than as a failure — check it first.
+- **Command completion must fail closed.** Watchdog recovery preserves `send_id`
+  and publishes `Status_Comm_Error`; unsolicited late `ok` cannot clear it.
+  ProgramSender advances only on `Status_OK`, and `IsStatusReceivedAfterCmd()`
+  rejects superseded results. Publish pending state only after UART acceptance:
+  framed writes can return `ERR_UART_BUSY` while another channel is available.
+  A non-OK status closes the command gate in `ProcessMessage()`. It reopens only
+  through the Stop/Reset/Unlock triple (status OK, pending cleared,
+  `send_id = next_id`), through `ReleaseControl()`, or automatically for
+  `Status_Comm_Error` alone when the state returns from UNKNOWN. Always advance
+  `send_id` when clearing, so the failed command reads
+  `Status_Next_Cmd_Executed`, never OK.
 
 ### Invariants nothing enforces
 

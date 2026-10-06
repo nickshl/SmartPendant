@@ -56,7 +56,7 @@ const LittleC::commands LittleC::table[15] =
 
 // Error messages. Static, so it is shared by all instances and can be placed
 // in ROM instead of taking RAM in every object.
-const LittleC::err_msg LittleC::errors[27] =
+const LittleC::err_msg LittleC::errors[28] =
 {
   {SYNTAX,          "Syntax error"},
   {NO_EXP,          "No expression present"},
@@ -84,6 +84,7 @@ const LittleC::err_msg LittleC::errors[27] =
   {TOO_MANY_FUNCS,  "Too many functions"},
   {TOO_MANY_GVARS,  "Too many global variables"},
   {TOO_DEEP_NESTING,"Nesting is too deep"},
+  {EXECUTION_LIMIT, "Script execution limit exceeded"},
   {END_ERR,         "Error Not Found"}
 };
 
@@ -121,6 +122,8 @@ bool LittleC::SetOutputBuf(char* p_obuf, int size)
 bool LittleC::Prescan()
 {
   bool result = false;
+  tokens_remaining = TOKEN_BUDGET;
+  budget_exhausted = false;
 
   // If we have pointer to buffer with program
   if(p_buf != nullptr)
@@ -143,10 +146,10 @@ bool LittleC::Prescan()
     // Undefined token before prescan
     tok = UNDEFTOK;
 
-    while(result && (tok != END))
+    while(result && (tok != END) && !budget_exhausted)
     {
       // Bypass code inside functions
-      while((brace) && (tok != END))
+      while((brace) && (tok != END) && !budget_exhausted)
       {
         result = get_token();
         if(*token == '{') brace++;
@@ -154,7 +157,7 @@ bool LittleC::Prescan()
       }
 
       // If end reached or bad result - break the cycle
-      if((tok == END) || !result) break;
+      if((tok == END) || !result || budget_exhausted) break;
 
       // Save current position
       const char* tp = prog;
@@ -236,6 +239,7 @@ bool LittleC::Prescan()
       else ; // Do nothing - MISRA rule
     }
 
+    if(budget_exhausted) result = sntx_err(EXECUTION_LIMIT);
     if(result && brace) result = sntx_err(UNBAL_BRACES);
   }
 
@@ -319,6 +323,8 @@ bool LittleC::SetGlobalVariableValue(int variable_idx, int val)
 bool LittleC::ResetGlobalVariableValue(int variable_idx)
 {
   bool result = false;
+  tokens_remaining = TOKEN_BUDGET;
+  budget_exhausted = false;
   // Check if valid variable index passed
   if((variable_idx >= 0) && (variable_idx < gvar_index))
   {
@@ -395,6 +401,8 @@ bool LittleC::GetGlobalVariableCommentPtr(int variable_idx, const char*& ptr)
 bool LittleC::Execute()
 {
   bool result = false;
+  tokens_remaining = TOKEN_BUDGET;
+  budget_exhausted = false;
   // For data returned from main()
   data_type data;
 
@@ -421,6 +429,7 @@ bool LittleC::Execute()
     prog--; // back up to opening '('
     strncpy(token, "main", sizeof(token));
     result = call(data);  // call main() to start interpreting
+    if(budget_exhausted) result = sntx_err(EXECUTION_LIMIT);
     // Check result If we filled whole buffer
     if(cur_pos >= output_size - 1)
     {
@@ -452,6 +461,7 @@ bool LittleC::Execute()
 bool LittleC::interp_block(void)
 {
   bool result = true;
+  if(budget_exhausted) return sntx_err(EXECUTION_LIMIT);
 
   // Block flag
   bool block = false;
@@ -1271,9 +1281,13 @@ bool LittleC::exec_switch(void)
   result = eval_exp(sval);
 
   // Since eval_exp() will putback last token - take it again
-  get_token();
+  if(result) result = get_token();
   // Check for start of block
   if(result && (*token != '{')) result = sntx_err(BRACE_EXPECTED);
+  // Restore this position to skip the complete switch on break/continue,
+  // including braces left open by an early exit from a nested block.
+  const char* switch_start = nullptr;
+  if(result) switch_start = prog - 1;
 
   // Save local var stack index
   int lvartemp = lvartos;
@@ -1282,12 +1296,13 @@ bool LittleC::exec_switch(void)
   int brace = 1;
 
   // Now, check case statements
-  for(;;)
+  while(result)
   {
     // Find a case statement
     do
     {
-      get_token();
+      result = get_token();
+      if(!result) break;
       if(*token == '{') brace++;
       else if(*token == '}') brace--;
       else ; // Do nothing - MISRA rule
@@ -1301,7 +1316,7 @@ bool LittleC::exec_switch(void)
     } while(((tok != CASE) && (tok != DEFAULT) && brace) || (brace > 1)); // Ignore case from nested statemets
 
     // If no matching case found, then skip
-    if(!brace) break; 
+    if(!result || !brace) break;
 
     // Get value of the case statement
     if(result)
@@ -1311,36 +1326,44 @@ bool LittleC::exec_switch(void)
     }
 
     // Read and discard the ':'
-    get_token(); 
+    if(result) result = get_token();
     if(result && (*token != ':')) result = sntx_err(COLON_EXPECTED);
 
     // If values match, then interpret. 
     if(result && (cval.value == sval.value))
     {
-      do
+      while(result)
       {
-        result = interp_block();
-
-        get_token();
-        if(*token == '}') brace--; // brace always should be 0 at this point
-        putback();
-      } while((tok != BREAK) && (tok != END) && brace);
-
-      // Find end of switch statement
-      while(brace)
-      {
-        get_token();
-        // End of program reached with unbalanced braces(truncated or
-        // malformed script) - report an error, otherwise this loop never ends
-        // since get_token() returns END forever.
+        result = get_token();
+        if(!result) break;
         if(tok == END)
         {
           result = sntx_err(UNBAL_BRACES);
           break;
         }
-        if(*token == '{') brace++;
-        else if(*token == '}') brace--;
-        else ; // Do nothing - MISRA rule
+        if(*token == '}') break; // consume the switch's own closing brace
+        // Fall-through crosses labels without executing them as statements.
+        if((tok == CASE) || (tok == DEFAULT))
+        {
+          if(tok == CASE) result = eval_exp(cval);
+          if(result) result = get_token();
+          if(result && (*token != ':')) result = sntx_err(COLON_EXPECTED);
+          continue;
+        }
+        putback();
+        result = interp_block();
+        // Inspect the control signal before get_token() clears it. Return
+        // unwinds to call(), which restores the caller's source position.
+        if(!result || (tok == RETURN)) break;
+        if((tok == BREAK) || (tok == CONTINUE))
+        {
+          char control = tok;
+          prog = switch_start;
+          result = find_eob();
+          // A switch consumes break, but continue belongs to its outer loop.
+          if(result) tok = (control == CONTINUE) ? CONTINUE : UNDEFTOK;
+          break;
+        }
       }
       break;
     }
@@ -1436,6 +1459,7 @@ bool LittleC::eval_exp(data_type& data, bool evaluate_comma)
 bool LittleC::eval_exp00(data_type& data, bool evaluate_comma)
 {
   bool result = true;
+  if(budget_exhausted) return sntx_err(EXECUTION_LIMIT);
 
   // Limit nesting depth(shared counter with interp_block()): every
   // parenthesized subexpression recurses through this function on the
@@ -1911,6 +1935,9 @@ bool LittleC::atom(data_type& data)
 // *****************************************************************************
 bool LittleC::sntx_err(int error)
 {
+  // Legacy callers may report another syntax error while unwinding. Keep
+  // the budget failure visible rather than replacing it with that symptom.
+  if(budget_exhausted) error = EXECUTION_LIMIT;
   if((p_output != nullptr) && (output_size != 0))
   {
     int linecount = 0;
@@ -1982,6 +2009,11 @@ bool LittleC::sntx_err(int error)
 bool LittleC::get_token(void)
 {
   bool result = true;
+  // Finish lexing real tokens even after exhaustion: several legacy callers
+  // assume a name token remains valid. Abort at statement/expression entry,
+  // where errors unwind normally, instead of injecting a synthetic token.
+  if(tokens_remaining != 0u) tokens_remaining--;
+  else budget_exhausted = true;
 
   register char *temp;
 

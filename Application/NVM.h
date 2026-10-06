@@ -53,6 +53,7 @@ class NVM
       SAVE_SCRIPT_RESULT,
       SCREEN_INVERT,
       // MPG
+      MPG_MATCH_SPEED_LIMITS,
       MPG_METRIC_FEED_1,
       MPG_METRIC_FEED_2,
       MPG_METRIC_FEED_3,
@@ -136,6 +137,7 @@ class NVM
         0,      // SAVE_SCRIPT_RESULT
         0,      // SCREEN_INVERT
         // MPG
+        0,      // MPG_MATCH_SPEED_LIMITS: limit jog to the axis maximum rate($110 + axis)
         1,      // MPG_METRIC_FEED_1: 0.001 mm
         5,      // MPG_METRIC_FEED_2: 0.005 mm
         10,     // MPG_METRIC_FEED_3: 0.010 mm

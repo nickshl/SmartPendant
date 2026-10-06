@@ -161,8 +161,9 @@ Result SettingsScr::ProcessCallback(const void* ptr)
       // MPG tab
       if(tabs.GetSelectedTab() == MPG_TAB)
       {
-        // Save value as is since we have separate values for metric and imperial
-        nvm.SetValue((NVM::Parameters)(change_box.GetId() + NVM::MPG_METRIC_FEED_1), change_box.GetValue());
+        // Convert menu index to NVM index(first item on the tab is MPG_MATCH_SPEED_LIMITS)
+        // and save value as is since we have separate values for metric and imperial
+        nvm.SetValue((NVM::Parameters)(change_box.GetId() + NVM::MPG_MATCH_SPEED_LIMITS), change_box.GetValue());
       }
       // General tab - the numeric link parameters are edited this way. The
       // id carried by the box is the menu index, which maps to the NVM
@@ -314,12 +315,17 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
     else if(ths.tabs.GetSelectedTab() == MPG_TAB)
     {
       // Convert menu index to NVM index
-      uint32_t nvm_idx = idx + NVM::MPG_METRIC_FEED_1;
+      uint32_t nvm_idx = idx + NVM::MPG_MATCH_SPEED_LIMITS;
       // Units and precision variables
       const char* units = nullptr;
       uint32_t precision = 0;
 
-      if((nvm_idx >= NVM::MPG_METRIC_FEED_1) && (nvm_idx <= NVM::MPG_METRIC_FEED_4))
+      if(nvm_idx == NVM::MPG_MATCH_SPEED_LIMITS)
+      {
+        // On/off option - toggle it, no change box needed
+        ths.nvm.SetValue(NVM::MPG_MATCH_SPEED_LIMITS, !ths.nvm.GetValue(NVM::MPG_MATCH_SPEED_LIMITS));
+      }
+      else if((nvm_idx >= NVM::MPG_METRIC_FEED_1) && (nvm_idx <= NVM::MPG_METRIC_FEED_4))
       {
         units = ths.grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC);
         precision = ths.grbl_comm.GetUnitsPrecision(GrblComm::MEASUREMENT_SYSTEM_METRIC);
@@ -519,6 +525,7 @@ void SettingsScr::UpdateStrings(void)
   else if(tabs.GetSelectedTab() == MPG_TAB)
   {
     // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
+    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_MATCH_SPEED_LIMITS], nvm.GetValue(NVM::MPG_MATCH_SPEED_LIMITS) ? "on" : "off");
     menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_METRIC_FEED_1], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_1), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
     menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_METRIC_FEED_2], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_2), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
     menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_METRIC_FEED_3], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_3), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));

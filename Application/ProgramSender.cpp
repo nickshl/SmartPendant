@@ -250,8 +250,9 @@ Result ProgramSender::TimerExpired(uint32_t interval)
       {
         // If ID is zero - we didn't send any commands yet
         GrblComm::status_t result = (id != 0u) ? grbl_comm.GetCmdResult(id) : GrblComm::Status_OK;
-        // If result of previous command is ok
-        if((result == GrblComm::Status_OK) || (result == GrblComm::Status_Next_Cmd_Executed))
+        // Only an acknowledged command permits the next line. A superseded
+        // result is unknown, including commands invalidated by Stop or reset.
+        if(result == GrblComm::Status_OK)
         {
           // Buffer for command
           char cmd[128u];

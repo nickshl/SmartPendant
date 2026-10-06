@@ -86,7 +86,7 @@ class LittleC
       SYNTAX, UNBAL_PARENS, NO_EXP, NOT_VAR, NOT_STRING, PARAM_ERR, SEMI_EXPECTED, UNBAL_BRACES, FUNC_UNDEF, TYPE_EXPECTED,
       NEST_FUNC, RET_NOCALL, PAREN_EXPECTED, WHILE_EXPECTED, QUOTE_EXPECTED, TOO_MANY_LVARS, DIV_BY_ZERO,
       DUP_VAR, DUP_FUNC, TOO_LONG_TOKEN, BRACE_EXPECTED, COLON_EXPECTED, UNDEFINED_TOKEN,
-      TOO_MANY_FUNCS, TOO_MANY_GVARS, TOO_DEEP_NESTING, END_ERR
+      TOO_MANY_FUNCS, TOO_MANY_GVARS, TOO_DEEP_NESTING, EXECUTION_LIMIT, END_ERR
     };
 
     const char* prog = nullptr;  // current location in source code
@@ -109,6 +109,12 @@ class LittleC
     int gvar_index = 0; // index into global variable table
     int lvartos = 0;    // index into local variable stack
     int nest_depth = 0; // current nesting depth(blocks, calls, parentheses) to guard the native stack
+    // Count work across loop iterations, not just recursive nesting. Each
+    // public evaluation gets a fresh budget so a runaway script cannot lock
+    // the Application task indefinitely.
+    static constexpr unsigned int TOKEN_BUDGET = 250000u;
+    unsigned int tokens_remaining = TOKEN_BUDGET;
+    bool budget_exhausted = false;
 
     // Data type structure
     struct data_type
@@ -161,7 +167,7 @@ class LittleC
     };
 
     // Error messages
-    static const err_msg errors[27];
+    static const err_msg errors[28];
 
     bool interp_block(void);
     int find_func(const char* name);

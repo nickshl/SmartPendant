@@ -23,6 +23,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
+#include <cmath>
 
 #if defined(SEND_DATA_TO_USB) // For sending messages to USB
 #include "usb_device.h"
@@ -92,12 +93,11 @@ Result GrblComm::TimerExpired(uint32_t missed_cnt)
   // If we give up control or controller state is unknown, we should clear pending flag
   if((!IsInControl() || (grbl_state == UNKNOWN)) && respond_pending)
   {
-    // If we lost control or if controller isn't responding - we don't expect answer anymore
-    respond_pending = false;
-    // Clear send id
-    send_id = next_id;
-    // Set appropriate error code for this situation
+    // Keep the failed command's ID: advancing it makes an unknown outcome
+    // look like a command superseded by successful work. Publish the failure
+    // before clearing pending, so a reader cannot observe the previous OK.
     grbl_status = Status_Comm_Error;
+    respond_pending = false;
   }
 
   // If SW command used to gain control, MPG control requested and MPG isn't in control
@@ -210,20 +210,32 @@ Result GrblComm::ProcessMessage()
       // If previous command successful
       if(grbl_status == Status_OK)
       {
-        // Lock mutex before parsing data
-        mutex.Lock();
-        // Save cmd TX timestamp
-        cmd_tx_timestamp = RtosTick::GetTimeMs();
-        // Set pending flag
-        respond_pending = true;
-        // Set ID
-        send_id = rcv_msg.id;
-        // Release mutex after parsing data
-        mutex.Release();
         // Copy command from message to transmit buffer
         strncpy((char*)tx_buf, (const char*)rcv_msg.cmd, NumberOf(tx_buf));
         // Send command
         result = uart->Write(tx_buf, strlen((char*)tx_buf));
+        // Framed transport may accept real time traffic while its command
+        // channel is busy. Only wait for a response after this write succeeds;
+        // otherwise the requeued command would block on its own pending flag.
+        // Responses are parsed by this task, so none can be consumed here.
+        if(result.IsGood())
+        {
+          mutex.Lock();
+          respond_pending = true;
+          cmd_tx_timestamp = RtosTick::GetTimeMs();
+          send_id = rcv_msg.id;
+          mutex.Release();
+        }
+        else if((result != Result::ERR_BUSY) && (result != Result::ERR_UART_BUSY))
+        {
+          grbl_status = Status_Comm_Error;
+          send_id = rcv_msg.id;
+          grbl_changed.error = true;
+        }
+        else
+        {
+          ; // Do nothing - MISRA rule
+        }
 
 #if defined(SEND_DATA_TO_USB)
         // Send to USB
@@ -601,14 +613,6 @@ bool GrblComm::IsStatusReceivedAfterCmd(uint32_t id)
   {
     // And respond rx timestamp less than last status rx timestamp
     if(cmd_rx_timestamp < status_rx_timestamp)
-    {
-      result = true;
-    }
-  }
-  else if(GetCmdResult(id) == Status_Next_Cmd_Executed)
-  {
-    // If next cmd is executed, we can check cmd tx timestamp and status rx timestamp
-    if(cmd_tx_timestamp < status_rx_timestamp)
     {
       result = true;
     }
@@ -1376,6 +1380,20 @@ bool GrblComm::ParseState(char *data)
     if(grbl_state == UNKNOWN)
     {
       request_settings = true;
+      // Status reports resumed and the state is known again - the link is
+      // back. A transport failure(watchdog) leaves Status_Comm_Error, which
+      // closes the command gate in ProcessMessage() and would also drop the
+      // $I/$$ requests that request_settings triggers. Reopen it the way
+      // Reset()/Unlock() do: advancing send_id makes the failed command read
+      // Status_Next_Cmd_Executed, so its unknown outcome can't pass as OK.
+      // Controller errors(error:N) are rejections the operator must
+      // acknowledge, so they are deliberately kept.
+      if(grbl_status == Status_Comm_Error)
+      {
+        respond_pending = false;
+        send_id = next_id;
+        grbl_status = Status_OK;
+      }
     }
 
     // Save new state and set changed flag
@@ -1574,6 +1592,45 @@ bool GrblComm::ParseAxisData(char* data, float (&axis)[AXIS_CNT])
 }
 
 // *****************************************************************************
+// ***   Private: ParseProbeReport   *******************************************
+// *****************************************************************************
+void GrblComm::ParseProbeReport(char* data)
+{
+  float position[AXIS_CNT];
+  bool valid = (number_of_axis > 0) && (number_of_axis <= AXIS_CNT);
+  // A malformed report must invalidate the previous freshness/success flags
+  // without replacing any of its coordinates with a partially parsed result.
+  grbl_probe_data_received = false;
+  grbl_probe_success = false;
+  for(int32_t i = 0; valid && (i < number_of_axis); i++)
+  {
+    char* end = nullptr;
+    position[i] = strtof(data, &end);
+    valid = (end != data) && std::isfinite(position[i]);
+    if(valid)
+    {
+      valid = (*end == ((i + 1 < number_of_axis) ? ',' : ':'));
+      data = end + 1;
+    }
+  }
+  // Require the complete grblHAL suffix, including the closing bracket.
+  valid = valid && ((data[0] == '0') || (data[0] == '1')) &&
+          (data[1] == ']') && (data[2] == '\0');
+  if(valid)
+  {
+    bool changed = false;
+    for(int32_t i = 0; i < number_of_axis; i++)
+    {
+      changed |= (grbl_probe_position[i] != position[i]);
+      grbl_probe_position[i] = position[i];
+    }
+    grbl_changed.probe = changed;
+    grbl_probe_success = (data[0] == '1');
+    grbl_probe_data_received = true;
+  }
+}
+
+// *****************************************************************************
 // ***   Private: ParseOffsets function   **************************************
 // *****************************************************************************
 void GrblComm::ParseOffsets(char* data)
@@ -1663,10 +1720,13 @@ void GrblComm::ParseData(void)
   // Check "ok" response
   if(!strcmp((char*)rx_buf, "ok"))
   {
-    // Save cmd response timestamp
-    cmd_rx_timestamp = RtosTick::GetTimeMs();
-    respond_pending = false;
-    grbl_status = Status_OK;
+    // A late response after a timeout must not turn its failure into success.
+    if(respond_pending)
+    {
+      cmd_rx_timestamp = RtosTick::GetTimeMs();
+      respond_pending = false;
+      grbl_status = Status_OK;
+    }
     return;
   }
 
@@ -1818,17 +1878,7 @@ void GrblComm::ParseData(void)
   {
     if(!strncmp(&line[1], "PRB:", 4))
     {
-      // Probe position
-      grbl_changed.probe = ParseAxisData(line + 1 + 4, grbl_probe_position);
-      // Success flag from the ":n" suffix after the coordinates. A missing
-      // suffix(malformed report) is treated as failure - probing sequences
-      // must not zero work offsets from a report that can't be trusted.
-      char* s = strchr(line + 1 + 4, ':');
-      // Set success flag
-      grbl_probe_success = ((s != nullptr) && (s[1] == '1'));
-      // Report received: set unconditionally, unlike grbl_changed.probe
-      // which is only set when the position differs from the previous probe
-      grbl_probe_data_received = true;
+      ParseProbeReport(line + 1 + 4);
     }
     else if(!strncmp(&line[1], "TLO:", 4))
     {

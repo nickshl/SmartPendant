@@ -102,6 +102,7 @@ class SettingsScr : public IScreen
       // General
       "MPG request", "UART Baud Rate", "Transport", "Frame attempts", "Min ack timeout", "Auto MPG on startup", "Save script result", "Display Inversion",
       // MPG
+      "Match machine speed limits",
       "Metric Feed 1", "Metric Feed 2", "Metric Feed 3", "Metric Feed 4",
       "Imperial Feed 1", "Imperial Feed 2", "Imperial Feed 3", "Imperial Feed 4",
       "Rotary Feed 1", "Rotary Feed 2", "Rotary Feed 3", "Rotary Feed 4",

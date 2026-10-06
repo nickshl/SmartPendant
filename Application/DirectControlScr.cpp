@@ -262,55 +262,141 @@ Result DirectControlScr::TimerExpired(uint32_t interval)
     dw[i].SetNumber(grbl_comm.GetAxisPosition(i));
   }
 
-  // Update numbers with current position
+  // Distance(in axis units) the selected axis can travel during one timer
+  // period at its maximum rate($110 + axis). Zero if "Match machine speed
+  // limits" option is disabled, no axis is selected or the rate isn't
+  // received from the controller yet - jog isn't limited in this case.
+  int32_t tick_distance = 0;
+  if(NVM::GetInstance().GetValue(NVM::MPG_MATCH_SPEED_LIMITS) && (axis < GrblComm::AXIS_CNT) && (scale > 0))
+  {
+    // Maximum feed is in report units per minute multiplied by 100: multiply
+    // it by units scaler and divide by 100 * 60 * 1000 to get axis units per
+    // millisecond. 64-bit math: the product doesn't fit in 32 bits for fast
+    // axes in imperial mode.
+    tick_distance = (int32_t)(((uint64_t)grbl_comm.GetAxisMaxFeedX100(axis) * grbl_comm.GetReportUnitsScaler(axis) * interval) / 6000000u);
+  }
+
+  // Distance the axis could travel, but wasn't asked to, is accumulated as
+  // allowance for the next ticks, so slow axes(or big steps) still get whole
+  // clicks. It is limited to one timer period plus one click: anything above
+  // that would be the lag between the handwheel and the machine this option
+  // exists to prevent.
+  if(tick_distance > 0)
+  {
+    jog_allowance += tick_distance;
+    if(jog_allowance > (tick_distance + scale)) jog_allowance = tick_distance + scale;
+  }
+  else
+  {
+    jog_allowance = 0;
+  }
+
+  // Jog axis if encoder clicks are pending
   for(uint32_t i = 0u; i < GrblComm::AXIS_CNT; i++)
   {
     // If requested position changed
     if(axis_jog_val[i] != 0)
     {
-      // Calculate distance - number of encoder clicks multiplied by click value
-      int32_t distance = axis_jog_val[i] * scale;
-      // In Lathe mode we need some changes
-      if((i == GrblComm::AXIS_X) && (grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE))
+      // Limit jog to the axis capabilities if option is enabled. Only the
+      // selected axis is limited: allowance is calculated for it.
+      bool limit = (tick_distance > 0) && (i == axis);
+      // Number of clicks to jog in this tick - all pending clicks by default
+      int32_t clicks = axis_jog_val[i];
+      // Number of clicks allowed to stay pending for the next tick - none by default
+      int32_t max_pending = 0;
+
+      if(limit)
       {
-        // Invert X axis since clockwise rotation moves cutter to work piece(X decreased)
-        // and counterclockwise rotation moves cutter away from work piece(X increased)
-        distance = -distance;
+        // Number of clicks that fit into allowance
+        int32_t max_clicks = jog_allowance / scale;
+        // Limit clicks
+        if(clicks > max_clicks)
+        {
+          clicks = max_clicks;
+        }
+        else if(clicks < -max_clicks)
+        {
+          clicks = -max_clicks;
+        }
+        else
+        {
+          ; // Do nothing - MISRA rule
+        }
+        // Clicks that don't fit stay pending, but no more than one timer
+        // period plus one click. The rest is dropped: the handwheel is turned
+        // faster than the axis can move, so extra clicks would only make the
+        // machine keep moving after the handwheel stops.
+        max_pending = tick_distance / scale + 1;
       }
 
-      // Feed in mm/min or deg/min(21600 deg/min is equivalent 60 rpm or 1 revolution per second)
-      uint32_t feed_x100 = (grbl_comm.IsRotaryAxis(i) ? 21600u : 600u) * 100u; // TODO: Make it configurable?
-      // If jogging direction is not changed
-      if(((axis_jog_dir[i] < 0) && (axis_jog_val[i] < 0)) || ((axis_jog_dir[i] > 0) && (axis_jog_val[i] > 0)))
+      // Jog only if there are clicks left after the limit is applied
+      if(clicks != 0)
       {
-        // Feed in encoder clicks per second
-        feed_x100 = InputDrv::GetInstance().GetEncoderSpeed();
-        // 20 clicks per second as minimum feed
-        if(feed_x100 < 20u) feed_x100 = 20u;
-        // Feed in units(1 um or 0.0001 inch depend on controller settings) per second
-        feed_x100 *= scale;
-        // Convert feed from units/sec to units*100/min
-        feed_x100 = feed_x100 * 60u / 10u;
+        // Calculate distance - number of encoder clicks multiplied by click value
+        int32_t distance = clicks * scale;
+        // In Lathe mode we need some changes
+        if((i == GrblComm::AXIS_X) && (grbl_comm.GetModeOfOperation() == GrblComm::MODE_OF_OPERATION_LATHE))
+        {
+          // Invert X axis since clockwise rotation moves cutter to work piece(X decreased)
+          // and counterclockwise rotation moves cutter away from work piece(X increased)
+          distance = -distance;
+        }
+
+        // Feed in mm/min or deg/min(21600 deg/min is equivalent 60 rpm or 1 revolution per second)
+        uint32_t feed_x100 = (grbl_comm.IsRotaryAxis(i) ? 21600u : 600u) * 100u; // TODO: Make it configurable?
+        // If jogging direction is not changed
+        if(((axis_jog_dir[i] < 0) && (clicks < 0)) || ((axis_jog_dir[i] > 0) && (clicks > 0)))
+        {
+          // Feed in encoder clicks per second
+          feed_x100 = InputDrv::GetInstance().GetEncoderSpeed();
+          // 20 clicks per second as minimum feed
+          if(feed_x100 < 20u) feed_x100 = 20u;
+          // Feed in units(1 um or 0.0001 inch depend on controller settings) per second
+          feed_x100 *= scale;
+          // Convert feed from units/sec to units*100/min
+          feed_x100 = feed_x100 * 60u / 10u;
+        }
+        else // And if direction is changed
+        {
+          // grblHAL uses requested feed rate to make backlash movement to
+          // guarantee that endmill never will work outside specified feed rate.
+          // During jogging feedrate can be as slow as 20 um per second(in case
+          // if 1 um step is selected). As result it will take 5 seconds to make
+          // 0.1 mm backlash movement. So, set feed to 600 mm/min when direction
+          // is changed to make quick backlash movement.
+
+          // Save direction of jog. clicks can't be zero here since we
+          // already checked it above.
+          axis_jog_dir[i] = clicks > 0 ? 1 : -1;
+        }
+
+        // Jog machine
+        result = grbl_comm.Jog(i, distance, feed_x100, false);
+
+        // Jogged distance is taken from the allowance
+        if(limit) jog_allowance -= ((clicks < 0) ? -clicks : clicks) * scale;
+        // Remove jogged clicks from the pending ones
+        axis_jog_val[i] -= clicks;
       }
-      else // And if direction is changed
+
+      // Drop pending clicks above the limit. If jog failed - drop all of them,
+      // otherwise they would cause unexpected movement when jog is possible again.
+      if(result.IsBad())
       {
-        // grblHAL uses requested feed rate to make backlash movement to
-        // guarantee that endmill never will work outside specified feed rate.
-        // During jogging feedrate can be as slow as 20 um per second(in case
-        // if 1 um step is selected). As result it will take 5 seconds to make
-        // 0.1 mm backlash movement. So, set feed to 600 mm/min when direction
-        // is changed to make quick backlash movement.
-
-        // Save direction of jog. axis_jog_val[i] can't be zero here since we
-        // already checked it above.
-        axis_jog_dir[i] = axis_jog_val[i] > 0 ? 1 : -1;
+        axis_jog_val[i] = 0;
       }
-
-      // Jog machine
-      result = grbl_comm.Jog(i, distance, feed_x100, false);
-
-      // Clear value
-      axis_jog_val[i] = 0;
+      else if(axis_jog_val[i] > max_pending)
+      {
+        axis_jog_val[i] = max_pending;
+      }
+      else if(axis_jog_val[i] < -max_pending)
+      {
+        axis_jog_val[i] = -max_pending;
+      }
+      else
+      {
+        ; // Do nothing - MISRA rule
+      }
       // One axis at a time
       break;
     }
