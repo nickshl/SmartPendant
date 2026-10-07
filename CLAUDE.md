@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Firmware for the **SmartPendant** — a touchscreen MPG/DRO pendant for **grblHAL** CNC controllers. Target MCU is an **STM32F411CEU** (WeAct BlackPill): 128 kB RAM, 512 kB flash, single-precision FPU only (`double` is soft-float and pulls in `__aeabi_d*`).
 
-Hardware: an ILI9488 SPI display (480×320 panel driven **in portrait**, see below), an FT6236 capacitive touch controller, a 100 PPR quadrature handwheel, **seven buttons** (2 face, 4 side, 1 USR on the BlackPill — see `InputDrv::ButtonType`), a buzzer, MB85RC256V FRAM (32 kB) for settings, and an SD card. It talks to the grblHAL controller over UART in **"MPG & DRO mode"**, either as a plain byte stream or through the framed transport (see `FramedUart` below).
+Hardware: an ILI9488 SPI display (480×320 panel driven **in portrait**, see below), an FT6236 capacitive touch controller, a 100 PPR quadrature handwheel, **seven buttons** (2 face, 4 side, 1 USR on the BlackPill — see `InputDrv::ButtonType`), a buzzer, a 24xx256 class I2C EEPROM (32 kB) for settings, and an SD card. It talks to the grblHAL controller over UART in **"MPG & DRO mode"**, either as a plain byte stream or through the framed transport (see `FramedUart` below).
 
 ### Screen geometry — derive from code, don't assume
 
@@ -46,7 +46,7 @@ When a symbol isn't found in `Application/`, look in `DevCore/`.
 
 The firmware as a whole only runs on hardware, but **several components build and run on a PC with small stubs**, and doing so has found real bugs that reading did not:
 
-- `Little-C.cpp` needs only a stub `GrblComm.h` (four methods). Running all scripts in `Scripts/` through an old and a new build and diffing the emitted G-code is a strong regression test.
+- `Little-C.cpp` needs only a stub `GrblComm.h` (`GetInstance()`, `GetAxisPosition()`, `IsLatheDiameterMode()`, `ConvertUnitsToMetric()`, `ConvertUnitsToImperial()` and the `AXIS_*` constants; copy the conversion helpers verbatim from the real header so the test runs the real unit math). Running all scripts in `Scripts/` through an old and a new build and diffing the emitted G-code is a strong regression test.
 - `FramedUart.cpp` needs stub `DevCore.h`/`IUart.h`. A simulated controller implementing `PROTOCOL.md` plus fault injection (frame loss, bit corruption) verifies the protocol properly. Build the fuzzing suite with `-fsanitize=address,undefined` or it proves little, and change the fuzz seed before trusting a clean result — a fixed seed proves less than it looks like it does.
 - `Decimal32.h` is header-only and fully host-testable.
 
@@ -55,7 +55,9 @@ The firmware as a whole only runs on hardware, but **several components build an
 `Tests/host/run.py` builds the interpreter and communication layers with HAL/RTOS
 stubs under AddressSanitizer and UndefinedBehaviorSanitizer, checks ProgramSender's
 streaming timer, and compares all bundled scripts against a git baseline. See
-`Tests/host/README.md`.
+`Tests/host/README.md`. The baseline interpreter must know every built-in the
+scripts call: a `BASELINE_REF` older than the `GetMetricAxisPos…`/`GetImperialAxisPos…`
+getters fails on any script that uses them.
 
 **When verifying, delete the old binaries before rebuilding.** Stale executables printing "all tests passed" after a failed compile has caused false confidence more than once.
 
@@ -66,7 +68,7 @@ From **v0.027.0** on, holding the **top-edge (MPG / USR) button** at power-on ca
 ## Architecture
 
 ### Startup (`Application/AppMain.cpp`)
-`AppMain()` is the C entry point called from the CubeMX-generated `Src/` code. It auto-detects the crystal (8 vs 25 MHz) and configures the PLL; checks the USR button for bootloader entry; instantiates HAL-wrapper objects for every peripheral (`StHalSpi/Iic/Uart/Gpio`, `ILI9488`, `FT6236`, `Eeprom24`); reads settings from FRAM; then starts the FreeRTOS tasks: `DisplayDrv`, `SoundDrv`, `InputDrv`, and either **`Tetris`** (if the left-up button is held at boot — an easter egg) or the normal **`GrblComm` + `Application`** pair.
+`AppMain()` is the C entry point called from the CubeMX-generated `Src/` code. It auto-detects the crystal (8 vs 25 MHz) and configures the PLL; checks the USR button for bootloader entry; instantiates HAL-wrapper objects for every peripheral (`StHalSpi/Iic/Uart/Gpio`, `ILI9488`, `FT6236`, `Eeprom24`); reads settings from EEPROM; then starts the FreeRTOS tasks: `DisplayDrv`, `SoundDrv`, `InputDrv`, and either **`Tetris`** (if the left-up button is held at boot — an easter egg) or the normal **`GrblComm` + `Application`** pair.
 
 `NVM` is **not** a task — it's a plain class. `NVM::ReadData()` reaches the EEPROM through blocking `HAL_I2C_Mem_Read` with no RTOS primitives, so it is safe to call from `AppMain` before the scheduler starts. That is what makes settings available in time to configure and choose the UART link layer.
 
@@ -115,7 +117,7 @@ The block comment at the top of `FramedUart.h` is the design summary — read it
   The byte is **retried rather than dropped** if the receive buffer is full.
 
 ### Settings / NVM (`Application/NVM.*`)
-Settings are a struct persisted to FRAM over I2C (`Eeprom24`), CRC-protected (`crc` is the last field; the CRC covers everything before it). Parameters are addressed by the `NVM::Parameters` enum, and `menu_strings[NVM::MAX_VALUES]` in `SettingsScr` is indexed by that **absolute** enum value — the two must stay in step.
+Settings are a struct persisted to a **24xx256 class I2C EEPROM** (`Eeprom24`), CRC-protected (`crc` is the last field; the CRC covers everything before it). Early boards had MB85RC256V FRAM and some comments still said so — it was replaced with EEPROM to cut cost, and the two behave nothing alike. The EEPROM gives ~1,000,000 erase/write cycles **per 64 byte page** with a 5 ms self-timed write; the record is 108 bytes at address 0, so **every save cycles pages 0 and 1 and blocks for ~10 ms** on the I2C bus shared with the touch controller. 510 of the 512 pages have never been written. Two consequences: don't persist anything that changes at machine rate without spreading writes, and note that a torn write (power loss inside that 10 ms) fails the CRC and resets **every** setting, because there is only one copy. Parameters are addressed by the `NVM::Parameters` enum, and `menu_strings[NVM::MAX_VALUES]` in `SettingsScr` is indexed by that **absolute** enum value — the two must stay in step.
 
 Link parameters are `BAUD_RATE`, `TRANSPORT`, `FRAME_ATTEMPTS` and `ACK_MIN_MS`. The last two mirror controller settings and should be set to the same values; they are applied immediately, while baud and transport need a reboot.
 
@@ -133,13 +135,11 @@ int coolant = 0;      // Coolant; 0; Flood; Mist; None
                       //   name  ; 0 == enum marker; enum labels...
 ```
 
-`main()` emits G-code via built-ins: `println(...)`/`print(...)`/`puts(...)`/`putch(...)`, `GetAxisPosX/Y/Z()`, `abs()`, `sqrt()`. The interpreter has a fixed 80-byte token buffer (so **no string literal in a script may reach 80 characters** — build long output lines from several `print`/`println` calls), a variable stack split into local-frame and global regions, a function table, and a nesting-depth limit that bounds recursion. Output can be written to `Result.nc` when `NVM::SAVE_SCRIPT_RESULT` is enabled.
+`main()` emits G-code via built-ins: `println(...)`/`print(...)`/`printfp(...)`/`puts(...)`/`putch(...)`, `abs()`, `sqrt()`, `IsLatheDiameterMode()` and the position getters. `GetAxisPosX/Y/Z()` return the position in the units the controller reports (um or 0.0001 inch, by `$13`); `GetMetricAxisPosX/Y/Z()` and `GetImperialAxisPosX/Y/Z()` return it in um or in 0.0001 inch whatever the controller reports, so a script written in one unit system works on any controller. The bundled scripts are metric: they use the metric getters, emit `G21`, and wrap the program in `M70`/`M72` so the controller restores its own modal state. The interpreter has a fixed 80-byte token buffer (so **no string literal in a script may reach 80 characters** — build long output lines from several `print`/`println` calls), a variable stack split into local-frame and global regions, a function table, and a nesting-depth limit that bounds recursion. Output can be written to `Result.nc` when `NVM::SAVE_SCRIPT_RESULT` is enabled.
 
-Each prescan, execution, and global-value reset also receives a **250,000-token
-budget** (`LittleC::TOKEN_BUDGET`). Exhaustion returns a script error instead of
-freezing the Application task. Tokenization finishes normally; statement/expression
-entry points unwind the failure without invalidating token pointers. This is a
-work limit, not a wall-clock deadline or a hardware watchdog.
+Each prescan, execution, and global-value reset also receives a fresh **250,000-token budget** (`TOKEN_BUDGET` in `Little-C.h`; `INT32_MAX` disables the limit). When it is spent, `get_token()` reports `EXECUTION_LIMIT` and returns `false` **without lexing** — `token`, `tok` and `token_type` still describe the previous token. A runaway script therefore ends in a script error instead of freezing the Application task, but only because every caller propagates that result: **never call `get_token()` without using what it returns**, and every scan loop needs `&& result` in its condition, or it spins forever on the stale token. This is a work limit, not a wall-clock deadline or a hardware watchdog.
+
+Interpreter errors go through `sntx_err(error, result)`: pass the current `result`, and the message is written only while it is still `true`. The first error is the one the operator sees; checks made while unwinding cannot overwrite it. That is why a check is written `if(*token != ';') result = sntx_err(SEMI_EXPECTED, result);` rather than guarded with `if(result && ...)`. The one-argument form always reports. Braces are delimiters to the tokenizer, so `else{` and `do{` need no space.
 
 Probe reports are parsed separately from ordinary axis status: all configured
 coordinates must be finite and followed by exactly `:0]` or `:1]`. Malformed
@@ -165,6 +165,7 @@ reports invalidate freshness and success without changing cached coordinates.
 - **Allocations that may fail must use `new(std::nothrow)`.** DevCore overrides global `operator new` to call `Break()` on failure, which is `bkpt #0` — a hard fault on a unit with no debugger attached. `ProgramSender` deliberately allocates the largest free block and falls back to line-by-line streaming when it can't, which only works with the nothrow form.
 - Robustness matters: this parses live, sometimes noisy, UART data and reads arbitrary SD card filenames — guard string parsing (`strchr`/length math) and array bounds; malformed input must not fault.
 - G-code lines are limited to **80 characters** (`TextBox::MAX_LINE_LEN`). Programs are checked at load; a longer line means the file is refused, not truncated mid-run.
+- **Convert between um and 0.0001 inch only through `GrblComm::ConvertMetricToImperial()` / `ConvertImperialToMetric()`** or the `ConvertMetricToUnits()` / `ConvertUnitsToMetric()` / `ConvertUnitsToImperial()` wrappers. They round to nearest. An open-coded `* 100 / 254` truncates, and a value stored in um then comes back one count lower every time it is shown and saved in imperial.
 - The status watchdog sets `grbl_state = UNKNOWN` after 300 ms without a report, but does **not** clear `grbl_mpgMode`, so `IsInControl()` stays true after a link loss.
 - **Command completion must fail closed.** Watchdog recovery preserves `send_id`
   and publishes `Status_Comm_Error`; unsolicited late `ok` cannot clear it.
@@ -177,6 +178,17 @@ reports invalidate freshness and success without changing cached coordinates.
   `Status_Comm_Error` alone when the state returns from UNKNOWN. Always advance
   `send_id` when clearing, so the failed command reads
   `Status_Next_Cmd_Executed`, never OK.
+  **A closed gate discards every command, not just program lines.** The `else`
+  branch in `ProcessMessage()` drops the message and sets `send_id` to its ID,
+  so MPG jog dies too - the handwheel turns and the machine does not move. The
+  automatic reopen only fires on the UNKNOWN-to-known transition, so it covers
+  the status watchdog but **not** the two paths that leave the state known:
+  a failed `uart->Write()`, and `ASCII_NAK` from `FramedUart`. Those hold the
+  gate shut until the operator uses Stop/Reset/Unlock. That is deliberate for
+  a lost g-code line, whose delivery is genuinely uncertain; just be aware the
+  only feedback is `status_str` reading "Comm Error" (`Application.cpp`
+  refreshes it every tick) - `grbl_changed.error` is set in three places and
+  read nowhere.
 
 ### Invariants nothing enforces
 

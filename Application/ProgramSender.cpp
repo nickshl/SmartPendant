@@ -353,6 +353,16 @@ Result ProgramSender::TimerExpired(uint32_t interval)
         {
           // Clear run flag
           run = false;
+          // Set finished flag to prevent further streaming attempts
+          finished = true;
+          // The other stop paths in this function explain themselves, and a
+          // link failure is the most confusing one to hit: the machine simply
+          // stops mid-program. The operator has to know the rest was skipped,
+          // and that the last line's fate is unknown - the controller may have
+          // executed it and lost the acknowledgement.
+          text_box.AddLine("; ERROR: command failed - STOPPED");
+          msg_box.Setup("PROGRAM STOPPED", "Command was not acknowledged by\nthe controller. Remaining program\nwas skipped. Check machine position\nbefore resuming.", 1u);
+          msg_box.Show(10000u);
         }
       }
     }

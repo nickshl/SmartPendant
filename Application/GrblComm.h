@@ -285,7 +285,12 @@ class GrblComm : public AppTask
       Status_FlowControlOutOfMemory = 83,
 
       // ***   For internal use only   *****************************************
-      Status_Next_Cmd_Executed,    // This status show that next command send and status for requested command is lost
+      // The requested command was superseded by a later one, so its own outcome
+      // was never observed. This is an UNKNOWN result and every caller must
+      // treat it as a failure - never as "it must have worked". Do not add a
+      // branch that accepts it: skipping a g-code line moves the machine
+      // somewhere nobody asked for.
+      Status_Next_Cmd_Executed,
       Status_Cmd_Not_Executed_Yet, // Requested command isn't send to controller yet
       Status_Comm_Error,           // We lost control or controller isn't responded in time to status request
       Status_Unhandled,
@@ -485,14 +490,34 @@ class GrblComm : public AppTask
     inline uint32_t GetReportUnitsPrecision(uint8_t axis) {return (IsRotaryAxis(axis) ? precision[MEASUREMENT_SYSTEM_ROTARY] : GetReportUnitsPrecision());}
 
     // *************************************************************************
+    // ***   Public: ConvertMetricToImperial function   ************************
+    // *************************************************************************
+    // Convert um to tenths(0.0001 inch), one tenth is 2.54 um. Result is
+    // rounded to nearest: truncation makes a value that is exact in one
+    // system come out one count short, and makes a value drift down every
+    // time it is converted there and back.
+    static inline int32_t ConvertMetricToImperial(int32_t metric) {return ((metric * 100 + ((metric >= 0) ? 127 : -127)) / 254);}
+
+    // *************************************************************************
+    // ***   Public: ConvertImperialToMetric function   ************************
+    // *************************************************************************
+    // Convert tenths(0.0001 inch) to um, rounded to nearest(see above)
+    static inline int32_t ConvertImperialToMetric(int32_t imperial) {return ((imperial * 254 + ((imperial >= 0) ? 50 : -50)) / 100);}
+
+    // *************************************************************************
     // ***   Public: ConvertMetricToUnits function   ***************************
     // *************************************************************************
-    inline int32_t ConvertMetricToUnits(int32_t metric) {return (IsMetric() ? metric : metric * 100 / 254);}
+    inline int32_t ConvertMetricToUnits(int32_t metric) {return (IsMetric() ? metric : ConvertMetricToImperial(metric));}
 
     // *************************************************************************
     // ***   Public: ConvertUnitsToMetric function   ***************************
     // *************************************************************************
-    inline int32_t ConvertUnitsToMetric(int32_t units) {return (IsMetric() ? units : units * 254 / 100);}
+    inline int32_t ConvertUnitsToMetric(int32_t units) {return (IsMetric() ? units : ConvertImperialToMetric(units));}
+
+    // *************************************************************************
+    // ***   Public: ConvertUnitsToImperial function   *************************
+    // *************************************************************************
+    inline int32_t ConvertUnitsToImperial(int32_t units) {return (IsMetric() ? ConvertMetricToImperial(units) : units);}
 
     // *************************************************************************
     // ***   Public: ConvertMetricFeedToUnitsX100 function   *******************

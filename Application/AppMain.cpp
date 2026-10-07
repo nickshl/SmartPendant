@@ -69,7 +69,12 @@ static StHalUart uart(huart1);
 // Display & touch
 static ILI9488 display(480, 320, spi1, display_cs, display_dc, &display_rst);
 static FT6236 touch(iic1, ITouchscreen::ROTATION_LEFT, 320u, 480u);
-// NVM: MB85RC256V, no write protection, size 32kB, no pages, but 64 used since we allocate buffer for it
+// NVM: 24xx256 class I2C EEPROM, no write protection, 32 kB, 64 byte pages.
+// Early boards used MB85RC256V FRAM; it was replaced with EEPROM to cut cost,
+// so the endurance and timing characteristics are completely different:
+// ~1,000,000 erase/write cycles PER PAGE and a 5 ms self-timed write cycle,
+// where FRAM was effectively unlimited and instant. Keep write frequency in
+// mind before persisting anything that changes at machine rate.
 static Eeprom24 eep(iic1, nullptr, 0x8000u, 64u);
 
 // Framed UART transport layer(not static to allow SettingScr access via extern declaration)

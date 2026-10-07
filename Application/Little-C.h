@@ -2,6 +2,9 @@
 // ***   A Little C interpreter   **********************************************
 // *****************************************************************************
 
+// Include for INT32_MAX
+#include <stdint.h>
+
 // Maximum number of functions
 #define NUM_FUNC 100
 
@@ -13,6 +16,11 @@
 // parenthesized expressions). Each level of program nesting recurses on the
 // stack, so the depth must be limited to prevent stack overflow.
 #define NEST_DEPTH_MAX 10
+
+// Count work across loop iterations, not just recursive nesting. Each
+// public evaluation gets a fresh budget so a runaway script cannot lock
+// the Application task indefinitely.
+#define TOKEN_BUDGET 250000
 
 class LittleC
 {
@@ -109,12 +117,7 @@ class LittleC
     int gvar_index = 0; // index into global variable table
     int lvartos = 0;    // index into local variable stack
     int nest_depth = 0; // current nesting depth(blocks, calls, parentheses) to guard the native stack
-    // Count work across loop iterations, not just recursive nesting. Each
-    // public evaluation gets a fresh budget so a runaway script cannot lock
-    // the Application task indefinitely.
-    static constexpr unsigned int TOKEN_BUDGET = 250000u;
-    unsigned int tokens_remaining = TOKEN_BUDGET;
-    bool budget_exhausted = false;
+    int tokens_remaining = TOKEN_BUDGET;
 
     // Data type structure
     struct data_type
@@ -201,7 +204,7 @@ class LittleC
     bool eval_exp4(data_type& data);
     bool eval_exp5(data_type& data);
     bool atom(data_type& data);
-    bool sntx_err(int error);
+    bool sntx_err(int error, bool result = true);
     bool get_token(void);
     bool get_string_token(int idx);
     void putback(void);
@@ -228,6 +231,12 @@ class LittleC
     bool call_getaxisposx(data_type&);
     bool call_getaxisposy(data_type&);
     bool call_getaxisposz(data_type&);
+    bool call_getmetricaxisposx(data_type&);
+    bool call_getmetricaxisposy(data_type&);
+    bool call_getmetricaxisposz(data_type&);
+    bool call_getimperialaxisposx(data_type&);
+    bool call_getimperialaxisposy(data_type&);
+    bool call_getimperialaxisposz(data_type&);
     bool call_islathediametermode(data_type&);
 
     // Internal functions structure definition

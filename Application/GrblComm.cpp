@@ -93,9 +93,14 @@ Result GrblComm::TimerExpired(uint32_t missed_cnt)
   // If we give up control or controller state is unknown, we should clear pending flag
   if((!IsInControl() || (grbl_state == UNKNOWN)) && respond_pending)
   {
-    // Keep the failed command's ID: advancing it makes an unknown outcome
-    // look like a command superseded by successful work. Publish the failure
-    // before clearing pending, so a reader cannot observe the previous OK.
+    // Publish the failure before clearing pending, so a reader cannot observe
+    // the previous OK. send_id is left alone here only because there is
+    // nothing to gain by moving it: the command's outcome is unknown either
+    // way. Status_Next_Cmd_Executed is a failure for every caller(see the
+    // enum), so the recovery path in ParseState() and Stop()/Reset()/Unlock()
+    // are equally free to advance it. Do not read this as "advancing send_id
+    // is unsafe" - that was true only while ProgramSender accepted
+    // Status_Next_Cmd_Executed as success, which it no longer does.
     grbl_status = Status_Comm_Error;
     respond_pending = false;
   }
@@ -228,9 +233,14 @@ Result GrblComm::ProcessMessage()
         }
         else if((result != Result::ERR_BUSY) && (result != Result::ERR_UART_BUSY))
         {
+          // Same fields as the success path above, so take the same lock.
+          // Publish the failure before the ID, so a reader that sees the new
+          // ID can never still observe the previous OK.
+          mutex.Lock();
           grbl_status = Status_Comm_Error;
           send_id = rcv_msg.id;
           grbl_changed.error = true;
+          mutex.Release();
         }
         else
         {
