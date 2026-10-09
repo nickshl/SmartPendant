@@ -50,7 +50,7 @@ The firmware as a whole only runs on hardware, but **several components build an
 - `FramedUart.cpp` needs stub `DevCore.h`/`IUart.h`. A simulated controller implementing `PROTOCOL.md` plus fault injection (frame loss, bit corruption) verifies the protocol properly. Build the fuzzing suite with `-fsanitize=address,undefined` or it proves little, and change the fuzz seed before trusting a clean result — a fixed seed proves less than it looks like it does.
 - `Decimal32.h` is header-only and fully host-testable.
 
-`arm-none-eabi-gcc -Os -fstack-usage` and `arm-none-eabi-size` give real stack/flash numbers — prefer measuring to estimating.
+`arm-none-eabi-gcc -Os -fstack-usage` and `arm-none-eabi-size` give real stack/flash numbers — prefer measuring to estimating. For a task's worst-case stack add `-fcallgraph-info=su`: the `.ci` files have every function's frame and its calls; virtual calls show only as `__indirect_call`, so a walk over the graph gives an upper bound, not the exact figure.
 
 `Tests/host/run.py` builds the interpreter and communication layers with HAL/RTOS
 stubs under AddressSanitizer and UndefinedBehaviorSanitizer, checks ProgramSender's
@@ -58,6 +58,24 @@ streaming timer, and compares all bundled scripts against a git baseline. See
 `Tests/host/README.md`. The baseline interpreter must know every built-in the
 scripts call: a `BASELINE_REF` older than the `GetMetricAxisPos…`/`GetImperialAxisPos…`
 getters fails on any script that uses them.
+
+`Tests/host/script_checks.py` checks what the bundled scripts cut: each script runs
+through the real interpreter, `GrblComm` parser and menu comment parser over a sweep
+of parameters, and the program is traced as a tool path(depth reached, no pass
+deeper than the step, no rapid through material, modal state set and restored, menu
+rows that fit). **Run it after any change to a script, the interpreter, the position
+getters or the menu parser.** With `--grblhal-sim <grblHAL_sim>` every program is
+also run through the real grblHAL parser. `Tests/host/script_mutations.py` puts
+known bugs into the scripts and the firmware sources to prove the checks still
+catch them - run it after changing a check. `Tests/host/README.md` describes each
+check, the known issues the checks are told to excuse, how to run a single script
+by hand and how to write a new check.
+
+Which to run:
+- `GrblComm`, `FramedUart`, `ProgramSender`, `Decimal32`, `Little-C` - `run.py`.
+- A script, the interpreter, the position getters, the menu parser - `script_checks.py`(and `run.py` for the interpreter).
+- A check in `script_checks.py` - `script_mutations.py`, it takes 5-10 minutes.
+- `sender.h` and `stubs/` are doubles of the firmware: when a member is added to `ProgramSender` or a define to `DevCfgUsr.h` that the compiled code uses, add it there too, or `run.py` doesn't build.
 
 **When verifying, delete the old binaries before rebuilding.** Stale executables printing "all tests passed" after a failed compile has caused false confidence more than once.
 
@@ -126,18 +144,77 @@ Link parameters are `BAUD_RATE`, `TRANSPORT`, `FRAME_ATTEMPTS` and `ACK_MIN_MS`.
 **Adding a parameter resets every setting to defaults.** The array is sized `MAX_VALUES`, so a new entry changes `sizeof(data)`, which moves both the CRC's coverage and its position; the check then fails and defaults load. The `EEP_VERSION` block in `ReadData()` is currently empty, so it provides no migration. If this becomes painful, the cheapest fix is a fixed-size storage array (e.g. 128 slots) with unused slots written as a sentinel, so appending a parameter preserves the others.
 
 ### Script-driven G-code generation
-`GCodeGeneratorScr` runs user **scripts** through an embedded C interpreter (`Application/Little-C.*`) to emit G-code, handed to `ProgramSender`. Scripts live in `Scripts/` on the SD card: **`.ms` = mill**, **`.ls` = lathe** (filtered by mode of operation).
+`GCodeGeneratorScr` runs user **scripts** through an embedded C interpreter (`Application/Little-C.*`) to emit G-code, handed to `ProgramSender`. Scripts live in the `Scripts` folder on the SD card: **`.ms` = mill**, **`.ls` = lathe**; the list shows the ones for the controller's mode of operation(all of them when it isn't connected). The bundled ones are in `Scripts/` of this repository and are the best examples: read one of the same kind before writing a new one.
 
-Scripts are near-C and declare tunable parameters as global variable declarations with a structured trailing comment that the generator parses to build the parameter-entry UI:
+How a script is used: the operator picks it, the generator runs `Prescan()` and shows **every global variable as a menu row** - those are the parameters. The operator edits them(a number in a value box limited to min..max, an enum from its list) and presses Generate(only in Idle or Unknown state): `Execute()` runs `main()`, whatever it prints is the program. It goes to `ProgramSender` as a loaded program and, if `NVM::SAVE_SCRIPT_RESULT` is on, to `Result.nc`. The output buffer is the largest free block of the heap, tens of kB.
+
+#### Parameters
+Every global is a parameter, so **working variables must be locals**. Parameters are `int`, their order is the menu order, and the trailing comment is the menu row:
 
 ```c
-int step = 3000;      // Step for pass; 1000; mm; 0; 1000000
-                      //   name        ; scaler; units; min; max
-int coolant = 0;      // Coolant; 0; Flood; Mist; None
-                      //   name  ; 0 == enum marker; enum labels...
+int rough_step = 3000;  // Rough step; 1000; mm; 0; 1000000
+                        //   label   ; scaler; units; min; max
+int coolant = 0;        // Coolant; 0; Flood; Mist; None
+                        //   label; 0 marks an enum; values shown for 0, 1, 2, ...
 ```
 
-`main()` emits G-code via built-ins: `println(...)`/`print(...)`/`printfp(...)`/`puts(...)`/`putch(...)`, `abs()`, `sqrt()`, `IsLatheDiameterMode()` and the position getters. `GetAxisPosX/Y/Z()` return the position in the units the controller reports (um or 0.0001 inch, by `$13`); `GetMetricAxisPosX/Y/Z()` and `GetImperialAxisPosX/Y/Z()` return it in um or in 0.0001 inch whatever the controller reports, so a script written in one unit system works on any controller. The bundled scripts are metric: they use the metric getters, emit `G21`, and wrap the program in `M70`/`M72` so the controller restores its own modal state. The interpreter has a fixed 80-byte token buffer (so **no string literal in a script may reach 80 characters** — build long output lines from several `print`/`println` calls), a variable stack split into local-frame and global regions, a function table, and a nesting-depth limit that bounds recursion. Output can be written to `Result.nc` when `NVM::SAVE_SCRIPT_RESULT` is enabled.
+- The value is an integer in scaler units: with scaler 1000 and `mm`, 3000 is 3.000 mm. The scaler is a power of 10 and sets the decimals shown and entered. Use `mm` with 1000(um), `mm/min`, `rpm` and `cnt` with 1. min and max are in the same units as the value.
+- An enum parameter holds the index of the chosen value: 0 for the first.
+- The label is at most 23 characters, the units at most 7, and label plus value must fit the 32 character menu row, for the minimum, default and maximum and for every enum value. The label contains every word of the variable name, in any case, and may add some(`rough_step` - "Rough step", `clearance` - "Dive clearance"; "position" may be left out: `start_x_position` - "Face Start X").
+- The menu has room for 31 parameters(the last row is Generate).
+- A parameter's initializer is evaluated by `Prescan()`, so it can be a getter: `int start_x_position = GetMetricAxisPosX();` offers the current position as the default(`Facing.ms`).
+- A direction can be a signed value(a negative length cuts toward -X) or an enum(`Facing.ms` has one); say which in the comment at the top.
+- Use the names the bundled scripts use for the same thing: `feed`, `..._feed`, `speed`/`..._speed`(0 - the script doesn't start the spindle; minimum 0, default 0), `coolant`(Flood, Mist, None), `clearance`.
+- Pick realistic limits for a machine this pendant drives - they are what keeps a typo from making a program that can't be run or doesn't fit the buffer.
+
+#### The language
+Little-C is a small subset of C, interpreted. What a script can use:
+
+- types `int`(32 bit) and `char`; no arrays, pointers, structs, floating point, preprocessor;
+- `if`/`else`, `while`, `do`/`while`, `for`, `switch`/`case`/`default`, `break`, `continue`, `return`;
+- functions with `int` parameters returning `int`(`int f(int a, int b) { ... }`), `main()` without a type; recursion is possible but see the nesting limit;
+- operators `+ - * / %`(integer: division cuts toward zero), `= += -= *= /= %=`, `++ --`, `== != < <= > >=`, `&& || !`, `?:`, unary `-`; **no** bit operators(`& | ^ ~ << >>`);
+- locals declared in a block or in `for(int i = 0; ...)`, several in one line and with an initializer(`int a = 1, b;`);
+- `return 0;` from `main()` ends the script early - with nothing printed it is an empty program, the way to say there is nothing to cut;
+- `//` and `/* */` comments, character constants `'x'`, string literals only as arguments of the print functions.
+
+Built-ins:
+
+| function | does |
+|---|---|
+| `print(a, b, ...)` | prints its arguments one after another: a string literal as it is, an `int` as a number, a `char` as a character |
+| `println(a, b, ...)` | the same and a new line |
+| `printfp(value, scaler)` | used inside `print`/`println`: prints `value / scaler` with as many decimals as the scaler has zeros(`printfp(-1500, 1000)` - `-1.500`) |
+| `puts("text")`, `putch(c)` | a string and a new line, one character |
+| `abs(x)`, `sqrt(x)` | integer; `sqrt` cuts, 0 for negative |
+| `GetMetricAxisPosX/Y/Z()` | position in um whatever the controller reports |
+| `GetImperialAxisPosX/Y/Z()` | position in 0.0001 inch whatever the controller reports |
+| `GetAxisPosX/Y/Z()` | position in the units the controller reports(`$13`) - avoid, the script then depends on the setting |
+| `IsLatheDiameterMode()` | 1 if the lathe X is in diameter(G7) |
+
+Limits that scripts run into:
+
+- the token buffer is 80 bytes, so **no string literal may reach 80 characters**; build a long line from several arguments;
+- a **program line** must stay within 80 characters(`TextBox::MAX_LINE_LEN`), with the longest numbers the parameters allow, or the program is refused;
+- blocks, function calls and parentheses share a nesting depth of 10(`NEST_DEPTH_MAX`): keep nesting shallow, prefer a loop to recursion;
+- 200 variables(`NUM_VARS`, globals and the locals of all active calls together) and 100 functions(`NUM_FUNC`);
+- every run has a budget of 250,000 tokens(see below): a pass of a few moves costs a hundred or two, so a job of more than about a thousand passes ends in a "Script execution limit exceeded" error, not in a program - set the limits so that is a typo, not a normal job;
+- `int` overflow isn't detected: a product of two values in um overflows above about 46 mm(46,340 um each), so divide before multiplying, or work in coarser units for a product.
+
+#### What a program must look like
+The bundled scripts follow these rules, and `Tests/host/script_checks.py` checks them on every bundled script:
+
+- start with `M70`(save modal state) and set every mode the moves depend on before the first move, each once: `G21`(the bundled scripts are metric and use the metric getters), `G90` or `G91`, `G94`, `G40`, `G50`; a lathe script also `G7` or `G8`, one with arcs also `G17`;
+- the spindle is started only if the speed parameter isn't 0: `M3 S<rpm>`(mill), `G97 M3 S<rpm>`(lathe); coolant `M8`(Flood), `M7`(Mist) or nothing, both before the first cut;
+- every feed move(`G1`/`G2`/`G3`) has a positive `F` on the same line;
+- the tool path starts at the current position: read it with the getters or move relative(`G91`), and never rapid into material - retract first; end with the tool out of the material, at or above the height it started from;
+- end with `M72`(restore modal state), then `M9`(the bundled scripts send it whether coolant was on or not) and `M5`;
+- a line of G-code may carry a comment after `;`(`println("G91; Relative mode")`) - it isn't sent to the controller.
+
+Style: the file name says what it does with an -ing word(`Drilling.ms`, `Turning.ls`); a short comment at the top says what the script cuts, from where, and what 0 means for its parameters; short comments in the code, an empty line between logic blocks.
+
+#### Testing a script
+Add it to `LATHE` or `MILL` and to `VARIANTS` in `Tests/host/script_checks.py` - until then `structure` fails: a few parameter sets, the first one empty for the defaults. A script that reads the position also goes to `POSITION_SCRIPTS`. Then run the checks; they cover the common rules above, not the shape of what the script cuts - that needs a check of its own with mutations(`Tests/host/README.md`, "Changing a script" and "Writing a check"). To look at the program while writing, run the script by hand with `script_runner`("Running one script"); it builds under `build/host-tests/`, which is git-ignored.
 
 Generate calls `Execute()` without a new `Prescan()`, so global variables keep what `main()` did to them and the menu shows it: **a script must not assign to its parameters**. Work on a local copy with a name of its own instead(`int stepover = drill_stepover;` in `Drilling.ms`) - not with the name of the parameter: that compiles, but a local that hides a global is easy to misread.
 

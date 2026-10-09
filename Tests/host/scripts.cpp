@@ -13,9 +13,9 @@ int main(int argc, char** argv) {
   std::vector<char> output(1024 * 1024);
   auto& comm = GrblComm::GetInstance();
   comm.number_of_axis = 3;
-  comm.grbl_position[0] = 10.0f;
-  comm.grbl_position[1] = 20.0f;
-  comm.grbl_position[2] = 30.0f;
+  comm.grbl_position[0] = Decimal32(10);
+  comm.grbl_position[1] = Decimal32(20);
+  comm.grbl_position[2] = Decimal32(30);
   LittleC interpreter;
   interpreter.SetPgmBuffer(source.data(), source.size());
   interpreter.SetOutputBuf(output.data(), output.size());

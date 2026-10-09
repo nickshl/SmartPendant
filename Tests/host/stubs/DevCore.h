@@ -1,4 +1,5 @@
 #pragma once
+#include <cassert>
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -8,9 +9,12 @@
 #include <vector>
 #include "Result.h"
 #include "IUart.h"
+#include "Decimal32.h"
 #define NumberOf(a) (sizeof(a) / sizeof((a)[0]))
 #define APPLICATION_TASK_STACK_SIZE 1536u
 #define APPLICATION_TASK_PRIORITY 3u
+#define GRBLCOMM_TASK_STACK_SIZE 512u
+#define GRBLCOMM_TASK_PRIORITY 3u
 #define MPG_EN_GPIO_Port 0
 #define MPG_EN_Pin 0
 #define GPIO_PIN_SET 1
@@ -21,9 +25,11 @@ struct RtosTick {
   static uint32_t GetTimeMs() { return now; }
   static void DelayMs(uint32_t ms) { now += ms; }
 };
+// Not recursive, as the real one: locking it twice would hang the task
 struct RtosMutex {
-  void Lock() {}
-  void Release() {}
+  bool locked = false;
+  void Lock() { assert(!locked); locked = true; }
+  void Release() { assert(locked); locked = false; }
 };
 class AppTask {
 public:

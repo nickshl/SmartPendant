@@ -17,7 +17,8 @@ for stub in (TESTS / "stubs").glob("*.h"):
 for path in ["Application/Little-C.cpp", "Application/Little-C.h",
              "Application/GrblComm.cpp", "Application/GrblComm.h",
              "Application/FramedUart.cpp", "Application/FramedUart.h",
-             "DevCore/Framework/Result.h", "DevCore/Interfaces/IUart.h"]:
+             "DevCore/Framework/Result.h", "DevCore/Interfaces/IUart.h",
+             "DevCore/Math/Decimal32.h"]:
     text = (ROOT / path).read_text()
     # Expose state to fault injection only in the isolated host build.
     if path.endswith("GrblComm.h"):
