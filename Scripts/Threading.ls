@@ -26,8 +26,8 @@ main()
   int minor_diameter = start_diameter - depth * 2;
   // Find full shift for Flank Infeed: depth / sqrt(3)
   int full_shift = (depth * 577) / 1000;
-  // Shadow variable to prevent changing settings
-  int spring_passes = spring_passes;
+  // Spring passes left to do. Parameter itself must not be changed.
+  int spring_passes_left = spring_passes;
 
   // Set parameters to proper gcode execution
   // Save modal state to restore it at the end
@@ -49,7 +49,7 @@ main()
   int flank_side = 0;
 
   // Threading cycle
-  while((current_diameter > minor_diameter) || (spring_passes > 0))
+  while((current_diameter > minor_diameter) || (spring_passes_left > 0))
   {
     // If we are still in threading cycle
     if(current_diameter != minor_diameter)
@@ -105,7 +105,7 @@ main()
     }
     else
     {
-      spring_passes--;
+      spring_passes_left--;
     }
     // Move tool to workpiece
     println("G1 X", printfp(current_diameter, 1000), " F60");

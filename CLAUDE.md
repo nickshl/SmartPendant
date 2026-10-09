@@ -92,6 +92,8 @@ Singleton UART task, 1 ms tick. Parses real-time status reports (`<...>`), messa
 
 `InitTask()` takes an **`IUart&`**, not a concrete UART, which is what lets `AppMain` hand it either the raw hardware UART or a `FramedUart`. `GrblComm` is unaware of which it got.
 
+Numbers the controller reports(positions, offsets, probe result, feed, rpm, `$110`..`$115`) are stored as **`Decimal32`**, parsed from the text by `ParseDecimal()` with `Decimal32::FromString()` - never through `atof()`/`float`. A binary float can't hold most decimals: `4.035` read through one and scaled to um was 4034. `FromString()` returns how many characters the number took(0 - there is none), which is how `ParseProbeReport()` finds the separator after it. The getters turn a number into counts with `Decimal32::ToFixedPoint(scaler)`: exact for what the controller prints(3 decimals for mm and degrees, 4 for inches); extra decimals are cut, not rounded, like everywhere in `Decimal32`. There is no floating point left in `GrblComm`; keep it that way - dropping `atof()`/`strtof()` also made the image about 10 kB smaller.
+
 Three things that are easy to get wrong:
 - **`[PRB:...]` is always in machine coordinates**, regardless of the `$10` WPos/MPos setting (grblHAL `report_probe_parameters()`). The axis-position getters convert by report frame; the probe getters must not.
 - **Real-time commands are always a single-byte write** (`msg.id == 0`, `msg.cmd[1] = '\0'`), while g-code lines always carry a terminator and are ≥2 bytes. The framed transport relies on this to pick its channel — keep the invariant.
@@ -137,9 +139,25 @@ int coolant = 0;      // Coolant; 0; Flood; Mist; None
 
 `main()` emits G-code via built-ins: `println(...)`/`print(...)`/`printfp(...)`/`puts(...)`/`putch(...)`, `abs()`, `sqrt()`, `IsLatheDiameterMode()` and the position getters. `GetAxisPosX/Y/Z()` return the position in the units the controller reports (um or 0.0001 inch, by `$13`); `GetMetricAxisPosX/Y/Z()` and `GetImperialAxisPosX/Y/Z()` return it in um or in 0.0001 inch whatever the controller reports, so a script written in one unit system works on any controller. The bundled scripts are metric: they use the metric getters, emit `G21`, and wrap the program in `M70`/`M72` so the controller restores its own modal state. The interpreter has a fixed 80-byte token buffer (so **no string literal in a script may reach 80 characters** — build long output lines from several `print`/`println` calls), a variable stack split into local-frame and global regions, a function table, and a nesting-depth limit that bounds recursion. Output can be written to `Result.nc` when `NVM::SAVE_SCRIPT_RESULT` is enabled.
 
+Generate calls `Execute()` without a new `Prescan()`, so global variables keep what `main()` did to them and the menu shows it: **a script must not assign to its parameters**. Work on a local copy with a name of its own instead(`int stepover = drill_stepover;` in `Drilling.ms`) - not with the name of the parameter: that compiles, but a local that hides a global is easy to misread.
+
 Each prescan, execution, and global-value reset also receives a fresh **250,000-token budget** (`TOKEN_BUDGET` in `Little-C.h`; `INT32_MAX` disables the limit). When it is spent, `get_token()` reports `EXECUTION_LIMIT` and returns `false` **without lexing** — `token`, `tok` and `token_type` still describe the previous token. A runaway script therefore ends in a script error instead of freezing the Application task, but only because every caller propagates that result: **never call `get_token()` without using what it returns**, and every scan loop needs `&& result` in its condition, or it spins forever on the stale token. This is a work limit, not a wall-clock deadline or a hardware watchdog.
 
 Interpreter errors go through `sntx_err(error, result)`: pass the current `result`, and the message is written only while it is still `true`. The first error is the one the operator sees; checks made while unwinding cannot overwrite it. That is why a check is written `if(*token != ';') result = sntx_err(SEMI_EXPECTED, result);` rather than guarded with `if(result && ...)`. The one-argument form always reports. Braces are delimiters to the tokenizer, so `else{` and `do{` need no space.
+
+### Program streaming (`Application/ProgramSender.*`)
+A program is either in memory(`p_text`, also what a script generates) or, if it doesn't fit, streamed from the SD card line by line. Lines are sent one at a time, the next one after `ok`.
+
+The controller executes a line long after it acknowledged it - it keeps tens of lines in its planner - so **the selection in the text box is not the place lines are taken from**. Sending has its own position(`p_send` in memory, `SDFile` on the card, `send_line` counts lines), and the selection follows the line the controller reports as executing:
+
+- `BuildCommand()` makes the command from a program line: a `;` comment is removed(the controller only cuts it off), comments in parentheses stay(the controller handles them: `(MSG,...)` goes to the operator, plugins act on others) and `N<line>` is put **in front** - after the block delete `/` if there is one. In front, because that is the only place grblHAL takes a line number for every kind of line(flow control lines are parsed differently after the O word). Lines starting with `$`, `[` or `%` aren't g-code and go out untouched. A line with nothing left isn't sent, but it is counted: numbers are positions in the program.
+- The program's own `N` words are removed when it is read(`StripLineNumbers()`), outside comments, `$` lines and `<names>`: two `N` words on a line are an error, and the numbers on screen would not be the ones reported.
+- grblHAL reports `|Ln:n` in the status report(`$10` bit 2, on by default) for the line being executed. When nothing moves(dwell, spindle start, tool change, idle) builds since 20260126 report the last line parsed; **older ones report no number at all**, so a report without `Ln:` says nothing about whether the controller reports numbers. `GrblComm::GetLineNumber()` returns it, 0 if the last report had none. Numbers above 9999999 are refused by the controller, so such lines go without.
+- Whether the selection follows the executed line is decided when Run is pressed, from `$10` bit 2(`GrblComm::IsLineNumberReportEnabled()`): `LINE_EXECUTED` if the controller reports line numbers, otherwise `LINE_SENT` - the line to be sent next, as it always did. **Do not decide it from what the reports contain or from when they arrive**: a controller may report no number while nothing moves, and while lines are sent every tick no report is "after the command" for `IsStatusReceivedAfterCmd()` - the selection sat on the first line until the planner filled up. A report without a number changes nothing. When the program has ended and the controller is idle the selection goes to the last line: the last lines without motion may never be reported. The selection never goes back.
+- The number of the previous program can still be in `GrblComm` when Run is pressed. It is not used until the first numbered line is acknowledged; at that moment `ClearLineNumber()` forgets it, so any number seen later came in a report received after that `ok`, and such a report is about this program.
+- Run is enabled only from the first line and only while `GrblComm::GetStatusCode()` is `Status_OK`: after `error:N` the command gate stays closed until Stop/Reset/Unlock, and the first line of the next program would fail with the old error.
+- The selector tells what it shows: blue for a program in memory, red for a streamed one; filled for the executed line, a 2 pixel frame for the line to be sent next(`LINE_SENT` while running). `ProgramSender` sets it only when something changes, through `TextBox::SetSelectorColor()`/`SetSelectorFill()`: `ResetSelector()` before new text is shown, the fill when Run is pressed and when the program ends normally. The text box itself no longer picks the color.
+- A streamed program is open **twice**: `SDFile` is read for sending, `p_disp_file` for the text box. Both only move forward, so there are no seeks. The second `FIL` is allocated while such a program is open - it holds a 512 byte sector buffer. A read error on it ends the following of lines and nothing else; a read error on `SDFile` stops the program. `CloseFiles()` closes both - use it, a file left open keeps one of the two `_FS_LOCK` slots.
 
 Probe reports are parsed separately from ordinary axis status: all configured
 coordinates must be finite and followed by exactly `:0]` or `:1]`. Malformed
@@ -160,6 +178,7 @@ reports invalidate freshness and success without changing cached coordinates.
 
 ## Gotchas
 
+- **RAM is full.** `.data` + `.bss`(the 63768 byte FreeRTOS heap is in it) take all but about 100 bytes of the 128 kB. The heap got that big because the USB CDC buffers(`APP_RX_DATA_SIZE`/`APP_TX_DATA_SIZE`) are 64 bytes: debug output over USB sends from its own buffers. Static RAM freed later should go to `configTOTAL_HEAP_SIZE` - programs are loaded into the largest free heap block. A new static member of a few hundred bytes fails at link time with `region RAM overflowed`. Allocate what is needed only in some mode(`new(std::nothrow)`), or take it from `configTOTAL_HEAP_SIZE`.
 - **Bump the version** in `Application/Version.h` (`VERSION_MAJOR/MINOR/BUILD`) for a release build — there's a literal "DON'T FORGET TO CHANGE IT" note there.
 - **`Src/` and `Inc/` are CubeMX-generated** from `SmartPendant.ioc`. Regenerating overwrites HAL init / peripheral config — hand edits there are fragile. Application logic belongs in `Application/`.
 - **Allocations that may fail must use `new(std::nothrow)`.** DevCore overrides global `operator new` to call `Break()` on failure, which is `bkpt #0` — a hard fault on a unit with no debugger attached. `ProgramSender` deliberately allocates the largest free block and falls back to line-by-line streaming when it can't, which only works with the nothrow form.
@@ -169,15 +188,43 @@ reports invalidate freshness and success without changing cached coordinates.
 - The status watchdog sets `grbl_state = UNKNOWN` after 300 ms without a report, but does **not** clear `grbl_mpgMode`, so `IsInControl()` stays true after a link loss.
 - **Command completion must fail closed.** Watchdog recovery preserves `send_id`
   and publishes `Status_Comm_Error`; unsolicited late `ok` cannot clear it.
-  ProgramSender advances only on `Status_OK`, and `IsStatusReceivedAfterCmd()`
-  rejects superseded results. Publish pending state only after UART acceptance:
+  ProgramSender advances only on `Status_OK`. `IsStatusReceivedAfterCmd()` is a
+  freshness check, not a result check - callers test `Status_OK` themselves - and
+  see `abort_id` below for which superseded IDs it answers for. Fresh means the
+  last received status was **requested** after the command, not only received
+  after it: grblHAL can answer a request sent before the command with a report
+  made right after its `ok` and before the motion is started, with state still
+  Idle. `status_req_timestamp` is the request time of the last *received*
+  status, so the answer doesn't go back to false when the next status is
+  requested. Publish pending
+  state only after UART acceptance:
   framed writes can return `ERR_UART_BUSY` while another channel is available.
   A non-OK status closes the command gate in `ProcessMessage()`. It reopens only
   through the Stop/Reset/Unlock triple (status OK, pending cleared,
-  `send_id = next_id`), through `ReleaseControl()`, or automatically for
+  `AbandonCmdIds()`), through `ReleaseControl()`, or automatically for
   `Status_Comm_Error` alone when the state returns from UNKNOWN. Always advance
   `send_id` when clearing, so the failed command reads
   `Status_Next_Cmd_Executed`, never OK.
+  **`abort_id` separates "superseded" from "abandoned".** A command that later
+  ones have superseded reads `Status_Next_Cmd_Executed` whether they really were
+  sent one after another - each only after the previous was acknowledged OK - or
+  the queue was given up on. `IsStatusReceivedAfterCmd()` answers "was a status
+  report requested after it was sent" for the first kind only, using
+  `cmd_tx_timestamp` of the newest sent command (never earlier than this one's);
+  that is how a caller that queued several commands can still ask about the
+  first. IDs below `abort_id` are never reported. Keep it that way: **never write
+  `send_id` outside the transmit path in `ProcessMessage()`** - move it past
+  everything with `AbandonCmdIds()` (Stop/Reset/Unlock, `ReleaseControl()`, the
+  `ParseState()` recovery) and drop a command that is not sent with
+  `DropCmd()`; both write `abort_id` before `send_id`. **Both must be called
+  with `mutex` locked** - they run in two tasks(Stop/Reset/Unlock/
+  `ReleaseControl()` come from the UI task) and `abort_id` is checked and
+  written in two steps. The mutex is not recursive: the callers lock it, and
+  two of them hold it already(`ParseState()` runs under the lock taken in
+  `PollSerial()`, the write-failure path in `ProcessMessage()` under its own).
+  `IsStatusReceivedAfterCmd()` reads under the same lock. Do not add a branch that
+  reads `Status_Next_Cmd_Executed` as success. Covered by
+  `status_after_cmd_tests()` in `Tests/host/regression.cpp`.
   **A closed gate discards every command, not just program lines.** The `else`
   branch in `ProcessMessage()` drops the message and sets `send_id` to its ID,
   so MPG jog dies too - the handwheel turns and the machine does not move. The

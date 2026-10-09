@@ -30,6 +30,9 @@
 #define INPUT_DRV_TASK_PRIORITY (RTOS_IDLE_TASK_PRIORITY + 2u)
 #define INPUT_DRV_TASK_STACK_SIZE RTOS_MINIMAL_STACK_SIZE
 // *** Application task priority & stack size   ********************************
+#define GRBLCOMM_TASK_PRIORITY (RTOS_IDLE_TASK_PRIORITY + 3u)
+#define GRBLCOMM_TASK_STACK_SIZE 512u
+// *** Application task priority & stack size   ********************************
 #define APPLICATION_TASK_PRIORITY (RTOS_IDLE_TASK_PRIORITY + 3u)
 #define APPLICATION_TASK_STACK_SIZE 1536u
 

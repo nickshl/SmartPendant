@@ -38,6 +38,10 @@ class TextBox : public VisList
     // streaming backstop) - all checks must use the same number.
     static const uint32_t MAX_LINE_LEN = 80u;
 
+    // Characters a line can show: screen is 320 pixels wide(rotation is
+    // fixed), font is 10 pixels wide. Longer lines are cut.
+    static const uint32_t VISIBLE_LEN = 320u / 10u;
+
     // *************************************************************************
     // ***   Constructor   *****************************************************
     // *************************************************************************
@@ -69,6 +73,12 @@ class TextBox : public VisList
     Result AddLine(const char* text);
 
     // *************************************************************************
+    // ***   Public: GetText   *************************************************
+    // *************************************************************************
+    // Text set by SetText(), nullptr if lines are added one by one
+    const char* GetText() {return p_text;}
+
+    // *************************************************************************
     // ***   Public: GetNumberOfLines   ****************************************
     // *************************************************************************
     int32_t GetNumberOfLines() {return lines_cnt;}
@@ -77,11 +87,6 @@ class TextBox : public VisList
     // ***   Public: GetNumberOfVisibleLines   *********************************
     // *************************************************************************
     int32_t GetNumberOfVisibleLines() {return visible_cnt;}
-
-    // *************************************************************************
-    // ***   Public: GetSelectedStringText   ***********************************
-    // *************************************************************************
-    const char* GetSelectedStringText() {return str[select_pos - scroll_pos].GetString();}
 
     // *************************************************************************
     // ***   Public: GetSelect   ***********************************************
@@ -103,6 +108,17 @@ class TextBox : public VisList
     // *************************************************************************
     Result Scroll(int32_t n = 0);
 
+    // *************************************************************************
+    // ***   Public: SetSelectorColor   ****************************************
+    // *************************************************************************
+    void SetSelectorColor(color_t color);
+
+    // *************************************************************************
+    // ***   Public: SetSelectorFill   *****************************************
+    // *************************************************************************
+    // 0 - selector is filled, otherwise it is a frame of that width in pixels
+    void SetSelectorFill(uint8_t fill);
+
   private:
     // Pointer to text
     const char* p_text = nullptr;
@@ -111,12 +127,16 @@ class TextBox : public VisList
 
     // Strings to show text
     String str[16];
-    char str_text[16][MAX_LINE_LEN + 2u + 1u] = {0}; // One line + CR + LF + \0
+    char str_text[16][VISIBLE_LEN + 1u] = {0}; // Visible part of a line + \0
     // Visible lines count
     int32_t visible_cnt = 0;
 
-    // Selection box
+    // Selection box, its color and fill(see SetSelectorFill())
     Box box;
+    // Current selector color
+    color_t selector_color = COLOR_RED;
+    // Indicate if selector filled or width of the border
+    uint8_t selector_fill = 0u;
     // Current TextBox scroll position
     int32_t scroll_pos = 0;
     // Current TextBox select position
@@ -131,6 +151,12 @@ class TextBox : public VisList
     // ***   Private: Strncpy function   ***************************************
     // *************************************************************************
     uint32_t Strncpy(char *dst, const char *src, uint32_t n);
+
+    // *************************************************************************
+    // ***   Private: UpdateSelector function   ********************************
+    // *************************************************************************
+    // Puts selection box on the selected line with its color and fill
+    void UpdateSelector();
 };
 
 #endif

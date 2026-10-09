@@ -137,7 +137,7 @@ Result RotaryTableScr::Show()
   current_x = start_x;
   current_y = start_y;
   // Recalculate radius
-  radius = (uint32_t)(sqrt(pow(start_x - center_x, 2) + pow(start_y - center_y, 2)));
+  radius = (uint32_t)lround(sqrt(pow(start_x - center_x, 2) + pow(start_y - center_y, 2)));
   // Set radius - two numbers should match
   radius_dw.SetNumber(radius);
   // Clear length
@@ -274,7 +274,7 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
     // Set new center coordinate
     center_dw[GrblComm::AXIS_Y].SetNumber(center_y);
     // Recalculate radius
-    radius = (uint32_t)(sqrt(pow(start_x - center_x, 2) + pow(start_y - center_y, 2)));
+    radius = (uint32_t)lround(sqrt(pow(start_x - center_x, 2) + pow(start_y - center_y, 2)));
     // Set new radius number
     radius_dw.SetNumber(radius);
     // Clear length
@@ -303,7 +303,7 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
     // Clear radius change
     radius_change = 0;
     // Move tool for new radius
-    result = grbl_comm.JogMultiple((int32_t)new_x, (int32_t)new_y, grbl_comm.GetAxisPosition(GrblComm::AXIS_Z), feed, true);
+    result = grbl_comm.JogMultiple((int32_t)lround(new_x), (int32_t)lround(new_y), grbl_comm.GetAxisPosition(GrblComm::AXIS_Z), feed, true);
     // Commit the model only if the command was accepted, otherwise the
     // software position diverges from the machine and the next move would
     // be computed from a phantom point.
@@ -313,7 +313,7 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
       current_x = new_x;
       current_y = new_y;
       // Recalculate radius itself
-      radius = (uint32_t)(sqrt(pow(current_x - center_x, 2) + pow(current_y - center_y, 2)));
+      radius = (uint32_t)lround(sqrt(pow(current_x - center_x, 2) + pow(current_y - center_y, 2)));
       // Update radius window with new value
       radius_dw.SetNumber(radius);
       // Update start points
@@ -350,10 +350,10 @@ Result RotaryTableScr::TimerExpired(uint32_t interval)
       FindArcSecondPoint(new_x, new_y, center_x, center_y, abs(arc_length), arc_length >= 0);
 
       // Since we have finite resolution in 1 um, we have to check if new point is the same as old point after round
-      if(((int32_t)new_x != (int32_t)current_x) || ((int32_t)new_y != (int32_t)current_y))
+      if((lround(new_x) != lround(current_x)) || (lround(new_y) != lround(current_y)))
       {
         // Run Jog command
-        result = grbl_comm.JogArcXYR((int32_t)new_x, (int32_t)new_y, radius, feed, diff < 0, true);
+        result = grbl_comm.JogArcXYR((int32_t)lround(new_x), (int32_t)lround(new_y), radius, feed, diff < 0, true);
         // Commit the model only if the command was accepted, otherwise the
         // software position diverges from the machine and the next arc
         // would be computed from a phantom point.
@@ -608,7 +608,9 @@ void RotaryTableScr::FindNewPointByRadius(double& xp, double& yp, double xc, dou
   double r = sqrt(pow(xp - xc, 2) + pow(yp - yc, 2));
   // Find angle
   double angle = atan2(yp - yc, xp - xc);
-  // Calculate result
-  xp = (int32_t)(xc + (r + r_change) * cos(angle));
-  yp = (int32_t)(yc + (r + r_change) * sin(angle));
+  // Calculate result. It is the position in um the tool is sent to: round
+  // to nearest. Cutting the fraction off moves every point toward zero and
+  // the radius comes out up to 1.4 um short each time.
+  xp = (double)lround(xc + (r + r_change) * cos(angle));
+  yp = (double)lround(yc + (r + r_change) * sin(angle));
 }

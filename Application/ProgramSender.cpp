@@ -23,6 +23,7 @@
 
 #include "fatfs.h"
 #include <cctype> // For tolower()
+#include <new>    // For std::nothrow
 
 // *****************************************************************************
 // ***   Get Instance   ********************************************************
@@ -95,6 +96,9 @@ Result ProgramSender::Show()
   // Show free memory info
   Application::GetInstance().ShowMemoryInfo();
 
+  // Generated program can have its own line numbers too: they are removed,
+  // lines are numbered when they are sent
+  StripLineNumbers(p_text);
   // Update text - in case it is generated, we have to count lines
   if(!text_box.SetText(p_text))
   {
@@ -102,6 +106,8 @@ Result ProgramSender::Show()
     // instead, otherwise lines would be silently truncated during streaming
     text_box.SetText("; Program contain lines longer\n\r; than 80 characters");
   }
+  // Selector for this text
+  ResetSelector();
   // Show text box
   text_box.Show(100);
 
@@ -178,7 +184,7 @@ Result ProgramSender::Hide()
   // We may have file open, close it and clear text box
   if(p_text == nullptr)
   {
-    f_close(&SDFile);
+    CloseFiles();
   }
 
   // Axis data
@@ -244,6 +250,11 @@ Result ProgramSender::TimerExpired(uint32_t interval)
         {
           // Then clear run flag
           run = false;
+          // Everything is executed, including the last lines without motion:
+          // controller may not report line numbers for those
+          exec_line = send_line;
+          // And selector shows the executed line in any mode
+          text_box.SetSelectorFill(0u);
         }
       }
       else
@@ -254,95 +265,38 @@ Result ProgramSender::TimerExpired(uint32_t interval)
         // result is unknown, including commands invalidated by Stop or reset.
         if(result == GrblComm::Status_OK)
         {
-          // Buffer for command
-          char cmd[128u];
-          // Since all program commands have striped out CR and LF, we have to add it
-          snprintf(cmd, NumberOf(cmd), "%s\r", text_box.GetSelectedStringText());
-          // Send new command
-          if(grbl_comm.SendCmd(cmd, id) == Result::RESULT_OK)
+          // The first numbered line is acknowledged: controller has parsed
+          // it, so every line number it reports from now on belongs to this
+          // program. Forget the number we have - it can be left by the
+          // previous program - and use the ones that come after.
+          if(!line_number_valid && (id != 0u) && (id == first_numbered_id))
           {
-            int32_t select = text_box.GetSelect();
-            int32_t scroll = text_box.GetScroll();
-            // Load next string for SD streamed programs
-            if(p_text == nullptr)
+            grbl_comm.ClearLineNumber();
+            line_number_valid = true;
+          }
+          // Take lines from the program until there is something to send:
+          // a line with nothing but a comment isn't sent(but it is counted,
+          // line numbers are positions in the program). Limited per call to
+          // not to stall the task on a long block of comments.
+          for(uint32_t i = 0u; !cmd_ready && !finished && (i < MAX_LINES_PER_TICK); i++)
+          {
+            // Buffer for line: 80 + CR + LF + \0
+            char line[128] = {0};
+            // Get next line, it also handles the end of program and errors
+            if(GetNextLine(line, NumberOf(line)))
             {
-              // If we did not passed half the screen or if file closed
-              // and we need to finish remaining lines
-              if((select < text_box.GetNumberOfVisibleLines() / 2) || f_eof(&SDFile))
-              {
-                // Go to next line
-                text_box.Select(select + 1);
-                // Can't go further - end of program
-                if(select == text_box.GetSelect())
-                {
-                  // Set finished flag
-                  finished = true;
-                }
-              }
-              else
-              {
-                // Buffer to read string 80 + 2 + 1
-                char str[128] = {0};
-                // Read line from file
-                if(f_gets(str, NumberOf(str), &SDFile) != nullptr)
-                {
-                  // Null-terminate just in case
-                  str[NumberOf(str) - 1] = '\0';
-                  // If we read line longer than the limit + possible CR & LF characters
-                  if(strlen(str) > TextBox::MAX_LINE_LEN + 2u)
-                  {
-                    // Stop streaming - silently skipping the rest of the
-                    // program is dangerous on a CNC, operator must know.
-                    run = false;
-                    // Set finished flag to prevent further streaming attempts
-                    finished = true;
-                    // Rewind to the end of file so program can't be continued
-                    f_lseek(&SDFile, SDFile.obj.objsize);
-                    // Show the reason in the text box
-                    text_box.AddLine("; ERROR: line >80 chars - STOPPED");
-                    // And in the message box
-                    msg_box.Setup("PROGRAM STOPPED", "Line longer than 80 characters\nencountered during streaming.\nRemaining program was skipped.", 1u);
-                    msg_box.Show(10000u);
-                  }
-                  else
-                  {
-                    // Set this line to text_box
-                    text_box.AddLine(str);
-                  }
-                }
-                else
-                {
-                  // Read failed but end of file isn't reached: SD error or
-                  // file isn't open anymore. Stop streaming, otherwise the
-                  // same selected line would be sent again on every tick.
-                  run = false;
-                  // Set finished flag to prevent further streaming attempts
-                  finished = true;
-                  // Show the reason in the text box
-                  text_box.AddLine("; ERROR: file read failed - STOPPED");
-                  // And in the message box
-                  msg_box.Setup("PROGRAM STOPPED", "File read error encountered\nduring streaming.\nRemaining program was skipped.", 1u);
-                  msg_box.Show(10000u);
-                }
-              }
+              send_line++;
+              cmd_ready = BuildCommand(line, send_line, cmd, NumberOf(cmd));
             }
-            else
-            {
-              // If we half past screen
-              if(select - scroll >= text_box.GetNumberOfVisibleLines() / 2)
-              {
-                // Scroll to to see next lines to see what will send next
-                text_box.Scroll(scroll + 1);
-              }
-              // Go to next line
-              text_box.Select(select + 1);
-              // Can't go further - end of program
-              if(select == text_box.GetSelect())
-              {
-                // Set finished flag
-                finished = true;
-              }
-            }
+          }
+          // Send command. It is kept until accepted: the line is already
+          // taken from the program and can't be taken again.
+          if(cmd_ready && (grbl_comm.SendCmd(cmd, id) == Result::RESULT_OK))
+          {
+            cmd_ready = false;
+            // Is it the first line that carries a number? A line with block
+            // delete character doesn't count: controller may skip it.
+            if((first_numbered_id == 0u) && (cmd[0] == 'N')) first_numbered_id = id;
           }
         }
         else if(result == GrblComm::Status_Cmd_Not_Executed_Yet)
@@ -360,11 +314,15 @@ Result ProgramSender::TimerExpired(uint32_t interval)
           // stops mid-program. The operator has to know the rest was skipped,
           // and that the last line's fate is unknown - the controller may have
           // executed it and lost the acknowledgement.
-          text_box.AddLine("; ERROR: command failed - STOPPED");
-          msg_box.Setup("PROGRAM STOPPED", "Command was not acknowledged by\nthe controller. Remaining program\nwas skipped. Check machine position\nbefore resuming.", 1u);
+          msg_box.Setup("PROGRAM STOPPED", "Command was not acknowledged\nby the controller. Remaining\nprogram was skipped.\nCheck machine position\nbefore resuming.", 1u);
           msg_box.Show(10000u);
         }
       }
+      // Move selection to the line that is executed. A streamed program is
+      // read from SD card for every line, so it goes a few lines per call -
+      // unless program has just ended: there will be no other call. Program
+      // in memory goes all the way.
+      UpdateShownLine((run && (text_box.GetText() == nullptr)) ? MAX_LINES_PER_TICK : 0xFFFFu);
     }
     else
     {
@@ -380,9 +338,12 @@ Result ProgramSender::TimerExpired(uint32_t interval)
   else
   {
     // Safety measure: allow run program only from the beginning and only
-    // if there is a program to run
+    // if there is a program to run. Error of the previous command has to be
+    // cleared first(Stop/Reset/Unlock): until then controller gets nothing.
     // TODO: add dialog box "Are you sure you want to run program from current position?" instead
-    if((text_box.GetSelect() == 0) && (text_box.GetNumberOfLines() > 0))
+    // A message in line mode isn't a program: streamed program has the file
+    // for the text box open.
+    if((text_box.GetSelect() == 0) && (text_box.GetNumberOfLines() > 0) && ((text_box.GetText() != nullptr) || (p_disp_file != nullptr)) && (grbl_comm.GetStatusCode() == GrblComm::Status_OK))
     {
       left_btn.Enable();
     }
@@ -426,6 +387,350 @@ Result ProgramSender::TimerExpired(uint32_t interval)
   return Result::RESULT_OK;
 }
 
+// *****************************************************************************
+// ***   Private: GetNextLine function   ***************************************
+// *****************************************************************************
+bool ProgramSender::GetNextLine(char* line, uint32_t size)
+{
+  bool result = false;
+
+  // Program is streamed from SD card
+  if(text_box.GetText() == nullptr)
+  {
+    // Read line from file
+    if(f_gets(line, size, &SDFile) != nullptr)
+    {
+      // Null-terminate just in case
+      line[size - 1u] = '\0';
+      // If we read line longer than the limit + possible CR & LF characters
+      if(strlen(line) > TextBox::MAX_LINE_LEN + 2u)
+      {
+        // Stop streaming - silently skipping the rest of the
+        // program is dangerous on a CNC, operator must know.
+        run = false;
+        // Set finished flag to prevent further streaming attempts
+        finished = true;
+        // Rewind to the end of file so program can't be continued
+        f_lseek(&SDFile, SDFile.obj.objsize);
+        // And in the message box
+        msg_box.Setup("PROGRAM STOPPED", "Line longer than 80 characters\nencountered during streaming.\nRemaining program was skipped.", 1u);
+        msg_box.Show(10000u);
+      }
+      else
+      {
+        // The same line is shown without its own line number - see ShowNextLine()
+        StripLineNumbers(line);
+        result = true;
+      }
+    }
+    else if(f_eof(&SDFile))
+    {
+      // End of program
+      finished = true;
+    }
+    else
+    {
+      // Read failed but end of file isn't reached: SD error or
+      // file isn't open anymore. Stop streaming.
+      run = false;
+      // Set finished flag to prevent further streaming attempts
+      finished = true;
+      // And in the message box
+      msg_box.Setup("PROGRAM STOPPED", "File read error encountered\nduring streaming.\nRemaining program was skipped.", 1u);
+      msg_box.Show(10000u);
+    }
+  }
+  else // Program is in memory
+  {
+    // Lines are counted the way text box does it: empty lines don't exist
+    while((p_send != nullptr) && ((*p_send == '\n') || (*p_send == '\r'))) p_send++;
+    // Check end of program
+    if((p_send == nullptr) || (*p_send == '\0'))
+    {
+      finished = true;
+    }
+    else
+    {
+      uint32_t i = 0u;
+      // Copy line
+      for(; (*p_send != '\n') && (*p_send != '\r') && (*p_send != '\0'); p_send++)
+      {
+        if(i < size - 1u) line[i++] = *p_send;
+      }
+      // Null-terminate it
+      line[i] = '\0';
+      result = true;
+    }
+  }
+
+  return result;
+}
+
+// *****************************************************************************
+// ***   Private: ShowNextLine function   **************************************
+// *****************************************************************************
+bool ProgramSender::ShowNextLine()
+{
+  int32_t select = text_box.GetSelect();
+  int32_t scroll = text_box.GetScroll();
+
+  // Program is streamed from SD card: text box holds visible lines only
+  if(text_box.GetText() == nullptr)
+  {
+    // Buffer to read string 80 + 2 + 1
+    char str[128] = {0};
+    // If we did not passed half the screen or if there is nothing to add
+    // and we need to go through remaining lines
+    if((select < text_box.GetNumberOfVisibleLines() / 2) || disp_end)
+    {
+      // Go to next line
+      text_box.Select(select + 1);
+    }
+    // Otherwise selection stays in place and lines move: read the next one.
+    // File is open twice. SDFile is read for sending and runs ahead by as
+    // many lines as controller holds; this position follows the line that
+    // is shown. Both only go forward, no seeks are needed.
+    else if((p_disp_file != nullptr) && (f_gets(str, NumberOf(str), p_disp_file) != nullptr))
+    {
+      // Null-terminate just in case
+      str[NumberOf(str) - 1] = '\0';
+      // Show it without its own line number: the one that is sent and
+      // reported back by controller is the position in the program
+      StripLineNumbers(str);
+      // Set this line to text_box
+      text_box.AddLine(str);
+      // Selection stays on the same row, but it is the next line now
+      select--;
+    }
+    else
+    {
+      // End of file. Read error ends here as well: it is only the picture,
+      // program must not be stopped because of it.
+      disp_end = true;
+      // Go to next line
+      text_box.Select(select + 1);
+    }
+  }
+  else // Program is in memory
+  {
+    // If we half past screen
+    if(select - scroll >= text_box.GetNumberOfVisibleLines() / 2)
+    {
+      // Scroll to to see next lines to see what will send next
+      text_box.Scroll(scroll + 1);
+    }
+    // Go to next line
+    text_box.Select(select + 1);
+  }
+
+  // Can't go further - end of program
+  bool moved = (select != text_box.GetSelect());
+  // Count line
+  if(moved) shown_line++;
+
+  return moved;
+}
+
+// *****************************************************************************
+// ***   Private: ResetSelector function   *************************************
+// *****************************************************************************
+void ProgramSender::ResetSelector()
+{
+  // Blue for a program in memory, red for a streamed one
+  text_box.SetSelectorColor((text_box.GetText() == nullptr) ? COLOR_RED : COLOR_BLUE);
+  // Filled: nothing is running yet
+  text_box.SetSelectorFill(0u);
+}
+
+// *****************************************************************************
+// ***   Private: UpdateShownLine function   ***********************************
+// *****************************************************************************
+void ProgramSender::UpdateShownLine(uint32_t max_lines)
+{
+  // Line to show. By default - the one that is shown already.
+  uint32_t target = shown_line;
+
+  // Controller executes lines later than it receives them: it keeps tens of
+  // them in its planner. Lines are sent with N word(see BuildCommand()) and
+  // controller reports number of the line it is executing in status report
+  // if it is enabled in $10(it is by default) - line_mode is set from it when
+  // Run is pressed.
+  if(line_mode == LINE_EXECUTED)
+  {
+    // Number is used only after the first numbered line is acknowledged, see
+    // TimerExpired(). A report without number changes nothing: controller
+    // may have nothing to report between motions.
+    uint32_t line_number = line_number_valid ? grbl_comm.GetLineNumber() : 0u;
+    // Number has to be one of ours. Never go back: lines that passed aren't
+    // kept for a streamed program.
+    if((line_number <= send_line) && (line_number > exec_line)) exec_line = line_number;
+    // Show the line that is executed
+    target = exec_line;
+  }
+  else // line_mode == LINE_SENT
+  {
+    // No line numbers from controller - show the line that will be sent next
+    target = send_line + 1u;
+  }
+
+  // Go to the line, but not too many at once: for a streamed program every
+  // line is read from SD card
+  for(; (shown_line < target) && (max_lines != 0u); max_lines--)
+  {
+    if(!ShowNextLine()) break;
+  }
+}
+
+// *****************************************************************************
+// ***   Private: StripLineNumbers function   **********************************
+// *****************************************************************************
+void ProgramSender::StripLineNumbers(char* text)
+{
+  const char* src = text;
+  char* dst = text;
+  // State of the current line
+  bool line_start = true;   // Nothing but spaces so far
+  bool keep_line = false;   // Not a g-code - leave it as it is
+  bool semicolon = false;   // Inside of ; comment
+  bool parentheses = false; // Inside of ( ) comment
+  bool name = false;        // Inside of < > name of parameter or subroutine
+
+  if(text != nullptr)
+  {
+    while(*src != '\0')
+    {
+      char c = *src;
+      // End of line - new line starts from scratch
+      if((c == '\n') || (c == '\r'))
+      {
+        line_start = true;
+        keep_line = semicolon = parentheses = name = false;
+      }
+      else
+      {
+        // First character of the line. System commands are '$' and '[':
+        // "$N0=G54" is a startup line, not a line number.
+        if(line_start && (c != ' ') && (c != '\t'))
+        {
+          line_start = false;
+          keep_line = (c == '$') || (c == '[');
+        }
+        if(keep_line || semicolon)
+        {
+          ; // Nothing to look for till the end of line
+        }
+        else if(parentheses)
+        {
+          if(c == ')') parentheses = false;
+        }
+        else if(name)
+        {
+          if(c == '>') name = false;
+        }
+        else if(c == ';')
+        {
+          semicolon = true;
+        }
+        else if(c == '(')
+        {
+          parentheses = true;
+        }
+        else if(c == '<')
+        {
+          name = true;
+        }
+        else if(((c == 'N') || (c == 'n')) && (src[1] >= '0') && (src[1] <= '9'))
+        {
+          // Line number: skip the letter and all digits
+          src++;
+          while((*src >= '0') && (*src <= '9')) src++;
+          // Skip the space after it too if there is nothing or a space before
+          if((*src == ' ') && ((dst == text) || (dst[-1] == ' ') || (dst[-1] == '/') || (dst[-1] == '\n') || (dst[-1] == '\r'))) src++;
+          // Nothing to copy
+          continue;
+        }
+        else
+        {
+          ; // Do nothing - MISRA rule
+        }
+      }
+      // Copy character
+      *dst++ = c;
+      src++;
+    }
+    // Null-terminate result
+    *dst = '\0';
+  }
+}
+
+// *****************************************************************************
+// ***   Private: BuildCommand function   **************************************
+// *****************************************************************************
+bool ProgramSender::BuildCommand(const char* line, uint32_t number, char* cmd, uint32_t size)
+{
+  bool result = false;
+  uint32_t n = 0u;
+
+  // Skip leading spaces
+  while((*line == ' ') || (*line == '\t')) line++;
+
+  // System commands and program start/end mark aren't g-code: send as is
+  if((*line == '$') || (*line == '[') || (*line == '%'))
+  {
+    for(; (*line != '\0') && (*line != '\n') && (*line != '\r') && (n < size - 2u); line++) cmd[n++] = *line;
+    result = true;
+  }
+  else
+  {
+    // Block delete character have to stay first: controller skips the line
+    // if block delete switch is on
+    if(*line == '/')
+    {
+      cmd[n++] = '/';
+      line++;
+    }
+    // Line number goes first: it is the only place where controller takes
+    // it for every kind of line(flow control lines are parsed differently
+    // after O word)
+    // Controller refuses numbers above its limit: lines after that go without
+    if(number <= MAX_LINE_NUMBER) n += snprintf(&cmd[n], size - n, "N%lu", (unsigned long)number);
+    // Position where the line itself starts
+    uint32_t start = n;
+    bool parentheses = false;
+    // Copy line without ';' comment: controller only cuts it off. Comments in
+    // parentheses stay: controller handles them - (MSG,...) is shown to the
+    // operator, plugins can act on others.
+    for(; (*line != '\0') && (*line != '\n') && (*line != '\r') && (n < size - 2u); line++)
+    {
+      // Comment till the end of line, but ';' inside parentheses is a text
+      if((*line == ';') && !parentheses) break;
+      // Track comment in parentheses
+      if(*line == '(')
+      {
+        parentheses = true;
+      }
+      else if(*line == ')')
+      {
+        parentheses = false;
+      }
+      else
+      {
+        ; // Do nothing - MISRA rule
+      }
+      cmd[n++] = *line;
+    }
+    // Remove trailing spaces
+    while((n > start) && ((cmd[n - 1u] == ' ') || (cmd[n - 1u] == '\t'))) n--;
+    // If nothing left - there is nothing to send
+    result = (n > start);
+  }
+  // Since CR and LF are stripped out, we have to add it
+  cmd[n++] = '\r';
+  cmd[n] = '\0';
+
+  return result;
+}
+
 // *************************************************************************
 // ***   Private: ProcessSpeedFeed function   ******************************
 // *************************************************************************
@@ -462,7 +767,7 @@ Result ProgramSender::ProcessSpeedFeed()
   }
   else
   {
-    ; // Do nothing
+    ; // Do nothing - MISRA rule
   }
 
   // Update speed if necessary. One step at a timer tick.
@@ -494,7 +799,7 @@ Result ProgramSender::ProcessSpeedFeed()
   }
   else
   {
-    ; // Do nothing
+    ; // Do nothing - MISRA rule
   }
 
   // Return result
@@ -504,7 +809,7 @@ Result ProgramSender::ProcessSpeedFeed()
 // *****************************************************************************
 // ***   IsProgramFile function(file scope)   **********************************
 // *****************************************************************************
-// * Returns true if directory entry is a program file(.nc* or .gc*
+// * Returns true if directory entry is a program file(.nc*, .gc* or .tap
 // * extension, not a directory). Used by the menu fill and the open handler:
 // * both must use the same filter, since the file is found by its index.
 static bool IsProgramFile(const FILINFO& fno)
@@ -518,14 +823,25 @@ static bool IsProgramFile(const FILINFO& fno)
   // Check extension (only if the name is long enough, otherwise i -= 3u underflows)
   for(i -= ((i >= 3u) ? 3u : 0u); i > 0; i--)
   {
-    // Check if extension is .nc* or .gc*
-    if((fno.fname[i] == '.') && (tolower(fno.fname[i+2]) == 'c'))
+    // Find first '.' from the end to find extension
+    if(fno.fname[i] == '.')
     {
-      if((tolower(fno.fname[i+1]) == 'g') || (tolower(fno.fname[i+1]) == 'n'))
+      // Check if extension is .nc* or .gc*
+      if(((tolower(fno.fname[i+1]) == 'g') || (tolower(fno.fname[i+1]) == 'n')) && (tolower(fno.fname[i+2]) == 'c'))
       {
         add_file = true;
-        break;
       }
+      // Check if extension is .tap
+      else if((tolower(fno.fname[i+1]) == 't') && (tolower(fno.fname[i+2]) == 'a') && (tolower(fno.fname[i+3]) == 'p'))
+      {
+        add_file = true;
+      }
+      else
+      {
+        ; // Do nothing - MISRA rule
+      }
+      // There no point to check for another point since extension can be only after last one
+      break;
     }
   }
   // It should be a file with the proper extension, not a directory
@@ -620,6 +936,10 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
         fres = f_read(&SDFile, ths.p_text, fsize, &wbytes);
         // And null-terminator to it
         ths.p_text[wbytes] = 0x00;
+        // Program is kept and shown without its own line numbers: lines are
+        // numbered when they are sent, and it is those numbers that
+        // controller reports back
+        StripLineNumbers(ths.p_text);
         // Check read result: on SD error f_read() can return partial data
         // which would be displayed and runnable as a valid program with the
         // tail(possibly mid-line) missing
@@ -733,45 +1053,65 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
         }
         else
         {
-          // Rewind file back to the beginning after the check
+          // Rewind file back to the beginning after the check: lines for
+          // sending are read from there
           f_lseek(&SDFile, 0u);
 
           // Clear text buffer to switch into line mode
           ths.text_box.SetText(nullptr);
 
-          // Buffer to read string
-          char str[128] = {0};
-          // Fill all visible lines
-          for(int32_t i = 0; i < ths.text_box.GetNumberOfVisibleLines(); i++)
+          // Open the same file once more to have the second position in it:
+          // text box shows the line that is executed, which is far behind
+          // the line that is sent. Both are opened for reading only.
+          ths.disp_end = false;
+          // File object is allocated: see p_disp_file. Program itself isn't
+          // in memory in this mode, so there is room for it.
+          ths.p_disp_file = new(std::nothrow) FIL;
+          if((ths.p_disp_file == nullptr) || (f_open(ths.p_disp_file, fno.fname, FA_OPEN_EXISTING | FA_READ) != FR_OK))
           {
-            // Read line from file, break the cycle at the end of file
-            if(f_gets(str, NumberOf(str), &SDFile) == nullptr)
+            // Close file - we can't continue
+            ths.CloseFiles();
+            // Show message
+            ths.text_box.SetText("; File read error");
+          }
+          else
+          {
+            // Buffer to read string
+            char str[128] = {0};
+            // Fill all visible lines
+            for(int32_t i = 0; i < ths.text_box.GetNumberOfVisibleLines(); i++)
             {
-              // Close file - we can't continue
-              f_close(&SDFile);
-              // Show message
-              ths.text_box.SetText("; File read error");
-              // Break the cycle
-              break;
-            }
-            // Null-terminate just in case
-            str[NumberOf(str) - 1] = '\0';
-            // If we read line longer than the limit + possible CR & LF
-            // characters. Should never happen after the check above - kept
-            // as a backstop.
-            if(strlen(str) > TextBox::MAX_LINE_LEN + 2u)
-            {
-              // Close file - we can't continue
-              f_close(&SDFile);
-              // Show message
-              ths.text_box.SetText("; Program contain lines longer\n\r; than 80 characters");
-              // Break the cycle
-              break;
-            }
-            else
-            {
-              // Set this line to text_box
-              ths.text_box.AddLine(str);
+              // Read line from file, break the cycle at the end of file
+              if(f_gets(str, NumberOf(str), ths.p_disp_file) == nullptr)
+              {
+                // Close file - we can't continue
+                ths.CloseFiles();
+                // Show message
+                ths.text_box.SetText("; File read error");
+                // Break the cycle
+                break;
+              }
+              // Null-terminate just in case
+              str[NumberOf(str) - 1] = '\0';
+              // If we read line longer than the limit + possible CR & LF
+              // characters. Should never happen after the check above - kept
+              // as a backstop.
+              if(strlen(str) > TextBox::MAX_LINE_LEN + 2u)
+              {
+                // Close file - we can't continue
+                ths.CloseFiles();
+                // Show message
+                ths.text_box.SetText("; Program contain lines longer\n\r; than 80 characters");
+                // Break the cycle
+                break;
+              }
+              else
+              {
+                // Program is shown without its own line numbers
+                StripLineNumbers(str);
+                // Set this line to text_box
+                ths.text_box.AddLine(str);
+              }
             }
           }
         }
@@ -783,6 +1123,8 @@ Result ProgramSender::ProcessMenuOkCallback(ProgramSender* obj_ptr, void* ptr)
       ths.text_box.SetText("; Error open file!");
     }
 
+    // Selector for this text
+    ths.ResetSelector();
     // And show it
     ths.text_box.Show(100);
     // Left button
@@ -818,6 +1160,8 @@ Result ProgramSender::ProcessMenuCancelCallback(ProgramSender* obj_ptr, void* pt
     ths.menu.Hide();
     // Set cancel text
     ths.text_box.SetText("; Cancel pressed in open dialog");
+    // Selector for this text
+    ths.ResetSelector();
     // And show textbox
     ths.text_box.Show(100);
     // Run button
@@ -849,11 +1193,29 @@ Result ProgramSender::ProcessCallback(const void* ptr)
     // We should run program only if it doesn't already run, we in control,
     // state is Idle and there is a program to run: without the line check
     // Run with nothing loaded(or after the SD file was closed by leaving
-    // the screen) would stream empty commands indefinitely.
-    if(!run && grbl_comm.IsInControl() && (grbl_comm.GetState() == GrblComm::IDLE) && (text_box.GetNumberOfLines() > 0))
+    // the screen) would stream empty commands indefinitely. Error of the
+    // previous command must be cleared: the first line would fail with it.
+    if(!run && grbl_comm.IsInControl() && (grbl_comm.GetState() == GrblComm::IDLE) && (text_box.GetNumberOfLines() > 0) && (text_box.GetSelect() == 0) && ((text_box.GetText() != nullptr) || (p_disp_file != nullptr)) && (grbl_comm.GetStatusCode() == GrblComm::Status_OK))
     {
       // Clear id to run program
       id = 0u;
+      // Start sending from the first line. Text is taken from the text box:
+      // if program can't be run, it is a message that is there.
+      send_line = 0u;
+      p_send = text_box.GetText();
+      cmd_ready = false;
+      // Nothing is known about line numbers from controller yet
+      first_numbered_id = 0u;
+      line_number_valid = false;
+      // Follow the line controller executes if it reports line numbers,
+      // otherwise the line that is sent, as before
+      line_mode = grbl_comm.IsLineNumberReportEnabled() ? LINE_EXECUTED : LINE_SENT;
+      // Selector is filled when it shows the line that is executed and it is
+      // a frame when it shows the line that will be sent next
+      text_box.SetSelectorFill((line_mode == LINE_SENT) ? 2u : 0u);
+      exec_line = 0u;
+      // Selected line is the first one(Run isn't enabled otherwise)
+      shown_line = 1u;
       // Set run flag to start program streaming
       run = true;
       finished = false;
@@ -893,7 +1255,7 @@ Result ProgramSender::ProcessCallback(const void* ptr)
     // Clear text box
     text_box.SetText(nullptr);
     // We may have file open - close it
-    f_close(&SDFile);
+    CloseFiles();
     // Clear current data to show available memory
     ReleaseDataPointer();
 
@@ -989,6 +1351,22 @@ Result ProgramSender::ProcessCallback(const void* ptr)
 
   // Return result
   return result;
+}
+
+// *****************************************************************************
+// ***   Private: CloseFiles function   ****************************************
+// *****************************************************************************
+void ProgramSender::CloseFiles()
+{
+  // File that isn't open is rejected by f_close() itself
+  f_close(&SDFile);
+  // Second position in the same file, if there is one
+  if(p_disp_file != nullptr)
+  {
+    f_close(p_disp_file);
+    delete p_disp_file;
+    p_disp_file = nullptr;
+  }
 }
 
 // *****************************************************************************

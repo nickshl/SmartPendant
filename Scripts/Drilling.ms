@@ -13,16 +13,19 @@ int coolant = 0;            // Coolant; 0; Flood; Mist; None
 
 main()
 {
+  // Stepover for this run. Parameter itself must not be changed: it is
+  // what the menu shows after the program is generated.
+  int stepover = drill_stepover;
   // If stepover set to zero or greater than drill distance
-  if((drill_stepover == 0) || (drill_stepover >  drill_distance))
+  if((stepover == 0) || (stepover > drill_distance))
   {
     // Drill all the way in one go
-    drill_stepover = drill_distance;
+    stepover = drill_distance;
   }
 
   // Drill progress and clearance - 0 by default for first step
   int drill_progress = 0;
-  int drill_step_distance = drill_stepover;
+  int drill_step_distance = stepover;
 
   // Save modal state to restore it at the end
   println("M70; Save modal state");
@@ -47,17 +50,17 @@ main()
       // Output line for fast dive to drilled depth minus clearance
       println("G0 Z", printfp(-(drill_progress - clearance), 1000));
       // Start applying clearance after first iteration
-      drill_step_distance = drill_stepover + clearance;
+      drill_step_distance = stepover + clearance;
     }
     // Update progress
-    drill_progress += drill_stepover;
+    drill_progress += stepover;
     // Check if it is more than we need and correct it
     if(drill_progress > drill_distance)
     {
       // We shouldn't dive more than requested, we also have to rise to the starting point
       drill_progress = drill_distance;
       // Find last drill step distance
-      drill_step_distance = (drill_distance % drill_stepover) + clearance;
+      drill_step_distance = (drill_distance % stepover) + clearance;
     }
     // Drill piece
     println("G1 Z", printfp(-(drill_step_distance), 1000), " F", feed);

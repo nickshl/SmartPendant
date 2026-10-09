@@ -288,8 +288,11 @@ class GrblComm : public AppTask
       // The requested command was superseded by a later one, so its own outcome
       // was never observed. This is an UNKNOWN result and every caller must
       // treat it as a failure - never as "it must have worked". Do not add a
-      // branch that accepts it: skipping a g-code line moves the machine
-      // somewhere nobody asked for.
+      // branch that accepts it as success: skipping a g-code line moves the
+      // machine somewhere nobody asked for. The one exception is
+      // IsStatusReceivedAfterCmd(), which asks a different question - did a
+      // status report arrive after the command was sent - and never reports
+      // success of the command itself. See abort_id there.
       Status_Next_Cmd_Executed,
       Status_Cmd_Not_Executed_Yet, // Requested command isn't send to controller yet
       Status_Comm_Error,           // We lost control or controller isn't responded in time to status request
@@ -645,7 +648,25 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetToolLengthOffset function   ****************************
     // *************************************************************************
-    inline int32_t GetToolLengthOffset() {return (int32_t)(grbl_tool_length_offset[AXIS_Z] * GetReportUnitsScaler());}
+    inline int32_t GetToolLengthOffset() {return grbl_tool_length_offset[AXIS_Z].ToFixedPoint(GetReportUnitsScaler());}
+
+    // *************************************************************************
+    // ***   Public: GetLineNumber function   **********************************
+    // *************************************************************************
+    // Line number("Ln:") from the last status report: N word of the line that
+    // is being executed. If nothing is in motion grblHAL reports the last
+    // line parsed, but only since build 20260126 - before that such report
+    // has no number at all. Zero if the report had none: it is also reported
+    // only for lines sent with N word and only if it is enabled in $10.
+    inline uint32_t GetLineNumber() {return grbl_line_number;}
+
+    // *************************************************************************
+    // ***   Public: ClearLineNumber function   ********************************
+    // *************************************************************************
+    // Forgets the line number: it is zero until the next status report that
+    // has one. Used to tell the number of a new program from the number left
+    // by the previous one.
+    inline void ClearLineNumber() {grbl_line_number = 0u;}
 
     // *************************************************************************
     // ***   Public: GetFeedOverride function   ********************************
@@ -690,12 +711,12 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: GetSpindleSpeed function   ********************************
     // *************************************************************************
-    inline uint16_t GetSpindleSpeed() {return spindle_rpm_programmed;}
+    inline uint16_t GetSpindleSpeed() {return (uint16_t)spindle_rpm_programmed.ToFixedPoint(1u);}
 
     // *************************************************************************
     // ***   Public: GetSpindleActualSpeed function   **************************
     // *************************************************************************
-    inline uint16_t GetSpindleActualSpeed() {return spindle_rpm_actual;}
+    inline uint16_t GetSpindleActualSpeed() {return (uint16_t)spindle_rpm_actual.ToFixedPoint(1u);}
 
     // *************************************************************************
     // ***   Public: IsLatheDiameterMode function   ****************************
@@ -706,6 +727,12 @@ class GrblComm : public AppTask
     // ***   Public: IsWorkOffsetReportEnabled   *******************************
     // *************************************************************************
     inline bool IsWorkOffsetReportEnabled() {return (status_report_options & (1u << 5u));}
+
+    // *************************************************************************
+    // ***   Public: IsLineNumberReportEnabled   *******************************
+    // *************************************************************************
+    // Line number in status report is bit 2 of $10
+    inline bool IsLineNumberReportEnabled() {return (status_report_options & (1u << 2u));}
 
     // *************************************************************************
     // ***   Public: IsRespondPending function   *******************************
@@ -759,12 +786,12 @@ class GrblComm : public AppTask
     // so earlier commands still read Status_Next_Cmd_Executed and only the
     // send gate in ProcessMessage() reopens. This is the operator's recovery
     // from Status_Comm_Error(Nak, write failure) and from controller errors.
-    inline Result Stop() {grbl_status = Status_OK; respond_pending = false; send_id = next_id; return SendRealTimeCmd(CMD_STOP);}
+    inline Result Stop() {mutex.Lock(); grbl_status = Status_OK; respond_pending = false; AbandonCmdIds(); mutex.Release(); return SendRealTimeCmd(CMD_STOP);}
 
     // *************************************************************************
     // ***   Public: Reset   ***************************************************
     // *************************************************************************
-    inline Result Reset() {grbl_status = Status_OK; respond_pending = false; send_id = next_id; return SendRealTimeCmd(CMD_RESET);}
+    inline Result Reset() {mutex.Lock(); grbl_status = Status_OK; respond_pending = false; AbandonCmdIds(); mutex.Release(); return SendRealTimeCmd(CMD_RESET);}
 
     // *************************************************************************
     // ***   Public: FeedReset   ***********************************************
@@ -829,7 +856,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: Unlock   **************************************************
     // *************************************************************************
-    inline Result Unlock() {grbl_status = Status_OK; respond_pending = false; send_id = next_id; return SendCmd("$X\r");}
+    inline Result Unlock() {mutex.Lock(); grbl_status = Status_OK; respond_pending = false; AbandonCmdIds(); mutex.Release(); return SendCmd("$X\r");}
 
     // *************************************************************************
     // ***   Public: RequestControllerParameters   *****************************
@@ -995,6 +1022,8 @@ class GrblComm : public AppTask
     uint32_t status_tx_timestamp = 0u;
     // When status last time received
     uint32_t status_rx_timestamp = 0u;
+    // When the status that was received last time was requested
+    uint32_t status_req_timestamp = 0u;
     // When cmd was sent
     uint32_t cmd_tx_timestamp = 0u;
     // When ack last time received
@@ -1004,6 +1033,28 @@ class GrblComm : public AppTask
     uint32_t next_id = 1u;
     // ID of command that was send
     uint32_t send_id = 0u;
+    // Commands with ID below this value are not known to have been sent and
+    // run in order: they were abandoned(Stop/Reset/Unlock/ReleaseControl/link
+    // recovery) or dropped without being transmitted. Commands at or above it
+    // that were superseded by later ones really were sent, one after another,
+    // each only after the previous one was acknowledged OK, so
+    // IsStatusReceivedAfterCmd() may still answer for them. Only grows.
+    uint32_t abort_id = 0u;
+
+    // Both functions below must be called with the mutex locked: they are
+    // called from two tasks(Stop/Reset/Unlock/ReleaseControl come from UI),
+    // and abort_id is checked and written in two steps. The mutex isn't
+    // recursive, so it is the caller who locks: some callers hold it already.
+
+    // Give up on every command ID handed out so far. Every place that moves
+    // send_id to next_id must come through here. abort_id is written first: a
+    // reader that sees the new send_id then also sees the new abort_id.
+    inline void AbandonCmdIds() {abort_id = next_id; send_id = next_id;}
+
+    // Drop the command with this ID without transmitting it - the gate is
+    // closed, the write failed or we are not in control - and make it the
+    // newest ID. Same write order as above.
+    inline void DropCmd(uint32_t id) {if(abort_id <= id) abort_id = id + 1u; send_id = id;}
 
     // *************************************************************************
     // ***   GRBL Data   *******************************************************
@@ -1025,13 +1076,18 @@ class GrblComm : public AppTask
     // GRBL state
     state_t   grbl_state;
     uint8_t   grbl_substate;
-    float     grbl_position[AXIS_CNT];
-    float     grbl_offset[AXIS_CNT];
-    float     grbl_probe_position[AXIS_CNT];
-    float     grbl_tool_length_offset[AXIS_CNT];
+    // Numbers reported by the controller are kept as decimals, exactly as
+    // they were printed: 4.035 can't be stored in a binary float, and
+    // converted to um it comes out as 4034. See ParseDecimal().
+    Decimal32 grbl_position[AXIS_CNT];
+    Decimal32 grbl_offset[AXIS_CNT];
+    Decimal32 grbl_probe_position[AXIS_CNT];
+    Decimal32 grbl_tool_length_offset[AXIS_CNT];
     int32_t   grbl_feed_override;
     int32_t   grbl_rapid_override;
-    float     grbl_feed_rate;
+    Decimal32 grbl_feed_rate;
+    // Line number from the last status report, 0 if there was none
+    uint32_t  grbl_line_number = 0u;
     bool      grbl_useWPos;
     bool      grbl_awaitWCO;
     bool      grbl_absDistance;
@@ -1053,8 +1109,8 @@ class GrblComm : public AppTask
     char      grbl_pins[10];
 
     // Spindle state
-    float   spindle_rpm_programmed;
-    float   spindle_rpm_actual;
+    Decimal32 spindle_rpm_programmed;
+    Decimal32 spindle_rpm_actual;
     bool    spindle_on;
     bool    spindle_ccw;
     int32_t spindle_rpm_override;
@@ -1081,7 +1137,7 @@ class GrblComm : public AppTask
     uint16_t spindle_speed_max = 0u;
     uint16_t spindle_speed_min = 0u;
     // Maximum feed per axis($110..$115), always metric(mm/min or deg/min)
-    float axis_max_feed[AXIS_CNT] = {0};
+    Decimal32 axis_max_feed[AXIS_CNT];
 
     // Task queue message struct
     struct TaskQueueMsg
@@ -1160,7 +1216,9 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Private: ParseDecimal function   **********************************
     // *************************************************************************
-    bool ParseDecimal(float& value, char* data);
+    // Text goes straight into a decimal number, with as many decimals as it
+    // has. Returns true if the value changed.
+    bool ParseDecimal(Decimal32& value, char* data);
 
     // *************************************************************************
     // ***   Private: ParseInt function   **************************************
@@ -1175,7 +1233,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Private: ParseAxisData function   *********************************
     // *************************************************************************
-    bool ParseAxisData(char* data, float (&axis)[AXIS_CNT]);
+    bool ParseAxisData(char* data, Decimal32 (&axis)[AXIS_CNT]);
 
     // *************************************************************************
     // ***   Private: ParseProbeReport   ***************************************
@@ -1215,7 +1273,7 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Private constructor   *********************************************
     // *************************************************************************
-    GrblComm() : AppTask(APPLICATION_TASK_STACK_SIZE, APPLICATION_TASK_PRIORITY,
+    GrblComm() : AppTask(GRBLCOMM_TASK_STACK_SIZE, GRBLCOMM_TASK_PRIORITY,
                             "GrblComm", 32U, sizeof(TaskQueueMsg), &rcv_msg,
                             TASK_TIMER_PERIOD_MS, true) {};
 };

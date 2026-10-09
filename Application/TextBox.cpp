@@ -44,7 +44,7 @@ Result TextBox::Setup(int32_t x, int32_t y, int32_t w, int32_t h)
 
   // Set selection box parameters
   box.SetList(*this);
-  box.SetParams(0, 0, VisList::GetWidth(), Font_10x18::GetInstance().GetCharH(), COLOR_RED, true);
+  UpdateSelector();
 
   // Return result
   return result;
@@ -65,7 +65,7 @@ Result TextBox::Show(uint32_t z)
     str[i].Show(1);
   }
   // Set selection box parameters
-  box.SetParams(str[select_pos - scroll_pos].GetStartX(), str[select_pos - scroll_pos].GetStartY(), VisList::GetWidth(), str[select_pos - scroll_pos].GetHeight(), (p_text == nullptr) ? COLOR_RED : COLOR_BLUE, true);
+  UpdateSelector();
   // Show selection box
   box.Show(0);
   // Show list
@@ -108,6 +108,8 @@ bool TextBox::SetText(const char* text)
   {
     // Pointer to text
     const char *ptr = p_text;
+    // Empty lines at the beginning aren't shown, as any other empty line
+    while((*ptr == '\n') || (*ptr == '\r')) ptr++;
     // Count how many lines text have
     while(*ptr != '\0')
     {
@@ -128,13 +130,9 @@ bool TextBox::SetText(const char* text)
       // Skip all CR LF symbols(line's own ending and the empty lines after it)
       while((*ptr == '\n') || (*ptr == '\r')) ptr++;
     }
-    // Set select color to blue if we have text
-    box.SetColor(COLOR_BLUE);
   }
   else
   {
-    // Set select color to blue if we have text
-    box.SetColor(COLOR_RED);
     // Clear all strings
     for(int32_t i = 0u; i < visible_cnt; i++)
     {
@@ -224,7 +222,7 @@ Result TextBox::Select(int32_t n)
     }
 
     // Set selection box parameters
-    box.SetParams(str[select_pos - scroll_pos].GetStartX(), str[select_pos - scroll_pos].GetStartY(), VisList::GetWidth(), str[select_pos - scroll_pos].GetHeight(), (p_text == nullptr) ? COLOR_RED : COLOR_BLUE, true);
+    UpdateSelector();
 
     // Input parameter is ok
     result = Result::RESULT_OK;
@@ -327,6 +325,44 @@ Result TextBox::Scroll(int32_t n)
 
   // Return result
   return result;
+}
+
+// *****************************************************************************
+// ***   Public: SetSelectorColor   ********************************************
+// *****************************************************************************
+void TextBox::SetSelectorColor(color_t color)
+{
+  // Update box only if color changed
+  if(color != selector_color)
+  {
+    selector_color = color;
+    UpdateSelector();
+  }
+}
+
+// *****************************************************************************
+// ***   Public: SetSelectorFill   *********************************************
+// *****************************************************************************
+void TextBox::SetSelectorFill(uint8_t fill)
+{
+  // Update box only if fill changed
+  if(fill != selector_fill)
+  {
+    selector_fill = fill;
+    UpdateSelector();
+  }
+}
+
+// *****************************************************************************
+// ***   Private: UpdateSelector function   ************************************
+// *****************************************************************************
+void TextBox::UpdateSelector()
+{
+  // Box takes color and fill in SetParams() - set them all at once. Setting
+  // them one by one leaves the fill color of the previous color.
+  box.SetParams(str[select_pos - scroll_pos].GetStartX(), str[select_pos - scroll_pos].GetStartY(), VisList::GetWidth(), str[select_pos - scroll_pos].GetHeight(), selector_color, (selector_fill == 0u));
+  // Frame width: SetParams() sets 1 pixel for a box that isn't filled
+  if(selector_fill != 0u) box.SetBorderWidth(selector_fill);
 }
 
 // *****************************************************************************

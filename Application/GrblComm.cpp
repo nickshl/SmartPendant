@@ -23,7 +23,6 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
-#include <cmath>
 
 #if defined(SEND_DATA_TO_USB) // For sending messages to USB
 #include "usb_device.h"
@@ -98,9 +97,10 @@ Result GrblComm::TimerExpired(uint32_t missed_cnt)
     // nothing to gain by moving it: the command's outcome is unknown either
     // way. Status_Next_Cmd_Executed is a failure for every caller(see the
     // enum), so the recovery path in ParseState() and Stop()/Reset()/Unlock()
-    // are equally free to advance it. Do not read this as "advancing send_id
-    // is unsafe" - that was true only while ProgramSender accepted
-    // Status_Next_Cmd_Executed as success, which it no longer does.
+    // are equally free to advance it - through AbandonCmdIds(), which also
+    // moves abort_id for IsStatusReceivedAfterCmd(). Do not read this as
+    // "advancing send_id is unsafe" - that was true only while ProgramSender
+    // accepted Status_Next_Cmd_Executed as success, which it no longer does.
     grbl_status = Status_Comm_Error;
     respond_pending = false;
   }
@@ -236,9 +236,10 @@ Result GrblComm::ProcessMessage()
           // Same fields as the success path above, so take the same lock.
           // Publish the failure before the ID, so a reader that sees the new
           // ID can never still observe the previous OK.
+          // The command never left, so it is dropped, not sent: DropCmd().
           mutex.Lock();
           grbl_status = Status_Comm_Error;
-          send_id = rcv_msg.id;
+          DropCmd(rcv_msg.id);
           grbl_changed.error = true;
           mutex.Release();
         }
@@ -258,8 +259,10 @@ Result GrblComm::ProcessMessage()
       }
       else
       {
-        // Set ID
-        send_id = rcv_msg.id;
+        // Gate is closed: drop the command without sending it and set ID
+        mutex.Lock();
+        DropCmd(rcv_msg.id);
+        mutex.Release();
         // Result ok, but not really
         result = Result::RESULT_OK;
       }
@@ -283,8 +286,10 @@ Result GrblComm::ProcessMessage()
     }
     else // If it is not an real time command and we not in control - discard it
     {
-      // Set ID
-      send_id = rcv_msg.id;
+      // Drop the command without sending it and set ID
+      mutex.Lock();
+      DropCmd(rcv_msg.id);
+      mutex.Release();
       // Result ok, but not really
       result = Result::RESULT_OK;
     }
@@ -394,9 +399,11 @@ void GrblComm::ReleaseControl()
   if(mpg_mode_request == false)
   {
     // Clear an error
+    mutex.Lock();
     respond_pending = false;
-    send_id = next_id;
+    AbandonCmdIds();
     grbl_status = Status_OK;
+    mutex.Release();
     // Clear MPG state receive flag
     grbl_received.mpg = false;
   }
@@ -475,12 +482,12 @@ int32_t GrblComm::GetAxisMachinePosition(uint8_t axis)
     if(grbl_useWPos)
     {
       // If report in work coordinates, we have to add offset to get machine coordinates
-      value = (int32_t)((grbl_position[axis] + grbl_offset[axis]) * GetReportUnitsScaler(axis));
+      value = (grbl_position[axis] + grbl_offset[axis]).ToFixedPoint(GetReportUnitsScaler(axis));
     }
     else
     {
       // Convert it into fixed point(um for metric/tenths for imperial)
-      value = (int32_t)(grbl_position[axis] * GetReportUnitsScaler(axis));
+      value = grbl_position[axis].ToFixedPoint(GetReportUnitsScaler(axis));
     }
     // Release mutex after data is copied
     mutex.Release();
@@ -505,12 +512,12 @@ int32_t GrblComm::GetAxisPosition(uint8_t axis)
     if(grbl_useWPos)
     {
       // Convert it into fixed point(um for metric/tenths for imperial)
-      value = (int32_t)(grbl_position[axis] * GetReportUnitsScaler(axis));
+      value = grbl_position[axis].ToFixedPoint(GetReportUnitsScaler(axis));
     }
     else
     {
       // If report in machine coordinates, we have to subtract offset to get work coordinates
-      value = (int32_t)((grbl_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
+      value = (grbl_position[axis] - grbl_offset[axis]).ToFixedPoint(GetReportUnitsScaler(axis));
     }
     // Release mutex after data is copied
     mutex.Release();
@@ -535,7 +542,7 @@ int32_t GrblComm::GetProbeMachinePosition(uint8_t axis)
     // coordinates(see report_probe_parameters() in grblHAL core report.c:
     // "Report in terms of machine position"), regardless of WPos/MPos
     // status report setting - use it as is.
-    value = (int32_t)(grbl_probe_position[axis] * GetReportUnitsScaler(axis));
+    value = grbl_probe_position[axis].ToFixedPoint(GetReportUnitsScaler(axis));
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -558,7 +565,7 @@ int32_t GrblComm::GetProbePosition(uint8_t axis)
     // Probe position is always reported by the controller in machine
     // coordinates regardless of WPos/MPos status report setting, so to get
     // work position offset always have to be subtracted.
-    value = (int32_t)((grbl_probe_position[axis] - grbl_offset[axis]) * GetReportUnitsScaler(axis));
+    value = (grbl_probe_position[axis] - grbl_offset[axis]).ToFixedPoint(GetReportUnitsScaler(axis));
     // Release mutex after data is copied
     mutex.Release();
   }
@@ -575,7 +582,7 @@ uint32_t GrblComm::GetAxisMaxFeedX100(uint8_t axis)
 
   if(axis < AXIS_CNT)
   {
-    rate = (uint32_t)(axis_max_feed[axis] * 100.0f);
+    rate = (uint32_t)axis_max_feed[axis].ToFixedPoint(100u);
     // Controller settings are always metric, so for imperial reports value
     // have to be converted. Rotary axes are degrees in both systems.
     if(!IsRotaryAxis(axis) && !IsMetric()) rate = rate * 10u / 254u;
@@ -618,11 +625,38 @@ bool GrblComm::IsStatusReceivedAfterCmd(uint32_t id)
 {
   bool result = false;
 
+  // Lock mutex: result, abort_id and timestamps have to belong together
+  mutex.Lock();
+
+  // Read the result once: send_id can move between two calls
+  status_t cmd_result = GetCmdResult(id);
+
+  // Status received after command isn't enough: it can be the answer to a
+  // request sent before the command, and controller can make such report
+  // before it starts the motion - state in it is still IDLE. So it is the
+  // time the last received status was requested that is compared. It doesn't
+  // change when the next status is requested, only when it is received.
+
   // If requested command executed and respond received
-  if(GetCmdResult(id) == Status_OK)
+  if(cmd_result == Status_OK)
   {
-    // And respond rx timestamp less than last status rx timestamp
-    if(cmd_rx_timestamp < status_rx_timestamp)
+    // And last received status was requested after respond rx timestamp
+    if(cmd_rx_timestamp < status_req_timestamp)
+    {
+      result = true;
+    }
+  }
+  // Several commands can be queued before this is asked, so by then a later
+  // command was sent and this one reads Status_Next_Cmd_Executed for good.
+  // This function only answers whether a status report was requested after
+  // the command was sent, never whether the command succeeded(callers check
+  // Status_OK for that). cmd_tx_timestamp belongs to the newest sent command,
+  // which is no earlier than this one, so it is a safe bound. Only when ID is
+  // at or above abort_id: below it the command was abandoned or dropped, and
+  // nothing says it was ever sent.
+  else if((cmd_result == Status_Next_Cmd_Executed) && (id >= abort_id))
+  {
+    if(cmd_tx_timestamp < status_req_timestamp)
     {
       result = true;
     }
@@ -631,6 +665,9 @@ bool GrblComm::IsStatusReceivedAfterCmd(uint32_t id)
   {
     ; // Do nothing
   }
+
+  // Release mutex
+  mutex.Release();
 
   return result;
 }
@@ -1401,7 +1438,8 @@ bool GrblComm::ParseState(char *data)
       if(grbl_status == Status_Comm_Error)
       {
         respond_pending = false;
-        send_id = next_id;
+        // Mutex is locked already: status is parsed under it
+        AbandonCmdIds();
         grbl_status = Status_OK;
       }
     }
@@ -1418,15 +1456,18 @@ bool GrblComm::ParseState(char *data)
 // *****************************************************************************
 // ***   Private: ParseDecimal function   **************************************
 // *****************************************************************************
-bool GrblComm::ParseDecimal(float& value, char* data)
+bool GrblComm::ParseDecimal(Decimal32& value, char* data)
 {
   // Result flag = false by default in case of nullptr
   bool changed = false;
   // Check if null pointer passed
   if(data != nullptr)
   {
-    // Convert float from string
-    float val = (float)atof(data);
+    // Zero by default: it stays if there is no number in the string
+    Decimal32 val;
+    // Digits go straight into the decimal number, binary floating point
+    // isn't involved. Number of decimals is taken from the string.
+    val.FromString(data);
     // Check if it changed
     changed = (val != value);
     // If changed - set new value
@@ -1574,7 +1615,7 @@ void GrblComm::ParseSettings(char* data)
 // *****************************************************************************
 // ***   Private: ParseAxisData function   *************************************
 // *****************************************************************************
-bool GrblComm::ParseAxisData(char* data, float (&axis)[AXIS_CNT])
+bool GrblComm::ParseAxisData(char* data, Decimal32 (&axis)[AXIS_CNT])
 {
   bool changed = false;
 
@@ -1606,7 +1647,7 @@ bool GrblComm::ParseAxisData(char* data, float (&axis)[AXIS_CNT])
 // *****************************************************************************
 void GrblComm::ParseProbeReport(char* data)
 {
-  float position[AXIS_CNT];
+  Decimal32 position[AXIS_CNT];
   bool valid = (number_of_axis > 0) && (number_of_axis <= AXIS_CNT);
   // A malformed report must invalidate the previous freshness/success flags
   // without replacing any of its coordinates with a partially parsed result.
@@ -1614,9 +1655,11 @@ void GrblComm::ParseProbeReport(char* data)
   grbl_probe_success = false;
   for(int32_t i = 0; valid && (i < number_of_axis); i++)
   {
-    char* end = nullptr;
-    position[i] = strtof(data, &end);
-    valid = (end != data) && std::isfinite(position[i]);
+    // Parse the number: length is zero if there is none
+    uint32_t length = position[i].FromString(data);
+    // Character after the number is checked below
+    char* end = data + length;
+    valid = (length != 0u);
     if(valid)
     {
       valid = (*end == ((i + 1 < number_of_axis) ? ',' : ':'));
@@ -1710,9 +1753,9 @@ void GrblComm::ParseFeedSpeed(char* data)
   if(ParseDecimal(spindle_rpm_programmed, value_ptr[1u])) grbl_changed.rpm = true;
   if(ParseDecimal(spindle_rpm_actual, value_ptr[2u])) grbl_changed.rpm_actual = true;
   // No actual speed in data - set actual RPM to zero
-  if((value_ptr[2u] == nullptr) && (spindle_rpm_actual != 0.0f))
+  if((value_ptr[2u] == nullptr) && (spindle_rpm_actual != Decimal32(0)))
   {
-    spindle_rpm_actual = 0.0f;
+    spindle_rpm_actual = Decimal32(0);
     // Set changed flag so UI can update displayed value
     grbl_changed.rpm_actual = true;
   }
@@ -1745,10 +1788,10 @@ void GrblComm::ParseData(void)
   {
     // Set status received flag
     status_received = true;
-    // Set timestamp when status was received
-    status_rx_timestamp = RtosTick::GetTimeMs();
 
     pins = false;
+    // Line number isn't present in every report
+    uint32_t line_number = 0u;
     line = strtok(&line[1], "|");
 
     if(line)
@@ -1798,6 +1841,10 @@ void GrblComm::ParseData(void)
       else if(!strncmp(line, "WCO:", 4))
       {
         ParseOffsets(line + 4);
+      }
+      else if(!strncmp(line, "Ln:", 3))
+      {
+        line_number = strtoul(line + 3, nullptr, 10);
       }
       else if(!strncmp(line, "Pn:", 3))
       {
@@ -1883,6 +1930,16 @@ void GrblComm::ParseData(void)
 
     // Clear probe flag if no pins reported
     if(!pins) grbl_probe_triggered = false;
+
+    // Store line number of this report(zero if it had none)
+    grbl_line_number = line_number;
+
+    // Set timestamps when this status was requested and received. It is the
+    // last thing done: who sees the new timestamps(IsStatusReceivedAfterCmd())
+    // sees everything this report brought - other task can run in the middle
+    // of parsing.
+    status_req_timestamp = status_tx_timestamp;
+    status_rx_timestamp = RtosTick::GetTimeMs();
   }
   else if(line[0] == '[')
   {

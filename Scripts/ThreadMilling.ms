@@ -6,9 +6,9 @@
 
 // Threading parameters: Variable name, scaler, units, min value, max value
 // For enum parameters: Variable name, 0 to indicate enum, first value, ..., last value
-int endmill_diameter = 2400; // Endmill diameter; 1000; mm; 0; 25400
-int thread_diameter = 3000;  // Thread major diameter; 1000; mm; 0; 1000000
-int thread_pitch = 500;      // Thread pitch; 1000; mm; 10; 10000
+int endmill_diameter = 2400; // Endmill diameter; 1000; mm; 500; 25400
+int thread_diameter = 3000;  // Thread major diameter; 1000; mm; 1000; 200000
+int thread_pitch = 500;      // Thread pitch; 1000; mm; 100; 10000
 int thread_depth = 5000;     // Thread depth; 1000; mm; 0; 100000
 int thread_direction = 0;    // Thread direction; 0; Right; Left
 int feed = 30;               // Feed; 1; mm/min; 1; 1000
