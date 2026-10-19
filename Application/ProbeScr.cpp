@@ -1171,15 +1171,13 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   // Radius caption
   dw_clearance_name.SetParams("CLEARANCE", dw_clearance.GetStartX() + BORDER_W*2, dw_clearance.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
-  // Distance
+  // Tip diameter: information only, tip diameter is changed in Settings -> Probe -> Ball tip
   dw_tip_diameter.SetParams(BORDER_W, dw_clearance.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2, minus_btn.GetHeight(), 15u, grbl_comm.GetReportUnitsPrecision());
-  dw_tip_diameter.SetBorder(BORDER_W, COLOR_RED);
+  dw_tip_diameter.SetBorder(BORDER_W, COLOR_GREY);
   dw_tip_diameter.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_tip_diameter.SetLimits(0, INT32_MAX);
   dw_tip_diameter.SetNumber(grbl_comm.ConvertMetricToUnits(NVM::GetInstance().GetValue(NVM::PROBE_BALL_TIP)));
   dw_tip_diameter.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
-  dw_tip_diameter.SetCallback(AppTask::GetCurrent());
-  dw_tip_diameter.SetActive(true);
   // Radius caption
   dw_tip_diameter_name.SetParams("TIP DIAMETER", dw_tip_diameter.GetStartX() + BORDER_W*2, dw_tip_diameter.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
 
@@ -1261,9 +1259,6 @@ Result EdgeFinderTab::Hide()
   dw_clearance_name.Hide();
   dw_tip_diameter.Hide();
   dw_tip_diameter_name.Hide();
-
-  // To update probe tip diameter
-  NVM::GetInstance().WriteData();
 
   // All good
   return Result::RESULT_OK;
@@ -1520,17 +1515,10 @@ Result EdgeFinderTab::ProcessCallback(const void* ptr)
       plus_btn.SetPressed(true);
       minus_btn.SetPressed(false);
     }
-    // Distance data window
-    else if(ptr == &dw_tip_diameter)
-    {
-      dw_tip_diameter.SetSelected(true);
-      dw_clearance.SetSelected(false);
-    }
     // Clearance data window
     else if(ptr == &dw_clearance)
     {
       dw_clearance.SetSelected(true);
-      dw_tip_diameter.SetSelected(false);
     }
     // Precise button
     else if(ptr == &precise_btn)
@@ -1598,20 +1586,13 @@ Result EdgeFinderTab::ProcessEncoderCallback(EdgeFinderTab* obj_ptr, void* ptr)
 
     // Process it. Change anything only if probing isn't started: the probing
     // sequence reads these windows at every step, so a change mid-sequence
-    // would corrupt already calculated motion targets and the tip diameter
-    // stored in NVM.
+    // would corrupt already calculated motion targets.
     if((enc_val != 0) && (ths.state == PROBE_CNT))
     {
       // Change clearance
       if(ths.dw_clearance.IsSelected())
       {
         ths.dw_clearance.SetNumber(ths.dw_clearance.GetNumber() + enc_val * (ths.grbl_comm.IsMetric() ? 100 : 10));
-      }
-      // Change distance
-      if(ths.dw_tip_diameter.IsSelected())
-      {
-        ths.dw_tip_diameter.SetNumber(ths.dw_tip_diameter.GetNumber() + enc_val * (ths.grbl_comm.IsMetric() ? 100 : 10));
-        NVM::GetInstance().SetValue(NVM::PROBE_BALL_TIP, ths.grbl_comm.ConvertUnitsToMetric(ths.dw_tip_diameter.GetNumber()));
       }
     }
     // Set ok result

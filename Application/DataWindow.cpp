@@ -294,22 +294,26 @@ void DataWindow::SetCallback(AppTask* task, CallbackPtr func, void* param)
 // *****************************************************************************
 // ***   Put line in buffer   **************************************************
 // *****************************************************************************
+#if defined(USE_UPDATE_TOP_BOTTOM)
 void DataWindow::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
 {
   box.DrawInBufW(buf, n, line - y_start, start_x - x_start);
   data_str.DrawInBufW(buf, n, line - y_start, start_x - x_start);
   if(units_str_pos != NONE) units_str.DrawInBufW(buf, n, line - y_start, start_x - x_start);
 }
+#endif
 
 // *****************************************************************************
 // ***   Put line in buffer   **************************************************
 // *****************************************************************************
-void DataWindow::DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y)
+#if defined(USE_UPDATE_LEFT_RIGHT)
+void DataWindow::DrawInBufH(color_t* buf, int32_t n, int32_t column, int32_t start_y)
 {
-  box.DrawInBufH(buf, n, row - x_start, start_y - y_start);
-  data_str.DrawInBufH(buf, n, row - x_start, start_y - y_start);
-  if(units_str_pos != NONE) units_str.DrawInBufH(buf, n, row - x_start, start_y - y_start);
+  box.DrawInBufH(buf, n, column - x_start, start_y - y_start);
+  data_str.DrawInBufH(buf, n, column - x_start, start_y - y_start);
+  if(units_str_pos != NONE) units_str.DrawInBufH(buf, n, column - x_start, start_y - y_start);
 }
+#endif
 
 // *****************************************************************************
 // ***   Action   **************************************************************

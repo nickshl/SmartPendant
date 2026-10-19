@@ -42,6 +42,27 @@ subprocess.run(flags + sources + [str(stage / "sender_timer.cpp"), str(TESTS / "
 env = dict(os.environ, ASAN_OPTIONS="detect_leaks=1", UBSAN_OPTIONS="halt_on_error=1")
 subprocess.run([str(binary)], check=True, timeout=30, env=env)
 
+# Settings storage: the real NVM.cpp over a simulated EEPROM with power loss
+# and bus error injection. Own stage and own doubles: stubs/NVM.h used above
+# replaces the class this test is about. NVM_SEED and NVM_SEEDS set the first
+# seed and the number of seeds of the random part.
+nvm_stage = stage / "nvm"
+nvm_stage.mkdir()
+for stub in (TESTS / "stubs_nvm").glob("*.h"):
+    shutil.copy(stub, nvm_stage)
+for path in ["Application/NVM.cpp", "Application/NVM.h", "Application/Version.h",
+             "DevCore/Framework/Result.h", "DevCore/Math/Crc32.cpp", "DevCore/Math/Crc32.h"]:
+    text = (ROOT / path).read_text()
+    # The test resets NVM::data[] at every simulated power on
+    if path.endswith("NVM.h"):
+        text = text.replace("private:", "public:")
+    (nvm_stage / Path(path).name).write_text(text)
+nvm_binary = nvm_stage / "nvm"
+subprocess.run(flags[:-2] + ["-I", str(nvm_stage), str(nvm_stage / "NVM.cpp"), str(nvm_stage / "Crc32.cpp"),
+                             str(TESTS / "nvm.cpp"), "-o", str(nvm_binary)], check=True)
+subprocess.run([str(nvm_binary), os.environ.get("NVM_SEED", "1"), os.environ.get("NVM_SEEDS", "3000")],
+               check=True, timeout=600, env=env)
+
 # Compare stock script output with the version before this fix batch. Override
 # BASELINE_REF when rerunning after committing the fixes.
 baseline_ref = os.environ.get("BASELINE_REF", "HEAD")

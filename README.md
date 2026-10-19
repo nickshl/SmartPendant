@@ -12,6 +12,12 @@ To clone the project:
 git clone --recurse-submodules https://github.com/nickshl/SmartPendant.git
 ```
 
+`DevCore` is a git submodule. After pulling changes into an existing clone, update it as well:
+
+```
+git submodule update --init --recursive
+```
+
 ### Building using the IDE
 
 Import the project into [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html). Set Build configuration (Release/Debug) and build.
@@ -33,6 +39,10 @@ cd build
 cmake -DCMAKE_TOOLCHAIN_FILE=./cmake/arm_none_eabi_gcc.cmake -DCMAKE_BUILD_TYPE=Debug ..
 ```
 Now you can build the project using `make`.
+
+### Host tests
+
+Parts of the firmware(script interpreter, grblHAL communication, program sender, settings storage) can be built and tested on a PC with Python 3 and a C++17 compiler: `python3 Tests/host/run.py`. See [Tests/host/README.md](Tests/host/README.md) for what each test covers.
 
 ## Hardware
 
@@ -99,6 +109,8 @@ At the end of the process probe will be positioned at the very edge. `CLEARANCE`
 
 `PRECISE` button allows performing 2 consequent measurements by rotating probe 180 deg after the first measurement for improved precision.
 
+`TIP DIAMETER` shows the probe ball diameter used to compensate the measured position. It is changed in Settings -> Probe -> Ball tip.
+
 ### Tool Offset 
 
 After using first tool, jog over probe and click `measure base` before changing. Change to the next tool and click `measure offset`. After process is completed, new tool offset will be set to match first tool length.
@@ -111,7 +123,9 @@ Schematic vesion 1.3(and later versions, only layout slightly changed):
 
 # Precompiled Firmware
 
-Latest firmware HEX file can be found in Release folder: [SmartPendant.hex](https://github.com/nickshl/SmartPendant/blob/main/Release/SmartPendant.hex)
+Firmware HEX and BIN files of every version are attached to [Releases](https://github.com/nickshl/SmartPendant/releases). The latest one is always here: [latest release](https://github.com/nickshl/SmartPendant/releases/latest).
+
+**Note:** version **0.042.1** changed the way settings are stored in EEPROM. The first start after updating from an older version resets all settings to defaults and shows "Some parameters set to default" - check the settings once after the update. Later updates keep the settings; a new setting starts with its default value and the same message is shown once.
 
 To load new firmware [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html) is used:
 1) If your device programmed with version **0.027.0** or later, hold top edge (MPG) button. Otherwise (not programmed, update failure, older version) hold BOOT0 button on the back instead.

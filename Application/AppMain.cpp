@@ -108,8 +108,6 @@ extern "C" void AppMain(void)
   }
   else
   {
-    // Read NVM data to get UART mode
-    NVM::GetInstance().ReadData();
     // Update UART speed(via framed_uart to recalculate timeout for framed mode)
     framed_uart.SetBaudRate(NVM::GetInstance().GetValue(NVM::BAUD_RATE));
     // Transmissions per frame before the link is declared down. Has to

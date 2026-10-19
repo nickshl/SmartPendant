@@ -582,7 +582,7 @@ int LittleC::find_func(const char *name)
 {
   int idx = -1;
 
-  for(register int i = 0; i < func_index; i++)
+  for(int i = 0; i < func_index; i++)
   {
     if(!strcomp(name, func_table[i].func_name))
     {
@@ -895,7 +895,7 @@ int LittleC::get_var_index(char* var_name)
   int result = -1;
 
   // First, see if it's a local variable
-  for(register int i = lvartos - 1; i >= 0; i--)
+  for(int i = lvartos - 1; i >= 0; i--)
   {
     // Skip local variables of caller functions: if the index fell below
     // the base of the current frame but is still above the globals, jump
@@ -1523,7 +1523,7 @@ bool LittleC::eval_exp0(data_type& data)
       const char* var_ptr = token_ptr;
       // Get token to figure out if it is an assignment operation
       result = get_token();
-      register char op = *token;
+      char op = *token;
       if(((op == '=') || (op == ADD) || (op == SUB) || (op == MUL) || (op == DIV) || (op == MOD)) && result)
       {
         result = find_var_by_index(var_index, data); // get var's value
@@ -1575,7 +1575,7 @@ bool LittleC::eval_exp0(data_type& data)
   {
     data_type partial_data = {0};
     result = eval_exp1(data);
-    register char op = *token;
+    char op = *token;
     if(result)
     {
       if((op == AND) || (op == OR))
@@ -1681,7 +1681,7 @@ bool LittleC::eval_exp1(data_type& data)
   static const char relops[7] = {LT, LE, GT, GE, EQ, NE, 0};
 
   result = eval_exp2(data);
-  register char op = *token;
+  char op = *token;
   if(strchr(relops, op) && result)
   {
     result = get_token();
@@ -1718,7 +1718,7 @@ bool LittleC::eval_exp1(data_type& data)
 bool LittleC::eval_exp2(data_type& data)
 {
   bool result = true;
-  register char  op;
+  char  op;
   data_type partial_data;
 
   static const char okops[] = {'(', INC, DEC, '-', '+', 0};
@@ -1759,7 +1759,7 @@ bool LittleC::eval_exp2(data_type& data)
 bool LittleC::eval_exp3(data_type& data)
 {
   bool result = true;
-  register char op;
+  char op;
   data_type partial_data;
 
   static const char okops[] = {'(', INC, DEC, '-', '+', 0};
@@ -1806,7 +1806,7 @@ bool LittleC::eval_exp3(data_type& data)
 bool LittleC::eval_exp4(data_type& data)
 {
   bool result = true;
-  register char op = '\0';
+  char op = '\0';
 
   if((*token == '+') || (*token == '-') || (*token == '!') || (*token == INC) || (*token == DEC))
   {
@@ -2023,7 +2023,7 @@ bool LittleC::get_token(void)
     else return sntx_err(EXECUTION_LIMIT);
   }
 
-  register char *temp;
+  char *temp;
 
   token_type = UNDEFTT;
   tok = UNDEFTOK;
@@ -2315,7 +2315,7 @@ int LittleC::look_up(char *s)
 //  while(*p) {*p = tolower(*p); p++;}
 
   // See if token is in table
-  for(register int i = 0; *table[i].command; i++)
+  for(int i = 0; *table[i].command; i++)
   {
     if(!strcmp(table[i].command, s)) return table[i].tok;
   }

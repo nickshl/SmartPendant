@@ -130,12 +130,16 @@ class TetrisShape : public VisObject
     // *************************************************************************
     // ***   Put line in buffer   **********************************************
     // *************************************************************************
+#if defined(USE_UPDATE_TOP_BOTTOM)
     virtual void DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x);
+#endif
 
     // *************************************************************************
     // ***   Put line in buffer   **********************************************
     // *************************************************************************
-    virtual void DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y) {};
+#if defined(USE_UPDATE_LEFT_RIGHT)
+    virtual void DrawInBufH(color_t* buf, int32_t n, int32_t column, int32_t start_y) {};
+#endif
 
     // *************************************************************************
     // ***   Invalidate Object Area   ******************************************
@@ -202,12 +206,16 @@ class TetrisBucket : public VisObject
     // *************************************************************************
     // ***   Put line in buffer   **********************************************
     // *************************************************************************
+#if defined(USE_UPDATE_TOP_BOTTOM)
     virtual void DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x);
+#endif
 
     // *************************************************************************
     // ***   Put line in buffer   **********************************************
     // *************************************************************************
-    virtual void DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y) {};
+#if defined(USE_UPDATE_LEFT_RIGHT)
+    virtual void DrawInBufH(color_t* buf, int32_t n, int32_t column, int32_t start_y) {};
+#endif
 
 private:
   // Bucket buffer

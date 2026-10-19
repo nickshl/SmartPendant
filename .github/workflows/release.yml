@@ -1,0 +1,62 @@
+# Builds the firmware and publishes a GitHub release whenever a push to main
+# raises the version in Application/Version.h. A push that leaves the version
+# unchanged or lowers it (e.g. a revert) builds nothing.
+name: Release firmware
+
+on:
+  push:
+    branches: [main]
+    paths: [Application/Version.h]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-26.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Check version
+        id: ver
+        run: |
+          nums=$(sed -nE 's/.*VERSION_(MAJOR|MINOR|BUILD) = ([0-9]+)u;.*/\2/p' Application/Version.h)
+          [ "$(echo "$nums" | wc -l)" -eq 3 ] || { echo "::error::Can't parse Application/Version.h"; exit 1; }
+          # Same format the pendant shows on screen: 0.040.1
+          ver=$(printf '%d.%03d.%d' $nums)
+          tag="v$ver"
+          latest=$(gh release view --json tagName -q .tagName 2>/dev/null || true)
+          echo "Version.h: $tag, latest release: ${latest:-none}"
+          if [ "$latest" != "$tag" ] && [ "$(printf '%s\n' "$latest" "$tag" | sort -V | tail -1)" = "$tag" ]; then
+            echo "ver=$ver" >> "$GITHUB_OUTPUT"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Version not increased, nothing to release"
+          fi
+
+      - name: Install toolchain
+        if: steps.ver.outputs.tag
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+
+      - name: Build
+        if: steps.ver.outputs.tag
+        run: |
+          cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/arm_none_eabi_gcc.cmake -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+          cp build/SmartPendant_*.hex "SmartPendant_${{ steps.ver.outputs.ver }}.hex"
+          cp build/SmartPendant_*.bin "SmartPendant_${{ steps.ver.outputs.ver }}.bin"
+
+      - name: Publish release
+        if: steps.ver.outputs.tag
+        run: >
+          gh release create "${{ steps.ver.outputs.tag }}"
+          SmartPendant_*.hex SmartPendant_*.bin
+          --target "$GITHUB_SHA"
+          --title "SmartPendant ${{ steps.ver.outputs.ver }}"
+          --generate-notes

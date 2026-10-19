@@ -219,18 +219,22 @@ Result Header::Hide()
 // *****************************************************************************
 // ***   Put line in buffer   **************************************************
 // *****************************************************************************
+#if defined(USE_UPDATE_TOP_BOTTOM)
 void Header::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
 {
- // Empty object - only for Action();
+  // Empty object - only for Action();
 }
+#endif
 
 // *****************************************************************************
 // ***   Put line in buffer   **************************************************
 // *****************************************************************************
-void Header::DrawInBufH(color_t* buf, int32_t n, int32_t row, int32_t start_y)
+#if defined(USE_UPDATE_LEFT_RIGHT)
+void Header::DrawInBufH(color_t* buf, int32_t n, int32_t column, int32_t start_y)
 {
   // Empty object - only for Action();
 }
+#endif
 
 // *****************************************************************************
 // ***   Action   **************************************************************

@@ -31,6 +31,8 @@ git submodule update --init --recursive     # if cloned without --recurse-submod
 
 When a symbol isn't found in `Application/`, look in `DevCore/`.
 
+DevCore from 07bb402 on requires `USE_UPDATE_TOP_BOTTOM` and/or `USE_UPDATE_LEFT_RIGHT` in `DevCfgUsr.h`; the draw function of a mode that isn't defined isn't compiled. SmartPendant uses top to bottom only, so a visual object in `Application/` defines `DrawInBufW()` under `#if defined(USE_UPDATE_TOP_BOTTOM)` and `DrawInBufH()` under `#if defined(USE_UPDATE_LEFT_RIGHT)`, as `DataWindow`, `Header`, `Tabs` and `Tetris` do. An object with only `DrawInBufW()` is invisible in left to right mode.
+
 ## Building
 
 - **STM32CubeIDE** — import the project (`.cproject`/`.project`), build, flash with STM32CubeProgrammer.
@@ -72,7 +74,7 @@ check, the known issues the checks are told to excuse, how to run a single scrip
 by hand and how to write a new check.
 
 Which to run:
-- `GrblComm`, `FramedUart`, `ProgramSender`, `Decimal32`, `Little-C` - `run.py`.
+- `GrblComm`, `FramedUart`, `ProgramSender`, `Decimal32`, `Little-C`, `NVM` - `run.py`(for `NVM` also with other seeds: `NVM_SEED`, `NVM_SEEDS`).
 - A script, the interpreter, the position getters, the menu parser - `script_checks.py`(and `run.py` for the interpreter).
 - A check in `script_checks.py` - `script_mutations.py`, it takes 5-10 minutes.
 - `sender.h` and `stubs/` are doubles of the firmware: when a member is added to `ProgramSender` or a define to `DevCfgUsr.h` that the compiled code uses, add it there too, or `run.py` doesn't build.
@@ -88,7 +90,7 @@ From **v0.027.0** on, holding the **top-edge (MPG / USR) button** at power-on ca
 ### Startup (`Application/AppMain.cpp`)
 `AppMain()` is the C entry point called from the CubeMX-generated `Src/` code. It auto-detects the crystal (8 vs 25 MHz) and configures the PLL; checks the USR button for bootloader entry; instantiates HAL-wrapper objects for every peripheral (`StHalSpi/Iic/Uart/Gpio`, `ILI9488`, `FT6236`, `Eeprom24`); reads settings from EEPROM; then starts the FreeRTOS tasks: `DisplayDrv`, `SoundDrv`, `InputDrv`, and either **`Tetris`** (if the left-up button is held at boot — an easter egg) or the normal **`GrblComm` + `Application`** pair.
 
-`NVM` is **not** a task — it's a plain class. `NVM::ReadData()` reaches the EEPROM through blocking `HAL_I2C_Mem_Read` with no RTOS primitives, so it is safe to call from `AppMain` before the scheduler starts. That is what makes settings available in time to configure and choose the UART link layer.
+`NVM` is **not** a task — it's a plain class. `NVM::Init()`, called from `AppMain` before the scheduler starts, reads all settings through blocking `HAL_I2C_Mem_Read` with no RTOS primitives. That is what makes settings available in time to configure and choose the UART link layer. Reading at that point **only reads**: `Eeprom24::Write()` waits for the write cycle with `RtosTick::DelayMs()`, which does not wait before the scheduler starts, so a write there would fail after the first page. Defaults for missing settings are written by `NVM::GetReadResult()`, which `Application::Setup()` calls once, from the task.
 
 ### Task model
 Everything of substance is a **singleton FreeRTOS task** subclassing `AppTask` (from DevCore), accessed via `X::GetInstance()`. Tasks override `Setup()`, `TimerExpired(interval)`, `ProcessMessage()` and `ProcessCallback(ptr)`, returning a `Result`. Cross-task calls are marshaled via `AppTask::Callback(...)`.
@@ -137,11 +139,35 @@ The block comment at the top of `FramedUart.h` is the design summary — read it
   The byte is **retried rather than dropped** if the receive buffer is full.
 
 ### Settings / NVM (`Application/NVM.*`)
-Settings are a struct persisted to a **24xx256 class I2C EEPROM** (`Eeprom24`), CRC-protected (`crc` is the last field; the CRC covers everything before it). Early boards had MB85RC256V FRAM and some comments still said so — it was replaced with EEPROM to cut cost, and the two behave nothing alike. The EEPROM gives ~1,000,000 erase/write cycles **per 64 byte page** with a 5 ms self-timed write; the record is 108 bytes at address 0, so **every save cycles pages 0 and 1 and blocks for ~10 ms** on the I2C bus shared with the touch controller. 510 of the 512 pages have never been written. Two consequences: don't persist anything that changes at machine rate without spreading writes, and note that a torn write (power loss inside that 10 ms) fails the CRC and resets **every** setting, because there is only one copy. Parameters are addressed by the `NVM::Parameters` enum, and `menu_strings[NVM::MAX_VALUES]` in `SettingsScr` is indexed by that **absolute** enum value — the two must stay in step.
+Settings live in a **24xx256 class I2C EEPROM** (`Eeprom24`): 32 kB, 512 pages of 64 bytes, ~1,000,000 write cycles **per page**, 5 ms self-timed write. Early boards had MB85RC256V FRAM and some comments still said so — it was replaced with EEPROM to cut cost, and the two behave nothing alike.
+
+**Two banks, one page per setting, alternating writes.** The chip is split into two banks of 256 pages(bank 0 - pages 0-255, bank 1 - pages 256-511). Each setting owns one page number, the same in both banks, and that page holds one 12 byte record, little endian:
+
+| field | size | |
+|---|---|---|
+| `id` | 2 | the `NVM::Parameters` value: tells which setting the record belongs to |
+| `seq` | 2 | incremented on every write of this setting, wraps around |
+| `value` | 4 | `int32_t` |
+| `crc` | 4 | `Crc32()` of the 8 bytes above |
+
+The page number is **not** the enum value: a setting gets its page when it first appears, the lowest page no known setting uses(`GetFreePage()`), and keeps it. Settings are found by scanning, so the enum values only have to be unique and stable.
+
+- **Writing**(`SetValue()`) writes **at once**: one page, into the bank that doesn't hold the newest record, with `seq + 1`. So the other bank always keeps the previous value, and a power loss during the write destroys only the page being written: after a restart the setting has the old or the new value, never the default. The RAM value, `bank` and `seq` change only if the write succeeded; on error the old value stays and the error is returned(callers ignore it, nothing retries). Each call blocks ~5 ms on the I2C bus shared with the touch controller, and **every call is a write** - don't call it at machine rate or on every encoder click. That is why the tip diameter on the Probe screen is shown only; it is edited in Settings -> Probe -> Ball tip.
+- **Reading**(`Init()` -> `ReadData()`): each bank page by page. A record counts if its CRC is right and its ID is a known setting; of two, the greater `seq` wins(`(int16_t)` difference, so the wrap works). The scan of a bank stops when it has found as many known records as there are settings - about 50 reads when every setting is in both banks; a missing setting makes it read all 512 pages. A read error stops the scan and is reported.
+- **Missing settings**(`GetReadResult()`): only if reading succeeded, each setting without a record gets a free page and its default **written twice**, into both banks, so the next boot stops early. The result is then `ERR_INVALID_DATA` and `Application` shows "Some parameters set to default" - that is every first boot and every firmware with a new setting. After a read error nothing is written and the message asks to restart. `GetReadResult()` writes, so it is called once.
+- Wear: one page write per change, alternating between the two pages of the setting.
+- Reads above address 255 need DevCore 07bb402 or newer: before it `StHalIicThreadSafe::Transfer()` passed only the low byte of the address to `HAL_I2C_Mem_Read()`.
+
+Rules:
+- **The enum value is the permanent ID stored in the record.** Never change one and never give the value of a deleted setting to a new one: the old records would be read as the new setting. A setting whose units or meaning change needs a new ID. Nothing checks for two settings with one ID.
+- A new setting needs an enum value, a line with its default in `NVM::data[]`(`PARAMS_CNT` counts them), a name in `SettingsScr::GetMenuString()` and its row. The enum ranges(General 1-31, MPG 32-63, Probe 64-95) exist for `SettingsScr`, see the invariants.
+- There is no format version: `EEP_VERSION` in `Version.h` is not used by `NVM`. Old firmware data(one struct at address 0) has no valid records, so the first boot of this format loads defaults.
+- Downgrade: older firmware doesn't know the newer settings, treats their pages as free and may give them to its own settings; going forward again those settings load defaults.
+- A full bank isn't handled: `GetFreePage()` returns 256 when all pages are taken, which is outside the bank. It needs 256 settings.
+
+`Tests/host/nvm.cpp`(part of `run.py`) runs the real `NVM.cpp` over a simulated chip: power loss during changes and during the first-boot writes, with every kind of page damage, read and write errors, the sequence wrap, page reuse and random use against a model. **Run it after any change in `NVM.*`, with other seeds too.** Two earlier versions of the bank selection(rollover to a third bank; every write into the same bank) passed reading and broke on a power loss; the test catches both.
 
 Link parameters are `BAUD_RATE`, `TRANSPORT`, `FRAME_ATTEMPTS` and `ACK_MIN_MS`. The last two mirror controller settings and should be set to the same values; they are applied immediately, while baud and transport need a reboot.
-
-**Adding a parameter resets every setting to defaults.** The array is sized `MAX_VALUES`, so a new entry changes `sizeof(data)`, which moves both the CRC's coverage and its position; the check then fails and defaults load. The `EEP_VERSION` block in `ReadData()` is currently empty, so it provides no migration. If this becomes painful, the cheapest fix is a fixed-size storage array (e.g. 128 slots) with unused slots written as a sentinel, so appending a parameter preserves the others.
 
 ### Script-driven G-code generation
 `GCodeGeneratorScr` runs user **scripts** through an embedded C interpreter (`Application/Little-C.*`) to emit G-code, handed to `ProgramSender`. Scripts live in the `Scripts` folder on the SD card: **`.ms` = mill**, **`.ls` = lathe**; the list shows the ones for the controller's mode of operation(all of them when it isn't connected). The bundled ones are in `Scripts/` of this repository and are the best examples: read one of the same kind before writing a new one.
@@ -321,7 +347,7 @@ Break any of these and it still compiles.
 - **`FramedUart::RESYNC_MARKER` == `GrblComm::ASCII_CAN`** (both 0x18) and **`FramedUart::CMD_LOST_MARKER` == `GrblComm::ASCII_NAK`** (both 0x15). They can't share a header — the transport must not know its reader.
 - **The wire format block at the top of `FramedUart.h` is a COPY** of the plugin's `mpg_transport.h` (constants, frame type enum, CRC, frame builder). The pendant can't include a grblHAL header, so nothing checks they agree. Names are deliberately identical so the block can be diffed; expected differences are house formatting only. The host conformance suite checks the CRC and frame vectors from `PROTOCOL.md`, which catches a real divergence.
 - **Statistics counters must stay `uint32_t`.** `SettingsScr` reads them from the Application task while the comm task writes them, without a lock — safe only because a 32-bit aligned word loads and stores atomically on this core.
-- **General tab rows must stay contiguous from `NVM::TX_CONTROL`.** `SettingsScr` maps menu index to NVM index by fixed offset in two places; inserting a parameter mid-enum without adding the row in the matching position silently misroutes every row below it.
-- **`NVM::Parameters`, the defaults array, and `SettingsScr::menu_strings[]` must stay index-for-index aligned.**
+- **Rows of a Settings tab must follow the values of `NVM::Parameters` one by one**, from the first setting of the tab(`TX_CONTROL`, `MPG_MATCH_SPEED_LIMITS`, `PROBE_SEARCH_FEED`). `SettingsScr` turns the menu row and the value box ID into a setting by adding that offset; a row that doesn't match its value silently edits another setting. `DirectControlScr` reads `MPG_*_FEED_1 + i` the same way, so the four feeds of each system must stay consecutive.
+- **The value of an `NVM::Parameters` entry is the ID stored in EEPROM.** Change it, or give the value of a deleted entry to a new one, and the setting reads what was stored for another meaning. Two entries with one value aren't caught: `GetValue()`/`SetValue()` find the first one, so on every boot the second one's default is written over the first one's value.
 - **`GrblComm::msg_t::cmd[]` must not exceed the transport's maximum payload.** At 128 there is exactly one byte of margin. Grow it and long commands are silently dropped in framed mode — `Write()` returns `ERR_BAD_PARAMETER`, which `ProcessMessage()` does not re-queue — while plain mode keeps working.
 - **`Menu` passes row 0 as `(void*)0`, which is `nullptr`.** Adding an `if(ptr != nullptr)` guard to a menu callback silently disables the first row.

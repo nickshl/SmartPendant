@@ -95,21 +95,6 @@ class SettingsScr : public IScreen
       MAX_TABS
     };
 
-    // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
-    const char* const menu_strings[NVM::MAX_VALUES] =
-    {
-      "Version",
-      // General
-      "MPG request", "UART Baud Rate", "Transport", "Frame attempts", "Min ack timeout", "Auto MPG on startup", "Save script result", "Display Inversion",
-      // MPG
-      "Match machine speed limits",
-      "Metric Feed 1", "Metric Feed 2", "Metric Feed 3", "Metric Feed 4",
-      "Imperial Feed 1", "Imperial Feed 2", "Imperial Feed 3", "Imperial Feed 4",
-      "Rotary Feed 1", "Rotary Feed 2", "Rotary Feed 3", "Rotary Feed 4",
-      // Probe
-      "Search speed", "Lock speed", "Position deviation", "Ball tip"
-    };
-
     // Pages
     Tabs tabs;
 
@@ -150,6 +135,11 @@ class SettingsScr : public IScreen
     // ***   Private: ProcessButtonCallback function   *************************
     // *************************************************************************
     static Result ProcessButtonCallback(SettingsScr* obj_ptr, void* ptr);
+
+    // *************************************************************************
+    // ***   Private: GetMenuString function   *********************************
+    // *************************************************************************
+    static const char* GetMenuString(uint32_t nvm_idx);
 
     // *************************************************************************
     // ***   Private: UpdateStrings function   *********************************

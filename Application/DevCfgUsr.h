@@ -47,6 +47,15 @@
 // times more memory
 #define DISPLAY_MAX_BUF_LEN ((uint32_t)(480 * 1.5))
 
+// Display update modes, at least one have to be defined. Top to Bottom draws
+// the screen line by line (DrawInBufW() of every visual object). Left to Right
+// draws it column by column (DrawInBufH()), which suits drawing like an
+// oscilloscope trace: a column takes its data by index. Draw functions of a
+// mode that isn't defined are not compiled, which saves flash. With both
+// defined, DisplayDrv::SetUpdateMode() selects one at run time.
+#define USE_UPDATE_TOP_BOTTOM
+//#define USE_UPDATE_LEFT_RIGHT
+
 // Color depth used by display
 #define COLOR_24BIT
 

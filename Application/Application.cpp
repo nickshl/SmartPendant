@@ -34,8 +34,9 @@ Application& Application::GetInstance(void)
 // *****************************************************************************
 Result Application::Setup()
 {
-  // Read data from chip to memory
-  Result nvm_result = NVM::GetInstance().ReadData();
+  // Settings are already read in AppMain() before the task is started
+  // because UART mode depends on them - only the result is needed there
+  Result nvm_result = NVM::GetInstance().GetReadResult();
 
   // Set display inversion if needed
   display_drv.InvertDisplay(NVM::GetInstance().GetValue(NVM::SCREEN_INVERT));
@@ -114,8 +115,16 @@ Result Application::Setup()
   // on top of the modal and input would reach the screen underneath it.
   if(nvm_result.IsBad())
   {
+    // Prepare message depending on error
+    if(nvm_result == Result::ERR_INVALID_DATA)
+    {
+      msg_box.Setup("NVM ERROR", "Some parameters set\nto default state\n\nPlease check parameters\nbefore use!");
+    }
+    else
+    {
+      msg_box.Setup("NVM ERROR", "Data read error\nplease restart the device.");
+    }
     // Show message box
-    msg_box.Setup("NVM ERROR", "All parameters set\nto default state\n\nPlease check parameters\nbefore use!");
     msg_box.Show(10000u);
   }
 

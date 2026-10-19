@@ -6,7 +6,7 @@ checkout with the `DevCore` submodule.
 
 | command | what it checks | time |
 |---|---|---|
-| `python3 Tests/host/run.py` | interpreter, communication layer and streaming timer(P1 regression checks) | ~15 s |
+| `python3 Tests/host/run.py` | interpreter, communication layer, streaming timer(P1 regression checks) and settings storage | ~30 s |
 | `python3 Tests/host/script_checks.py` | G-code produced by the scripts in `Scripts/` | ~30 s |
 | `python3 Tests/host/script_mutations.py` | that `script_checks.py` is able to fail | 5-10 min |
 
@@ -29,6 +29,7 @@ What to run after a change:
 | a script in `Scripts/` | `script_checks.py` |
 | `Little-C.*`, `GrblComm.*`, `FramedUart.*`, `ProgramSender.cpp` | `run.py` and `script_checks.py` |
 | `DevCore/Math/Decimal32.h` | `run.py` and `script_checks.py` |
+| `NVM.*` | `run.py`, then again with other seeds(`NVM_SEED`) |
 | menu comment parser in `GCodeGeneratorScr.cpp` | `script_checks.py` |
 | `script_checks.py` itself | `script_checks.py` and `script_mutations.py` |
 
@@ -37,6 +38,10 @@ members of `ProgramSender` that the extracted code uses, `stubs/DevCore.h`
 the RTOS, the task configuration(`DevCfgUsr.h` defines) and the mutex. When
 one of those changes in the firmware, change the double too, or `run.py`
 doesn't compile.
+
+`stubs_nvm/DevCore.h` is the double for the settings storage test: the EEPROM
+with pages, wear counters and fault injection. It is separate because
+`stubs/NVM.h` replaces the class that test is about.
 
 ## Script checks(`script_checks.py`)
 
@@ -417,6 +422,65 @@ BASELINE_REF=1f45c2e python3 Tests/host/run.py
 The baseline interpreter must know every built-in the scripts call: a
 `BASELINE_REF` older than the `GetMetricAxisPos…` getters fails on any script
 that uses them.
+
+## Settings storage(`nvm.cpp`, part of `run.py`)
+
+The complete `NVM.cpp` is compiled with its header(`private:` replaced with
+`public:` in the copy, so the test can reset `NVM::data[]`) and runs over a
+simulated 24xx256: 512 pages, every page counts its write cycles. A simulated
+power on puts `NVM::data[]` back as it is after the reset and calls what the
+firmware calls: `Init()` from `AppMain()`, `GetReadResult()` from
+`Application::Setup()`.
+
+The record is written and parsed in the test by hand(`PutRecord()`,
+`GetRecord()`): ID, sequence number, value, CRC32 of the first 8 bytes, little
+endian. A change of the format fails the test - pendants in the field hold
+this format.
+
+Faults the chip can be told to make at a chosen page write:
+
+| fault | what happens |
+|---|---|
+| power loss | the page is left as one of: not touched, random, all `0xFF`, all `0x00`, part of the new record, the new record; nothing after it reaches the chip |
+| bus error, not written | the write returns an error, the page is intact |
+| bus error, written | the write returns an error, the page holds the new record |
+| read error | one chosen read returns an error |
+
+Covered:
+
+- A new chip: defaults written into both banks(two writes each), the "some
+  parameters set to default" result once; later boots read only
+  `2 * PARAMS_CNT` records and write nothing.
+- The chip after the firmware with one struct at address 0: defaults.
+- Change and power cycle, repeated; several changes in one session; writes
+  alternate between the two pages of a setting and touch nothing else.
+- Power loss during a change, with every kind of damage, after 0-3 earlier
+  changes: the old or the new value, never the default.
+- Power loss during each write of the first boot.
+- A read error at any point of the boot scan: reported, nothing written.
+- A failed write: the value in RAM stays, the error is returned, and a power
+  loss during the next change still leaves the last stored value.
+- The sequence number wrap, with one change per power cycle around it.
+- Records with IDs the firmware doesn't know(a deleted setting): ignored, and
+  their page is given to a setting without a record.
+- Random changes, power cycles and faults against a model of the values a
+  power cycle may bring.
+
+The random part takes the first seed and the number of seeds from `NVM_SEED`
+and `NVM_SEEDS`(1 and 3000). A clean run with the default seeds proves less
+than it looks like; after a change in `NVM.*` run other seeds as well:
+
+```sh
+NVM_SEED=500000 NVM_SEEDS=30000 python3 Tests/host/run.py
+```
+
+A failed check prints the seed; the binary left in
+`build/host-tests/p1-*/nvm/` repeats it with `nvm <seed> 1`.
+
+Not covered: the I2C driver and the real chip - that the address reaches the
+chip right, that a write cycle fits the driver's timeout and what a real power
+loss leaves in a page are for the bench. Two entries with one ID in
+`NVM::data[]` aren't tested: the test can't build that table.
 
 ## What host tests don't cover
 

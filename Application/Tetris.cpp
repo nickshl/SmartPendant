@@ -424,6 +424,7 @@ void TetrisShape::PopulateShapeArray(TetrisShape& shape)
 // ***************************************************************************
 // ***   Put line in buffer   ************************************************
 // ***************************************************************************
+#if defined(USE_UPDATE_TOP_BOTTOM)
 void TetrisShape::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
 {
   // Draw only if needed
@@ -451,6 +452,7 @@ void TetrisShape::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t star
     }
   }
 }
+#endif
 
 // *****************************************************************************
 // ***   Invalidate Display Area   *********************************************
@@ -553,6 +555,7 @@ void TetrisBucket::InitBucket()
 // *****************************************************************************
 // ***   Put line in buffer   **************************************************
 // *****************************************************************************
+#if defined(USE_UPDATE_TOP_BOTTOM)
 void TetrisBucket::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t start_x)
 {
   // Draw only if needed
@@ -581,6 +584,7 @@ void TetrisBucket::DrawInBufW(color_t* buf, int32_t n, int32_t line, int32_t sta
     bucket_line--;
   }
 }
+#endif
 
 // *****************************************************************************
 // ***   memcpyback   **********************************************************

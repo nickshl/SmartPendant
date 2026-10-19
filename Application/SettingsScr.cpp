@@ -114,9 +114,6 @@ Result SettingsScr::Hide()
   // Show tabs
   tabs.Hide();
 
-  // Save data into EEPROM after exit the screen
-  nvm.WriteData();
-
   // All good
   return Result::RESULT_OK;
 }
@@ -270,7 +267,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
         // Transmissions of one frame before the link is declared down.
         // Same range as the controller setting it has to match.
         // Setup object to change numerical parameters, no units, no fraction
-        ths.change_box.Setup(ths.menu_strings[nvm_idx], nullptr, ths.nvm.GetValue(NVM::FRAME_ATTEMPTS), FramedUart::MIN_ATTEMPTS, FramedUart::MAX_ATTEMPTS, 0u, 1u);
+        ths.change_box.Setup(GetMenuString(nvm_idx), nullptr, ths.nvm.GetValue(NVM::FRAME_ATTEMPTS), FramedUart::MIN_ATTEMPTS, FramedUart::MAX_ATTEMPTS, 0u, 1u);
         // Set AppTask
         ths.change_box.SetCallback(AppTask::GetCurrent());
         // Save menu index as ID
@@ -285,7 +282,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
         // latency the baud rate does not describe, such as a wireless
         // bridge. Same range as the controller setting it pairs with.
         // Setup object to change numerical parameters, no fraction
-        ths.change_box.Setup(ths.menu_strings[nvm_idx], "ms", ths.nvm.GetValue(NVM::ACK_MIN_MS), 0, FramedUart::MAX_ACK_MIN_MS, 0u, 1u);
+        ths.change_box.Setup(GetMenuString(nvm_idx), "ms", ths.nvm.GetValue(NVM::ACK_MIN_MS), 0, FramedUart::MAX_ACK_MIN_MS, 0u, 1u);
         // Set AppTask
         ths.change_box.SetCallback(AppTask::GetCurrent());
         // Save menu index as ID
@@ -349,7 +346,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       if(units != nullptr)
       {
         // Setup object to change numerical parameters, title scale set to 1
-        ths.change_box.Setup(ths.menu_strings[nvm_idx], units, ths.nvm.GetValue((NVM::Parameters)(nvm_idx)), 1, 10000, precision, 1u);
+        ths.change_box.Setup(GetMenuString(nvm_idx), units, ths.nvm.GetValue((NVM::Parameters)(nvm_idx)), 1, 10000, precision, 1u);
         // Set AppTask
         ths.change_box.SetCallback(AppTask::GetCurrent());
         // Save axis index as ID
@@ -392,7 +389,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       if(units != nullptr)
       {
         // Setup object to change numerical parameters, title scale set to 1
-        ths.change_box.Setup(ths.menu_strings[nvm_idx], units, value, 1, 10000, precision, 1u);
+        ths.change_box.Setup(GetMenuString(nvm_idx), units, value, 1, 10000, precision, 1u);
         // Set AppTask
         ths.change_box.SetCallback(AppTask::GetCurrent());
         // Save axis index as ID
@@ -499,6 +496,65 @@ Result SettingsScr::ProcessButtonCallback(SettingsScr* obj_ptr, void* ptr)
 }
 
 // *****************************************************************************
+// ***   Private: GetMenuString function   *************************************
+// *****************************************************************************
+const char* SettingsScr::GetMenuString(uint32_t nvm_idx)
+{
+  // Names of parameters. Values of NVM::Parameters aren't sequential, so
+  // every name is linked to its parameter and order there doesn't matter.
+  static const struct
+  {
+    uint32_t nvm_idx;
+    const char* str;
+  } menu_strings[] =
+  {
+    // General
+    {NVM::TX_CONTROL,             "MPG request"},
+    {NVM::BAUD_RATE,              "UART Baud Rate"},
+    {NVM::TRANSPORT,              "Transport"},
+    {NVM::FRAME_ATTEMPTS,         "Frame attempts"},
+    {NVM::ACK_MIN_MS,             "Min ack timeout"},
+    {NVM::AUTO_MPG_ON_START,      "Auto MPG on startup"},
+    {NVM::SAVE_SCRIPT_RESULT,     "Save script result"},
+    {NVM::SCREEN_INVERT,          "Display Inversion"},
+    // MPG
+    {NVM::MPG_MATCH_SPEED_LIMITS, "Match machine speed limits"},
+    {NVM::MPG_METRIC_FEED_1,      "Metric Feed 1"},
+    {NVM::MPG_METRIC_FEED_2,      "Metric Feed 2"},
+    {NVM::MPG_METRIC_FEED_3,      "Metric Feed 3"},
+    {NVM::MPG_METRIC_FEED_4,      "Metric Feed 4"},
+    {NVM::MPG_IMPERIAL_FEED_1,    "Imperial Feed 1"},
+    {NVM::MPG_IMPERIAL_FEED_2,    "Imperial Feed 2"},
+    {NVM::MPG_IMPERIAL_FEED_3,    "Imperial Feed 3"},
+    {NVM::MPG_IMPERIAL_FEED_4,    "Imperial Feed 4"},
+    {NVM::MPG_ROTARY_FEED_1,      "Rotary Feed 1"},
+    {NVM::MPG_ROTARY_FEED_2,      "Rotary Feed 2"},
+    {NVM::MPG_ROTARY_FEED_3,      "Rotary Feed 3"},
+    {NVM::MPG_ROTARY_FEED_4,      "Rotary Feed 4"},
+    // Probe
+    {NVM::PROBE_SEARCH_FEED,      "Search speed"},
+    {NVM::PROBE_LOCK_FEED,        "Lock speed"},
+    {NVM::PROBE_POS_DEVIATION,    "Position deviation"},
+    {NVM::PROBE_BALL_TIP,         "Ball tip"}
+  };
+  // Empty string if there is no name for the parameter
+  const char* str = "";
+
+  // Find the name
+  for(uint32_t i = 0u; i < NumberOf(menu_strings); i++)
+  {
+    if(menu_strings[i].nvm_idx == nvm_idx)
+    {
+      str = menu_strings[i].str;
+      break;
+    }
+  }
+
+  // Return result
+  return str;
+}
+
+// *****************************************************************************
 // ***   Private: UpdateStrings function   *************************************
 // *****************************************************************************
 void SettingsScr::UpdateStrings(void)
@@ -511,42 +567,45 @@ void SettingsScr::UpdateStrings(void)
   // General tab
   if(tabs.GetSelectedTab() == GENERAL_TAB)
   {
-    // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::TX_CONTROL], (nvm.GetCtrlTx() == GrblComm::CTRL_GPIO_PIN) ? "dedicated pin" : (nvm.GetCtrlTx() == GrblComm::CTRL_SW_COMMAND) ? "sw command" : (nvm.GetCtrlTx() == GrblComm::CTRL_PIN_AND_SW_CMD) ? "pin & sw cmd": "full control");
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::BAUD_RATE], psnprintf(tmp_str, NumberOf(tmp_str), "%lu", nvm.GetValue(NVM::BAUD_RATE)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::TRANSPORT], nvm.GetValue(NVM::TRANSPORT) ? "Framed" : "Plain");
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::FRAME_ATTEMPTS], psnprintf(tmp_str, NumberOf(tmp_str), "%lu", nvm.GetValue(NVM::FRAME_ATTEMPTS)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::ACK_MIN_MS], nvm.GetValue(NVM::ACK_MIN_MS) ? psnprintf(tmp_str, NumberOf(tmp_str), "%lu ms", nvm.GetValue(NVM::ACK_MIN_MS)) : "auto");
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::AUTO_MPG_ON_START], nvm.GetValue(NVM::AUTO_MPG_ON_START) ? "enabled" : "disabled");
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::SAVE_SCRIPT_RESULT], nvm.GetValue(NVM::SAVE_SCRIPT_RESULT) ? "enabled" : "disabled");
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::SCREEN_INVERT], nvm.GetValue(NVM::SCREEN_INVERT) ? "inverted" : "normal");
+    // ORDER OF STRINGS THERE MUST EXACT MATCHED TO NVM::Parameters: menu row
+    // is converted to NVM index by adding the first parameter of the tab
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::TX_CONTROL), (nvm.GetCtrlTx() == GrblComm::CTRL_GPIO_PIN) ? "dedicated pin" : (nvm.GetCtrlTx() == GrblComm::CTRL_SW_COMMAND) ? "sw command" : (nvm.GetCtrlTx() == GrblComm::CTRL_PIN_AND_SW_CMD) ? "pin & sw cmd": "full control");
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::BAUD_RATE), psnprintf(tmp_str, NumberOf(tmp_str), "%lu", nvm.GetValue(NVM::BAUD_RATE)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::TRANSPORT), nvm.GetValue(NVM::TRANSPORT) ? "Framed" : "Plain");
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::FRAME_ATTEMPTS), psnprintf(tmp_str, NumberOf(tmp_str), "%lu", nvm.GetValue(NVM::FRAME_ATTEMPTS)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::ACK_MIN_MS), nvm.GetValue(NVM::ACK_MIN_MS) ? psnprintf(tmp_str, NumberOf(tmp_str), "%lu ms", nvm.GetValue(NVM::ACK_MIN_MS)) : "auto");
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::AUTO_MPG_ON_START), nvm.GetValue(NVM::AUTO_MPG_ON_START) ? "enabled" : "disabled");
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::SAVE_SCRIPT_RESULT), nvm.GetValue(NVM::SAVE_SCRIPT_RESULT) ? "enabled" : "disabled");
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::SCREEN_INVERT), nvm.GetValue(NVM::SCREEN_INVERT) ? "inverted" : "normal");
   }
   // MPG tab
   else if(tabs.GetSelectedTab() == MPG_TAB)
   {
-    // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_MATCH_SPEED_LIMITS], nvm.GetValue(NVM::MPG_MATCH_SPEED_LIMITS) ? "on" : "off");
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_METRIC_FEED_1], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_1), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_METRIC_FEED_2], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_2), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_METRIC_FEED_3], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_3), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_METRIC_FEED_4], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_4), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_IMPERIAL_FEED_1], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_IMPERIAL_FEED_1), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_IMPERIAL_FEED_2], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_IMPERIAL_FEED_2), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_IMPERIAL_FEED_3], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_IMPERIAL_FEED_3), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_IMPERIAL_FEED_4], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_IMPERIAL_FEED_4), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_ROTARY_FEED_1], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_ROTARY_FEED_1), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_ROTARY), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_ROTARY)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_ROTARY_FEED_2], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_ROTARY_FEED_2), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_ROTARY), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_ROTARY)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_ROTARY_FEED_3], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_ROTARY_FEED_3), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_ROTARY), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_ROTARY)));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::MPG_ROTARY_FEED_4], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_ROTARY_FEED_4), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_ROTARY), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_ROTARY)));
+    // ORDER OF STRINGS THERE MUST EXACT MATCHED TO NVM::Parameters: menu row
+    // is converted to NVM index by adding the first parameter of the tab
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_MATCH_SPEED_LIMITS), nvm.GetValue(NVM::MPG_MATCH_SPEED_LIMITS) ? "on" : "off");
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_METRIC_FEED_1), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_1), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_METRIC_FEED_2), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_2), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_METRIC_FEED_3), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_3), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_METRIC_FEED_4), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_METRIC_FEED_4), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_METRIC), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_METRIC)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_IMPERIAL_FEED_1), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_IMPERIAL_FEED_1), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_IMPERIAL_FEED_2), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_IMPERIAL_FEED_2), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_IMPERIAL_FEED_3), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_IMPERIAL_FEED_3), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_IMPERIAL_FEED_4), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_IMPERIAL_FEED_4), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_IMPERIAL)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_ROTARY_FEED_1), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_ROTARY_FEED_1), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_ROTARY), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_ROTARY)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_ROTARY_FEED_2), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_ROTARY_FEED_2), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_ROTARY), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_ROTARY)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_ROTARY_FEED_3), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_ROTARY_FEED_3), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_ROTARY), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_ROTARY)));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::MPG_ROTARY_FEED_4), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), nvm.GetValue(NVM::MPG_ROTARY_FEED_4), grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_ROTARY), grbl_comm.GetUnits(GrblComm::MEASUREMENT_SYSTEM_ROTARY)));
   }
   // Probe tab
   else if(tabs.GetSelectedTab() == PROBE_TAB)
   {
-    // ORDER OF STRINGS IN THIS ARRAY MUST EXACT MATCHED TO NVM::Parameters
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_SEARCH_FEED],   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricFeedToUnitsX100(nvm.GetValue(NVM::PROBE_SEARCH_FEED)), 100, grbl_comm.GetReportFeedUnits(), true));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_LOCK_FEED],     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricFeedToUnitsX100(nvm.GetValue(NVM::PROBE_LOCK_FEED)), 100, grbl_comm.GetReportFeedUnits(), true));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_POS_DEVIATION], grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_POS_DEVIATION)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
-    menu.CreateString(menu_items[cnt++], menu_strings[NVM::PROBE_BALL_TIP],      grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_BALL_TIP)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
+    // ORDER OF STRINGS THERE MUST EXACT MATCHED TO NVM::Parameters: menu row
+    // is converted to NVM index by adding the first parameter of the tab
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_SEARCH_FEED),   grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricFeedToUnitsX100(nvm.GetValue(NVM::PROBE_SEARCH_FEED)), 100, grbl_comm.GetReportFeedUnits(), true));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_LOCK_FEED),     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricFeedToUnitsX100(nvm.GetValue(NVM::PROBE_LOCK_FEED)), 100, grbl_comm.GetReportFeedUnits(), true));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_POS_DEVIATION), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_POS_DEVIATION)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_BALL_TIP),      grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_BALL_TIP)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
   }
   // Info tab
   else if(tabs.GetSelectedTab() == INFO_TAB)
