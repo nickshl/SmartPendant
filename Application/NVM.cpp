@@ -50,7 +50,10 @@ NVM::Param_t NVM::data[] =
   {PROBE_SEARCH_FEED, 200, 0u, 0u, 0u, 0u},
   {PROBE_LOCK_FEED, 50, 0u, 0u, 0u, 0u},
   {PROBE_POS_DEVIATION, 10, 0u, 0u, 0u, 0u},
-  {PROBE_BALL_TIP, 2000, 0u, 0u, 0u, 0u}
+  {PROBE_BALL_TIP, 2000, 0u, 0u, 0u, 0u},
+  {PROBE_PRECISE_DEFAULT, 0, 0u, 0u, 0u, 0u},
+  {PROBE_SPINDLE_AXIS, 0, 0u, 0u, 0u, 0u},
+  {PROBE_SPINDLE_SPEED, 90, 0u, 0u, 0u, 0u}
 };
 
 // Number of parameters

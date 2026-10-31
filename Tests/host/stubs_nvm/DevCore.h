@@ -1,5 +1,4 @@
-// Doubles of DevCore for the host test of NVM: a 24xx256 EEPROM with pages,
-// wear counters and fault injection. NVM uses nothing else from DevCore.
+// DevCore doubles for the NVM test: 24xx256 EEPROM with pages, wear counters and faults
 #pragma once
 #include <cstdint>
 #include <cstddef>
@@ -53,14 +52,10 @@ public:
   uint32_t reads = 0;
   bool fail_reads = false;       // Bus error on every read
   uint32_t fail_read_at = 0;     // Read number(counted in reads) to fail once
-  // Page write number(counted from 1 in "writes") to fail, 0 - none.
-  // The fault is one of the modes below.
+  // Page write number(from 1, as in "writes") to fail with the mode below, 0 - none
   uint32_t fault_at = 0;
   Tear tear = TEAR_GARBAGE;      // Used with power_loss
-  // Power is lost during the write. The firmware code can't be stopped in
-  // the middle, so the chip stops instead: "powered" becomes false and
-  // nothing the code does after that reaches the chip. The test checks the
-  // flag, drops the NVM object and sets the flag back - it is the restart.
+  // Power loss: chip stops("powered" false) and ignores the code until the test restarts it
   bool power_loss = false;
   bool powered = true;
   bool error_no_write = false;   // Device doesn't answer: error, page is intact

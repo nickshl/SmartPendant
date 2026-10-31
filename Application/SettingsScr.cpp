@@ -187,6 +187,11 @@ Result SettingsScr::ProcessCallback(const void* ptr)
           // Save value
           nvm.SetValue((NVM::Parameters)(nvm_idx), feed);
         }
+        else if(nvm_idx == NVM::PROBE_SPINDLE_SPEED)
+        {
+          // Degrees/s in both measurement systems, zero isn't a speed - not saved
+          if(change_box.GetValue() != 0) nvm.SetValue(NVM::PROBE_SPINDLE_SPEED, change_box.GetValue());
+        }
         else
         {
           // Save value - probe parameters always saved as metric
@@ -363,8 +368,10 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       // Units and precision variables
       const char* units = nullptr;
       uint32_t precision = 0;
-      // Value in display units
+      // Value in display units and its limits
       int32_t value = 0;
+      int32_t min = 1;
+      int32_t max = 10000;
 
       if((nvm_idx == NVM::PROBE_BALL_TIP) || (nvm_idx == NVM::PROBE_POS_DEVIATION))
       {
@@ -380,6 +387,33 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
         precision = ths.grbl_comm.IsMetric() ? 0u : 2u;
         value = ths.grbl_comm.IsMetric() ? ths.nvm.GetValue((NVM::Parameters)(nvm_idx)) : (int32_t)ths.grbl_comm.ConvertMetricFeedToUnitsX100(ths.nvm.GetValue((NVM::Parameters)(nvm_idx)));
       }
+      else if(nvm_idx == NVM::PROBE_PRECISE_DEFAULT)
+      {
+        ths.nvm.SetValue(NVM::PROBE_PRECISE_DEFAULT, !ths.nvm.GetValue(NVM::PROBE_PRECISE_DEFAULT));
+      }
+      else if(nvm_idx == NVM::PROBE_SPINDLE_AXIS)
+      {
+        uint32_t axis = ths.nvm.GetValue(NVM::PROBE_SPINDLE_AXIS);
+        // Find next rotary axis
+        do
+        {
+          axis++;
+        }
+        while((axis < ths.grbl_comm.GetNumberOfAxis()) && !ths.grbl_comm.IsRotaryAxis(axis));
+        // No more rotary axes: none(zero - X can't be rotary)
+        if(axis >= ths.grbl_comm.GetNumberOfAxis()) axis = 0u;
+        // Save new axis
+        ths.nvm.SetValue(NVM::PROBE_SPINDLE_AXIS, axis);
+      }
+      else if(nvm_idx == NVM::PROBE_SPINDLE_SPEED)
+      {
+        // Sign is direction of rotation
+        units = "deg/s";
+        precision = 0u;
+        value = ths.nvm.GetValue(NVM::PROBE_SPINDLE_SPEED);
+        min = -360;
+        max = 360;
+      }
       else
       {
         ; // Do nothing - MISRA rule
@@ -389,7 +423,7 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       if(units != nullptr)
       {
         // Setup object to change numerical parameters, title scale set to 1
-        ths.change_box.Setup(GetMenuString(nvm_idx), units, value, 1, 10000, precision, 1u);
+        ths.change_box.Setup(GetMenuString(nvm_idx), units, value, min, max, precision, 1u);
         // Set AppTask
         ths.change_box.SetCallback(AppTask::GetCurrent());
         // Save axis index as ID
@@ -535,7 +569,10 @@ const char* SettingsScr::GetMenuString(uint32_t nvm_idx)
     {NVM::PROBE_SEARCH_FEED,      "Search speed"},
     {NVM::PROBE_LOCK_FEED,        "Lock speed"},
     {NVM::PROBE_POS_DEVIATION,    "Position deviation"},
-    {NVM::PROBE_BALL_TIP,         "Ball tip"}
+    {NVM::PROBE_BALL_TIP,         "Ball tip"},
+    {NVM::PROBE_PRECISE_DEFAULT,  "Precise by default"},
+    {NVM::PROBE_SPINDLE_AXIS,     "Spindle axis"},
+    {NVM::PROBE_SPINDLE_SPEED,    "Spindle speed"}
   };
   // Empty string if there is no name for the parameter
   const char* str = "";
@@ -606,6 +643,9 @@ void SettingsScr::UpdateStrings(void)
     menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_LOCK_FEED),     grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricFeedToUnitsX100(nvm.GetValue(NVM::PROBE_LOCK_FEED)), 100, grbl_comm.GetReportFeedUnits(), true));
     menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_POS_DEVIATION), grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_POS_DEVIATION)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
     menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_BALL_TIP),      grbl_comm.ValueToStringWithScalerAndUnits(tmp_str, NumberOf(tmp_str), grbl_comm.ConvertMetricToUnits(nvm.GetValue(NVM::PROBE_BALL_TIP)), grbl_comm.GetReportUnitsScaler(), grbl_comm.GetReportUnits()));
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_PRECISE_DEFAULT), nvm.GetValue(NVM::PROBE_PRECISE_DEFAULT) ? "on" : "off");
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_SPINDLE_AXIS),  grbl_comm.IsRotaryAxis(nvm.GetValue(NVM::PROBE_SPINDLE_AXIS)) ? grbl_comm.GetAxisName(nvm.GetValue(NVM::PROBE_SPINDLE_AXIS)) : "none");
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::PROBE_SPINDLE_SPEED), psnprintf(tmp_str, NumberOf(tmp_str), "%ld deg/s", nvm.GetValue(NVM::PROBE_SPINDLE_SPEED)));
   }
   // Info tab
   else if(tabs.GetSelectedTab() == INFO_TAB)

@@ -42,7 +42,7 @@ class NVM
     // Enum with menu items
     enum Parameters : uint16_t
     {
-      // General: 1 - 31
+      // General
       TX_CONTROL = 1,
       BAUD_RATE = 2,
       TRANSPORT = 3,
@@ -51,7 +51,7 @@ class NVM
       AUTO_MPG_ON_START = 6,
       SAVE_SCRIPT_RESULT = 7,
       SCREEN_INVERT = 8,
-      // MPG: 32 - 63
+      // MPG
       MPG_MATCH_SPEED_LIMITS = 32,
       MPG_METRIC_FEED_1 = 33,
       MPG_METRIC_FEED_2 = 34,
@@ -65,11 +65,14 @@ class NVM
       MPG_ROTARY_FEED_2 = 42,
       MPG_ROTARY_FEED_3 = 43,
       MPG_ROTARY_FEED_4 = 44,
-      // Probe: 64 - 95
+      // Probe
       PROBE_SEARCH_FEED = 64,
       PROBE_LOCK_FEED = 65,
       PROBE_POS_DEVIATION = 66,
       PROBE_BALL_TIP = 67,
+      PROBE_PRECISE_DEFAULT = 68,
+      PROBE_SPINDLE_AXIS = 69,
+      PROBE_SPINDLE_SPEED = 70,
     };
 
     // Number of banks. Used for wear leveling.

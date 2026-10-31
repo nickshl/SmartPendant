@@ -651,6 +651,52 @@ class GrblComm : public AppTask
     inline int32_t GetToolLengthOffset() {return grbl_tool_length_offset[AXIS_Z].ToFixedPoint(GetReportUnitsScaler());}
 
     // *************************************************************************
+    // ***   Public: GetCurrentTool function   *********************************
+    // *************************************************************************
+    // * Current tool from status report("|T:")
+    inline uint32_t GetCurrentTool() {return grbl_tool;}
+
+    // *************************************************************************
+    // ***   Public: IsAtcPresent function   ***********************************
+    // *************************************************************************
+    // * Controller has ATC: "ATC=0"(offline) or "ATC=1"(online) in "$I" report
+    inline bool IsAtcPresent() {return (atc_state != ATC_NONE);}
+
+    // *************************************************************************
+    // ***   Public: IsAtcOnline function   ************************************
+    // *************************************************************************
+    inline bool IsAtcOnline() {return (atc_state == ATC_ONLINE);}
+
+    // *************************************************************************
+    // ***   Public: GetToolTableCount function   ******************************
+    // *************************************************************************
+    // * Tools are 1 .. GetToolTableCount(), zero if there is no tool table
+    inline uint32_t GetToolTableCount() {return tool_table_cnt;}
+
+    // *************************************************************************
+    // ***   Public: IsToolInTable function   **********************************
+    // *************************************************************************
+    inline bool IsToolInTable(uint32_t tool) {return (tool >= 1u) && (tool <= tool_table_cnt);}
+
+    // *************************************************************************
+    // ***   Public: IsToolUsable function   ***********************************
+    // *************************************************************************
+    // * Tool is in the table and has nothing but Z set: no other axes, no radius
+    inline bool IsToolUsable(uint32_t tool) {return IsToolInTable(tool) && (tool_usable_mask & (1u << (tool - 1u)));}
+
+    // *************************************************************************
+    // ***   Public: IsToolOffsetValid function   ******************************
+    // *************************************************************************
+    // * Tool is usable and its Z offset is set(not zero)
+    inline bool IsToolOffsetValid(uint32_t tool) {return IsToolUsable(tool) && (tool_table_z[tool - 1u] != Decimal32());}
+
+    // *************************************************************************
+    // ***   Public: GetToolOffset function   **********************************
+    // *************************************************************************
+    // * Z offset of the tool in report units
+    inline int32_t GetToolOffset(uint32_t tool) {return IsToolInTable(tool) ? tool_table_z[tool - 1u].ToFixedPoint(GetReportUnitsScaler()) : 0;}
+
+    // *************************************************************************
     // ***   Public: GetLineNumber function   **********************************
     // *************************************************************************
     // Line number("Ln:") from the last status report: N word of the line that
@@ -954,6 +1000,25 @@ class GrblComm : public AppTask
     Result ClearToolLengthOffset();
 
     // *************************************************************************
+    // ***   Public: SetToolTableOffset   **************************************
+    // *************************************************************************
+    // * G10 L1 P<tool> X0 Y0 Z<offset> ... R0, offset in effect isn't changed
+    Result SetToolTableOffset(uint32_t tool, int32_t offset, uint32_t &id);
+
+    // *************************************************************************
+    // ***   Public: ChangeTool   **********************************************
+    // *************************************************************************
+    // * T<tool> M6(ATC) or M61 Q<tool>, with G43 H<tool> or G49 if offset isn't set
+    // * Tool 0 is no tool
+    Result ChangeTool(uint32_t tool, uint32_t &id);
+
+    // *************************************************************************
+    // ***   Public: DeselectTool   ********************************************
+    // *************************************************************************
+    // * T0 M6 G49(ATC) or M61 Q0 G49
+    inline Result DeselectTool(uint32_t &id) {return ChangeTool(0u, id);}
+
+    // *************************************************************************
     // ***   Public: SetSpindleSpeed   *****************************************
     // *************************************************************************
     Result SetSpindleSpeed(int32_t speed, bool dir_ccw);
@@ -1108,6 +1173,27 @@ class GrblComm : public AppTask
     status_t  grbl_status;
     char      grbl_pins[10];
 
+    // Current tool
+    uint32_t  grbl_tool = 0u;
+
+    // ATC state from "$I" report
+    typedef enum : uint8_t
+    {
+      ATC_NONE = 0u,
+      ATC_OFFLINE,
+      ATC_ONLINE
+    } atc_state_t;
+    atc_state_t atc_state = ATC_NONE;
+
+    // Z offsets from "$#", index is tool - 1(grblHAL core table has 32 tools max)
+    Decimal32 tool_table_z[32u];
+    // Tools with nothing but Z set, bit 0 is tool 1
+    uint32_t tool_usable_mask = 0u;
+    // Number of tools, updated at the end of "$#" so it doesn't change while received
+    uint32_t tool_table_cnt = 0u;
+    // Number of tools in "$#" that is being received
+    uint32_t tool_table_rx_cnt = 0u;
+
     // Spindle state
     Decimal32 spindle_rpm_programmed;
     Decimal32 spindle_rpm_actual;
@@ -1234,6 +1320,11 @@ class GrblComm : public AppTask
     // ***   Private: ParseAxisData function   *********************************
     // *************************************************************************
     bool ParseAxisData(char* data, Decimal32 (&axis)[AXIS_CNT]);
+
+    // *************************************************************************
+    // ***   Private: ParseToolData function   *********************************
+    // *************************************************************************
+    void ParseToolData(char* data);
 
     // *************************************************************************
     // ***   Private: ParseProbeReport   ***************************************

@@ -1,0 +1,16 @@
+# Text files are stored with LF and checked out with the native line ending
+* text=auto
+
+# Firmware images: kept byte for byte
+*.hex -text
+*.bin binary
+*.elf binary
+
+# Images and archives
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bmp binary
+*.pdf binary
+*.zip binary

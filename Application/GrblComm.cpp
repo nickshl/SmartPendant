@@ -129,6 +129,8 @@ Result GrblComm::TimerExpired(uint32_t missed_cnt)
     RequestControllerParameters();
     // Request settings from the controller
     RequestControllerSettings();
+    // Full status report has the current tool
+    status_request_command = CMD_STATUS_REPORT_ALL;
     // And clear the request flag
     request_settings = false;
   }
@@ -919,7 +921,7 @@ Result GrblComm::JogArcXYR(int32_t x, int32_t y, uint32_t r, uint32_t feed_x100,
     ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
 
     // Create Jog command
-    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG17%s%s%s%s%s%sR%sF%s\r", GetMeasurementSystemGcode(),
+    snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG94G17%s%s%s%s%s%sR%sF%s\r", GetMeasurementSystemGcode(),
                                                 is_absolute ? "G90" : "G91", direction ? "G02" : "G03",
                                                 axis_str[AXIS_X], x_str, axis_str[AXIS_Y], y_str, r_str, feed_str);
 
@@ -1031,7 +1033,7 @@ Result GrblComm::MoveAxis(uint8_t axis, int32_t distance, uint32_t feed_x100, ui
       // Create move command(zero feed mean rapid)
       if(feed_x100)
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%s%sG1%s%sF%s\r", is_absolute ? "G90" : "G91", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed_str);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%s%sG94G1%s%sF%s\r", is_absolute ? "G90" : "G91", GetMeasurementSystemGcode(), axis_str[axis], distance_str, feed_str);
       }
       else
       {
@@ -1080,11 +1082,11 @@ Result GrblComm::ProbeAxisTowardWorkpiece(uint8_t axis, int32_t position, uint32
       // Create Set Axis command. Strict uses .2 to produce alarm, non-strict uses .3 to avoid alarm.
       if(strict)
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.2%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed_str);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG94G38.2%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed_str);
       }
       else
       {
-        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.3%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed_str);
+        snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG94G38.3%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed_str);
       }
 
       // Clear probe report flags before sending: the [PRB:...] report for
@@ -1134,7 +1136,7 @@ Result GrblComm::ProbeAxisAwayFromWorkpiece(uint8_t axis, int32_t position, uint
       ValueToString(position_str, NumberOf(position_str), position, GetReportUnitsScaler(axis));
       ValueToString(feed_str, NumberOf(feed_str), feed_x100, 100);
       // Create Set Axis command
-      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG38.4%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed_str);
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "G90%sG94G38.4%s%sF%s\r", GetMeasurementSystemGcode(), axis_str[axis], position_str, feed_str);
 
       // Clear probe report flags before sending - see ProbeAxisTowardWorkpiece()
       grbl_probe_data_received = false;
@@ -1209,6 +1211,93 @@ Result GrblComm::ClearToolLengthOffset()
   else
   {
     result = Result::ERR_CANNOT_EXECUTE;
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Public: SetToolTableOffset   ******************************************
+// *****************************************************************************
+Result GrblComm::SetToolTableOffset(uint32_t tool, int32_t offset, uint32_t &id)
+{
+  Result result = Result::ERR_BAD_PARAMETER;
+
+  if(IsToolInTable(tool))
+  {
+    // Possible only in Idle state
+    if(IsInControl() && (grbl_state == IDLE))
+    {
+      TaskQueueMsg msg;
+      // Set ID for command
+      msg.id = GetNextId();
+
+      // Buffer for offset string
+      char offset_str[16u];
+      // Convert offset value to string
+      ValueToString(offset_str, NumberOf(offset_str), offset, GetReportUnitsScaler());
+      // Create command: all other offsets and radius are zeroed
+      int32_t len = snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG10L1P%lu", GetMeasurementSystemGcode(), tool);
+      for(int32_t i = 0; i < number_of_axis; i++)
+      {
+        len += snprintf((char*)msg.cmd + len, NumberOf(msg.cmd) - len, "%s%s", axis_str[i], (i == AXIS_Z) ? offset_str : "0");
+      }
+      snprintf((char*)msg.cmd + len, NumberOf(msg.cmd) - len, "R0\r");
+
+      // Send message
+      result = SendTaskMessage(&msg);
+      // Save ID
+      id = msg.id;
+
+      // Update the copy at once: ChangeTool() picks G43 or G49 from it
+      if(result.IsGood())
+      {
+        tool_table_z[tool - 1u] = Decimal32(offset, GetReportUnitsScaler());
+        tool_usable_mask |= (1u << (tool - 1u));
+      }
+    }
+    else
+    {
+      result = Result::ERR_CANNOT_EXECUTE;
+    }
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Public: ChangeTool   **************************************************
+// *****************************************************************************
+Result GrblComm::ChangeTool(uint32_t tool, uint32_t &id)
+{
+  Result result = Result::ERR_BAD_PARAMETER;
+
+  if((tool == 0u) || IsToolInTable(tool))
+  {
+    // Possible only in Idle state and if ATC can change the tool
+    if(IsInControl() && (grbl_state == IDLE) && (IsAtcOnline() || !IsAtcPresent() || (tool == grbl_tool)))
+    {
+      TaskQueueMsg msg;
+      // Set ID for command
+      msg.id = GetNextId();
+      // Offset command: offset that isn't set is never applied
+      char offset_str[16u] = "G49";
+      if(IsToolOffsetValid(tool)) snprintf(offset_str, NumberOf(offset_str), "G43H%lu", tool);
+      // Create command: current tool isn't changed again, only its offset is applied
+      if(IsAtcPresent() && (tool != grbl_tool)) snprintf((char*)msg.cmd, NumberOf(msg.cmd), "T%luM6%s\r", tool, offset_str);
+      else                                      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "M61Q%lu%s\r", tool, offset_str);
+
+      // Send message
+      result = SendTaskMessage(&msg);
+      // Save ID
+      id = msg.id;
+    }
+    else
+    {
+      result = Result::ERR_CANNOT_EXECUTE;
+    }
   }
 
   // Return result
@@ -1643,6 +1732,45 @@ bool GrblComm::ParseAxisData(char* data, Decimal32 (&axis)[AXIS_CNT])
 }
 
 // *****************************************************************************
+// ***   Private: ParseToolData function   *************************************
+// *****************************************************************************
+void GrblComm::ParseToolData(char* data)
+{
+  // Format: <tool>|<x,y,z,...>|<radius>[|6,0,0|<name>|<pocket>]
+  char* offsets = strchr(data, '|');
+  char* radius = (offsets != nullptr) ? strchr(offsets + 1, '|') : nullptr;
+
+  // Tool number, offsets and radius have to be there
+  if((data[0] >= '0') && (data[0] <= '9') && (radius != nullptr))
+  {
+    // Tool number: tools above the table size are ignored
+    uint32_t tool = strtoul(data, nullptr, 10);
+
+    if((tool >= 1u) && (tool <= NumberOf(tool_table_z)))
+    {
+      // Offsets of all axes and radius
+      Decimal32 axis[AXIS_CNT];
+      Decimal32 r;
+      ParseAxisData(offsets + 1, axis);
+      ParseDecimal(r, radius + 1);
+
+      // Save Z offset
+      tool_table_z[tool - 1u] = axis[AXIS_Z];
+      // Tool with anything but Z set can't be applied safely: not usable
+      bool z_only = (r == Decimal32());
+      for(int32_t i = 0; i < number_of_axis; i++)
+      {
+        if((i != AXIS_Z) && (axis[i] != Decimal32())) z_only = false;
+      }
+      if(z_only) tool_usable_mask |= (1u << (tool - 1u));
+      else       tool_usable_mask &= ~(1u << (tool - 1u));
+      // Number of tools is the highest tool number
+      if(tool > tool_table_rx_cnt) tool_table_rx_cnt = tool;
+    }
+  }
+}
+
+// *****************************************************************************
 // ***   Private: ParseProbeReport   *******************************************
 // *****************************************************************************
 void GrblComm::ParseProbeReport(char* data)
@@ -1907,7 +2035,11 @@ void GrblComm::ParseData(void)
         }
       }
       else if(!strncmp(line, "Ov:", 3)) ParseOverrides(line + 3);
-
+      // Current tool: reported when it changes and in full status report
+      else if(!strncmp(line, "T:", 2))
+      {
+        grbl_tool = strtoul(line + 2, nullptr, 10);
+      }
       else if(!strncmp(line, "MPG:", 4))
       {
         if(grbl_mpgMode != (line[4] == '1'))
@@ -1951,6 +2083,24 @@ void GrblComm::ParseData(void)
     {
       // Tool Length Offset
       grbl_changed.tlo = ParseAxisData(line + 1 + 4, grbl_tool_length_offset);
+      // It follows the tool table in "$#": publish number of tools
+      tool_table_cnt = tool_table_rx_cnt;
+    }
+    else if(!strncmp(&line[1], "T:", 2))
+    {
+      ParseToolData(line + 1 + 2);
+    }
+    // First line of "$#" report: count tools again
+    else if(!strncmp(&line[1], "G54:", 4))
+    {
+      tool_table_rx_cnt = 0u;
+    }
+    // Build options from "$I": automatic tool changer
+    else if(!strncmp(&line[1], "NEWOPT:", 7))
+    {
+      if(strstr(line, "ATC=1") != nullptr)      atc_state = ATC_ONLINE;
+      else if(strstr(line, "ATC=0") != nullptr) atc_state = ATC_OFFLINE;
+      else                                      atc_state = ATC_NONE;
     }
     else if(!strncmp(&line[1], "AXS:", 4))
     {

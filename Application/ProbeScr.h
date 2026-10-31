@@ -29,6 +29,7 @@
 #include "InputDrv.h"
 #include "Tabs.h"
 #include "MsgBox.h"
+#include "ChangeValueBox.h"
 
 // *****************************************************************************
 // ***   Local const variables   ***********************************************
@@ -86,6 +87,16 @@ class ProbeScr : public IScreen
     // ***   Public: DisableScreenChange function   ****************************
     // *************************************************************************
     void DisableScreenChange();
+
+    // *************************************************************************
+    // ***   Public: IsAutoTurn function   *************************************
+    // *************************************************************************
+    bool IsAutoTurn();
+
+    // *************************************************************************
+    // ***   Public: TurnProbe function   **************************************
+    // *************************************************************************
+    Result TurnProbe(int32_t dir, uint32_t& id);
 
   private:
     static const uint8_t BORDER_W = 4u;
@@ -205,7 +216,9 @@ class CenterFinderTab : public IScreen
     {
       PROBE_ITERATION_FIRST,
       PROBE_ITERATION_MSGBOX_SHOW,
+      PROBE_ITERATION_TURN,
       PROBE_ITERATION_SECOND,
+      PROBE_ITERATION_TURN_BACK,
       PROBE_ITERATION_CNT
     } probe_iteration_t;
     // Iteration
@@ -365,7 +378,9 @@ class EdgeFinderTab : public IScreen
     {
       PROBE_ITERATION_FIRST,
       PROBE_ITERATION_MSGBOX_SHOW,
+      PROBE_ITERATION_TURN,
       PROBE_ITERATION_SECOND,
+      PROBE_ITERATION_TURN_BACK,
       PROBE_ITERATION_CNT
     } probe_iteration_t;
     // Iteration
@@ -485,9 +500,20 @@ class ToolOffsetTab : public IScreen
 
     // Current state
     state_t state = PROBE_CNT;
+    // Tool change before probing is in progress
+    bool tool_change = false;
 
     // Z position before probing
     int32_t z_position = 0u;
+
+    // Tool table is used, without it offset is set directly(G43.1)
+    bool table_mode = false;
+    // Selected tool from the tool table
+    uint32_t tool = 1u;
+    // Tool in the caption, zero if caption is empty
+    uint32_t shown_tool = 0u;
+    // Buffer for tool caption
+    char name_tool_str[16u] = {0};
 
     // Current selected axis
     // Scale to move axis
@@ -523,11 +549,46 @@ class ToolOffsetTab : public IScreen
 
     // Message box for errors
     MsgBox& msg_box;
+    // Box to enter tool offset
+    ChangeValueBox& change_box;
 
     // Display driver instance
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // GRBL Communication Interface instance
     GrblComm& grbl_comm = GrblComm::GetInstance();
+
+    // Encoder callback entry
+    InputDrv::CallbackListEntry enc_cble;
+
+    // *************************************************************************
+    // ***   Private: UpdateMode function   ************************************
+    // *************************************************************************
+    void UpdateMode(bool force);
+
+    // *************************************************************************
+    // ***   Private: UpdateToolName function   ********************************
+    // *************************************************************************
+    void UpdateToolName();
+
+    // *************************************************************************
+    // ***   Private: ApplyTool function   *************************************
+    // *************************************************************************
+    Result ApplyTool(uint32_t t, uint32_t& id);
+
+    // *************************************************************************
+    // ***   Private: ClearToolName function   *********************************
+    // *************************************************************************
+    void ClearToolName();
+
+    // *************************************************************************
+    // ***   Private: StopProbing function   ***********************************
+    // *************************************************************************
+    void StopProbing();
+
+    // *************************************************************************
+    // ***   Private: ProcessEncoderCallback function   ************************
+    // *************************************************************************
+    static Result ProcessEncoderCallback(ToolOffsetTab* obj_ptr, void* ptr);
 
     // *************************************************************************
     // ***   Private constructor   *********************************************

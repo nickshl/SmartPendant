@@ -1,13 +1,6 @@
-// Host test of the settings storage: the real NVM.cpp over a simulated
-// 24xx256(stubs_nvm/DevCore.h) with power loss and bus error injection.
-//
-// The record format is written and parsed here by hand(id, seq, value,
-// CRC32 of the first 8 bytes, little endian), not taken from NVM.h, so a
-// change of the format fails the test: pendants in the field hold it.
-//
-// NVM::data[] is static and initialized once per process. Boot() puts it back
-// the way it is after the reset and calls what the firmware calls: Init() from
-// AppMain() and GetReadResult() from Application::Setup().
+// Settings storage test: real NVM.cpp over a simulated 24xx256 with power loss and bus errors
+// Record format is written here by hand, not taken from NVM.h: a format change must fail the test
+// Boot() resets NVM::data[] and calls Init() and GetReadResult() like the firmware does
 #include "NVM.h"
 #include <cstdio>
 #include <map>
@@ -104,8 +97,7 @@ static void Format(Eeprom24& e) { Boot b(e); CHECK(b.setup == Result::ERR_INVALI
 static int32_t Rand32() { return (int32_t)((uint32_t)rand() * 2654435761u); }
 
 // ****************************************************************************
-// A new chip: defaults, written into both banks, then clean boots that stop
-// reading early
+// New chip: defaults written into both banks, then clean boots that stop reading early
 static void TestBlankChip()
 {
   Eeprom24 e;
@@ -137,8 +129,7 @@ static void TestBlankChip()
   }
 }
 
-// The chip after the firmware which kept all settings in one struct at
-// address 0: nothing in it is a valid record
+// Chip after the old firmware(one struct at address 0): no valid records
 static void TestOldFormat()
 {
   static const int32_t old_defaults[26] = {0, 2, 115200, 0, 4, 0, 0, 0, 0, 0, 1, 5, 10, 100, 1, 2, 5, 50, 180, 360, 720, 3600, 200, 50, 10, 2000};
@@ -166,8 +157,7 @@ static void TestClickPowerCycle()
     CHECK(b.setup.IsGood());
     CheckValues(b.nvm, {{NVM::PROBE_BALL_TIP, 1000 + i}});
   }
-  // Several changes in one session: the last one is there, one page write
-  // each, alternating
+  // Several changes in one session: last one is there, one page write each, alternating
   uint32_t page = PageOf(NVM::PROBE_BALL_TIP);
   uint32_t w0 = e.wear[page], w1 = e.wear[BANK + page];
   {
@@ -192,8 +182,7 @@ static void TestClickPowerCycle()
   }
 }
 
-// Power is lost during a change, with every kind of page damage: the setting
-// has the old or the new value, never the default, and nothing else changes
+// Power loss during a change, every kind of page damage: old or new value, never the default
 static void TestPowerLossOnChange()
 {
   for(int tear = 0; tear < Eeprom24::TEAR_CNT; tear++) for(int changes = 1; changes <= 4; changes++) {
@@ -265,8 +254,7 @@ static void TestReadError()
   }
 }
 
-// A write fails: the old value stays and the error is returned. A power loss
-// during the next change still leaves the last stored value.
+// Write fails: old value stays, error is returned, a later power loss keeps the last stored value
 static void TestWriteError()
 {
   for(int written = 0; written < 2; written++) for(int tear = Eeprom24::TEAR_GARBAGE; tear <= Eeprom24::TEAR_ZEROED; tear++) {
@@ -308,8 +296,7 @@ static void TestSequenceWrap()
   delete b;
 }
 
-// Records with an ID the firmware doesn't know(a deleted setting): ignored,
-// and a setting without a record takes such a page
+// Records of unknown(deleted) settings are ignored, their pages are reused
 static void TestPageReuse()
 {
   Eeprom24 e;
@@ -337,13 +324,8 @@ static void TestPageReuse()
   CheckValues(b2.nvm, {{NVM::BAUD_RATE, 9600}});
 }
 
-// Random changes, power cycles, power losses and bus errors against a model.
-// A value can come back after a power cycle if it was written into a page that
-// hasn't been fully overwritten since - the last stored one, the one of the
-// change the fault happened in, or an older one: a write reported as failed
-// can still reach the chip, and two torn writes into that page can leave its
-// bytes as they were. Two successful writes in a row overwrite both pages, and
-// from then on only the last value is possible.
+// Random changes, power cycles, power losses and bus errors against a model
+// After faults an older value is possible, after two good writes in a row only the last one
 static void TestRandom(uint32_t seed)
 {
   test_seed = seed;

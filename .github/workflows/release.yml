@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
+          # Full history and tags: release notes are the commits since the previous release
+          fetch-depth: 0
 
       - name: Check version
         id: ver
@@ -52,6 +54,15 @@ jobs:
           cp build/SmartPendant_*.hex "SmartPendant_${{ steps.ver.outputs.ver }}.hex"
           cp build/SmartPendant_*.bin "SmartPendant_${{ steps.ver.outputs.ver }}.bin"
 
+      - name: Release notes
+        if: steps.ver.outputs.tag
+        run: |
+          # Commits since the previous release; only this commit for the first one
+          prev=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          if [ -n "$prev" ]; then range="$prev..HEAD"; else range="-1 HEAD"; fi
+          git log --no-merges --format='## %s%n%n%b' $range > notes.md
+          cat notes.md
+
       - name: Publish release
         if: steps.ver.outputs.tag
         run: >
@@ -59,4 +70,4 @@ jobs:
           SmartPendant_*.hex SmartPendant_*.bin
           --target "$GITHUB_SHA"
           --title "SmartPendant ${{ steps.ver.outputs.ver }}"
-          --generate-notes
+          --notes-file notes.md

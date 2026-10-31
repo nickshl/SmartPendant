@@ -169,6 +169,28 @@ void ProbeScr::DisableScreenChange()
 }
 
 // *****************************************************************************
+// ***   Public: IsAutoTurn function   *****************************************
+// *****************************************************************************
+bool ProbeScr::IsAutoTurn()
+{
+  // Spindle servo is a rotary axis: it holds the spindle, probe can't be turned by hand
+  return grbl_comm.IsRotaryAxis(NVM::GetInstance().GetValue(NVM::PROBE_SPINDLE_AXIS));
+}
+
+// *****************************************************************************
+// ***   Public: TurnProbe function   ******************************************
+// *****************************************************************************
+Result ProbeScr::TurnProbe(int32_t dir, uint32_t& id)
+{
+  // Speed in deg/s, sign is direction of the first turn
+  int32_t speed = NVM::GetInstance().GetValue(NVM::PROBE_SPINDLE_SPEED);
+  if(speed < 0) dir = -dir;
+  // Relative: half turn to absolute target is ambiguous if controller takes the shortest path
+  // Feed move, not jog: jog has no command ID and JOG state aborts the sequence
+  return grbl_comm.MoveAxis(NVM::GetInstance().GetValue(NVM::PROBE_SPINDLE_AXIS), 180 * dir * grbl_comm.GetUnitsScaler(GrblComm::MEASUREMENT_SYSTEM_ROTARY), abs(speed) * 60u * 100u, id, false);
+}
+
+// *****************************************************************************
 // ***   Private: ProcessButtonCallback function   *****************************
 // *****************************************************************************
 Result ProbeScr::ProcessButtonCallback(ProbeScr* obj_ptr, void* ptr)
@@ -309,6 +331,8 @@ Result CenterFinderTab::Setup(int32_t y, int32_t height)
   // Button for precise measurement
   precise_btn.SetParams("PRECISE", BORDER_W, dw_distance.GetEndY() + BORDER_W*2, Font_8x12::GetInstance().GetCharW() * 10, Font_8x12::GetInstance().GetCharH() * 5, true);
   precise_btn.SetCallback(AppTask::GetCurrent());
+  // Default state from settings, Setup() isn't called on show so user's choice is kept
+  precise_btn.SetPressed(NVM::GetInstance().GetValue(NVM::PROBE_PRECISE_DEFAULT));
 
   // For distance data
   for(uint32_t i = 0u; i < NumberOf(data_str); i++)
@@ -592,15 +616,17 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
       }
       else if(state == PROBE_DONE)
       {
-        // If it is not precise measurement or if it second iterations
-        if((precise_btn.GetPressed() == false) || (iteration == PROBE_ITERATION_SECOND))
+        // First iteration of precise measurement done: probe has to be turned 180 degrees
+        if(precise_btn.GetPressed() && (iteration == PROBE_ITERATION_FIRST))
         {
-          // Done probing
-          ResetProbeSequence();
-        }
-        else if(precise_btn.GetPressed())
-        {
-          if(iteration == PROBE_ITERATION_FIRST)
+          if(ProbeScr::GetInstance().IsAutoTurn())
+          {
+            // Turn probe, second iteration starts when it is done
+            result = ProbeScr::GetInstance().TurnProbe(+1, cmd_id);
+            // Set iteration to wait for turn
+            iteration = PROBE_ITERATION_TURN;
+          }
+          else
           {
             // Set Message Box parameters and callback
             msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
@@ -610,10 +636,34 @@ Result CenterFinderTab::TimerExpired(uint32_t interval)
             iteration = PROBE_ITERATION_MSGBOX_SHOW;
           }
         }
+        // Probe turned - start second iteration
+        else if(iteration == PROBE_ITERATION_TURN)
+        {
+          state = PROBE_START;
+          line_state = PROBE_LINE_START;
+          iteration = PROBE_ITERATION_SECOND;
+        }
+        // Waiting for user to turn the probe
+        else if(iteration == PROBE_ITERATION_MSGBOX_SHOW)
+        {
+          ; // Message box callback continues the sequence
+        }
+        // Turn probe back, otherwise repeated measurements wrap cable around spindle
+        else if((iteration == PROBE_ITERATION_SECOND) && ProbeScr::GetInstance().IsAutoTurn())
+        {
+          result = ProbeScr::GetInstance().TurnProbe(-1, cmd_id);
+          // Sequence is reset after turn is done
+          iteration = PROBE_ITERATION_TURN_BACK;
+        }
         else
         {
-          ; // Do nothing, MISRA rule
+          // Done probing
+          ResetProbeSequence();
         }
+      }
+      else
+      {
+        ; // Do nothing - MISRA rule
       }
     }
   }
@@ -1184,6 +1234,8 @@ Result EdgeFinderTab::Setup(int32_t y, int32_t height)
   // Button for precise measurement
   precise_btn.SetParams("PRECISE", BORDER_W, dw_tip_diameter.GetEndY() + BORDER_W*2, Font_8x12::GetInstance().GetCharW() * 10, Font_8x12::GetInstance().GetCharH() * 5, true);
   precise_btn.SetCallback(AppTask::GetCurrent());
+  // Default state of precise measurement - see CenterFinderTab::Setup()
+  precise_btn.SetPressed(NVM::GetInstance().GetValue(NVM::PROBE_PRECISE_DEFAULT));
 
   // All good
   return Result::RESULT_OK;
@@ -1390,12 +1442,28 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
         {
           // Move probe away work piece to give more space to rotate the probe
           result = grbl_comm.ProbeAxisTowardWorkpiece(axis, grbl_comm.GetAxisPosition(axis) - (dw_tip_diameter.GetNumber() / 2 * dir), grbl_comm.ConvertMetricFeedToUnitsX100(NVM::GetInstance().GetValue(NVM::PROBE_SEARCH_FEED)), cmd_id, false);
-          // Set Message Box parameters and callback
-          msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
-          // Show message box with request
-          msg_box.Show(10000u);
-          // Set iteration to prevent entering this again
-          iteration = PROBE_ITERATION_MSGBOX_SHOW;
+          // Turn probe automatically after move away is done
+          if(ProbeScr::GetInstance().IsAutoTurn())
+          {
+            iteration = PROBE_ITERATION_TURN;
+          }
+          else
+          {
+            // Set Message Box parameters and callback
+            msg_box.Setup("Action needed", "Turn probe 180 degrees\nand press continue");
+            // Show message box with request
+            msg_box.Show(10000u);
+            // Set iteration to prevent entering this again
+            iteration = PROBE_ITERATION_MSGBOX_SHOW;
+          }
+        }
+        else if(iteration == PROBE_ITERATION_TURN)
+        {
+          // Moved away - turn probe
+          result = ProbeScr::GetInstance().TurnProbe(+1, cmd_id);
+          // Second iteration starts when turn is done
+          state = PROBE_START;
+          iteration = PROBE_ITERATION_SECOND;
         }
         else
         {
@@ -1419,8 +1487,18 @@ Result EdgeFinderTab::TimerExpired(uint32_t interval)
       // ***************************************************************************
       else if(state == PROBE_RETURN)
       {
-        // Done probing
-        ResetProbeSequence();
+        // Turn probe back, otherwise repeated measurements wrap cable around spindle
+        if((iteration == PROBE_ITERATION_SECOND) && ProbeScr::GetInstance().IsAutoTurn())
+        {
+          result = ProbeScr::GetInstance().TurnProbe(-1, cmd_id);
+          // Sequence is reset after turn is done
+          iteration = PROBE_ITERATION_TURN_BACK;
+        }
+        else
+        {
+          // Done probing
+          ResetProbeSequence();
+        }
       }
       else
       {
@@ -1640,6 +1718,8 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   dw_tool.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
   dw_tool.SetCallback(AppTask::GetCurrent());
   dw_tool.SetActive(false);
+  // Tool caption: tool number with tool table, empty without it
+  name_tool.SetParams("", dw_tool.GetStartX() + BORDER_W*2, dw_tool.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_12x16::GetInstance());
   // Measure offset button
   get_offset_btn.SetParams("MEASURE OFFSET", BORDER_W, dw_tool.GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*3) / 2, Font_8x12::GetInstance().GetCharH() * 5, true);
   get_offset_btn.SetCallback(AppTask::GetCurrent());
@@ -1674,9 +1754,9 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
 // *****************************************************************************
 Result ToolOffsetTab::Show()
 {
-  // Tool offset window and name
-  name_tool.Show(100);
+  // Tool offset window and name: name after the window to be drawn over it
   dw_tool.Show(100);
+  name_tool.Show(100);
   // Base position window and name
   name_base.Show(100);
   dw_base.Show(100);
@@ -1707,11 +1787,14 @@ Result ToolOffsetTab::Show()
   // Measure base button
   get_base_btn.Show(102);
 
-  // Request offsets to show it
+  // Request offsets and tool table to show it
   grbl_comm.RequestOffsets();
 
-  // Hide Left Soft button since it doesn't used on this screen
-  Application::GetInstance().GetLeftButton().Hide();
+  // Forced: Left Soft button is shared by all tabs and has to be set up again
+  UpdateMode(true);
+
+  // Set encoder callback handler
+  InputDrv::GetInstance().AddEncoderCallbackHandler(AppTask::GetCurrent(), reinterpret_cast<CallbackPtr>(ProcessEncoderCallback), this, enc_cble);
 
   // All good
   return Result::RESULT_OK;
@@ -1722,11 +1805,15 @@ Result ToolOffsetTab::Show()
 // *****************************************************************************
 Result ToolOffsetTab::Hide()
 {
-  // Stop the probing sequence - see CenterFinderTab::Hide(). This tab has no
-  // ResetProbeSequence(), the sequence is only two states plus the command.
-  state = PROBE_CNT;
-  cmd_id = 0u;
-  ProbeScr::GetInstance().EnableScreenChange();
+  // Stop the probing sequence - see CenterFinderTab::Hide()
+  StopProbing();
+
+  // Delete encoder callback handler
+  InputDrv::GetInstance().DeleteEncoderCallbackHandler(enc_cble);
+
+  // In case if it shown, we should hide it. Otherwise a stale box callback
+  // would be routed to the next screen and misinterpreted there.
+  change_box.Hide();
 
   // Tool offset window and name
   name_tool.Hide();
@@ -1764,8 +1851,23 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
 {
   Result result = Result::RESULT_OK;
 
-  // Set actual tool offset
-  dw_tool.SetNumber(grbl_comm.GetToolLengthOffset());
+  // Switch between tool table and direct offset if it changed
+  UpdateMode(false);
+
+  if(table_mode)
+  {
+    // Number of tools can decrease
+    if(tool > grbl_comm.GetToolTableCount()) tool = grbl_comm.GetToolTableCount();
+    // Offset of the selected tool from the tool table
+    dw_tool.SetNumber(grbl_comm.GetToolOffset(tool));
+    // Tool number and if it is current
+    UpdateToolName();
+  }
+  else
+  {
+    // Set actual tool offset
+    dw_tool.SetNumber(grbl_comm.GetToolLengthOffset());
+  }
 
   // Base position is measured in machine coordinates: controller reboot or
   // re-homing can shift the machine coordinate space, so the stored base
@@ -1781,12 +1883,7 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
   // command result forever with the screen change disabled.
   if((grbl_comm.GetState() != GrblComm::IDLE) && (grbl_comm.GetState() != GrblComm::RUN) && (grbl_comm.GetState() != GrblComm::HOLD))
   {
-    // Clear cmd
-    cmd_id = 0u;
-    // Clear state
-    state = PROBE_CNT;
-    // Enable screen change
-    ProbeScr::GetInstance().EnableScreenChange();
+    StopProbing();
   }
 
   // If we in probing cycle
@@ -1800,35 +1897,39 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
       // Check result
       if(result == Result::ERR_CANNOT_EXECUTE)
       {
-        // Clear cmd id
-        cmd_id = 0u;
-        // Clear state
-        state = PROBE_CNT;
-        // Enable screen change
-        ProbeScr::GetInstance().EnableScreenChange();
+        StopProbing();
         // Set ok result since we cancelled probing
         result = Result::RESULT_OK;
       }
     }
-    // If we send probing command and this command executed successfully
+    // If we send command and this command executed successfully
     else if((grbl_comm.GetCmdResult(cmd_id) == GrblComm::Status_OK) && (grbl_comm.IsStatusReceivedAfterCmd(cmd_id)) && (grbl_comm.GetState() == GrblComm::IDLE))
     {
+      // Tool is changed - probing starts next time
+      if(tool_change)
+      {
+        tool_change = false;
+        cmd_id = 0u;
+      }
       // Check the report for our probe command was received and the probe
       // contacted the tool setter: a lost or garbled [PRB:...] report
       // otherwise leaves the PREVIOUS probe position in the getter and a
       // wrong offset would be measured and applied silently.
-      if(!grbl_comm.IsProbeDataReceived() || !grbl_comm.IsProbeSucceed())
+      else if(!grbl_comm.IsProbeDataReceived() || !grbl_comm.IsProbeSucceed())
       {
         result = Result::ERR_CANNOT_EXECUTE;
       }
       else
       {
+        // ID for commands that aren't tracked
+        uint32_t id = 0u;
         // Get probe Z position
         int32_t probe_pos = grbl_comm.GetProbeMachinePosition(GrblComm::AXIS_Z);
         // If we tried base - update base data window
         if(state == PROBE_BASE)
         {
-          dw_base.SetNumber(probe_pos);
+          // With tool table base is measured with the probe(zero offset) or any measured tool
+          dw_base.SetNumber(table_mode ? (probe_pos - grbl_comm.GetToolOffset(tool)) : probe_pos);
           // Base is measured and can be used for tool offset measurements
           base_valid = true;
         }
@@ -1836,25 +1937,24 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
         {
           // Calculate difference between base and tool
           int32_t tool_diff = probe_pos - dw_base.GetNumber();
-          // Set tool offset
-          result = grbl_comm.SetToolLengthOffset(tool_diff);
-          // Request offsets to update it on the display
-          if(result.IsGood()) grbl_comm.RequestOffsets();
+          // Write it to the tool table or set tool offset directly
+          if(table_mode) result = grbl_comm.SetToolTableOffset(tool, tool_diff, id);
+          else           result = grbl_comm.SetToolLengthOffset(tool_diff);
         }
         else
         {
           ; // Do nothing
         }
+        // With tool table offset of the measured tool is applied again
+        if(result.IsGood() && table_mode) result = ApplyTool(tool, id);
         if(result.IsGood())
         {
+          // Request offsets to update it on the display
+          grbl_comm.RequestOffsets();
           // Move Z axis to the point before probing at feed 500 mm/min
           grbl_comm.JogInMachineCoodinates(GrblComm::AXIS_Z, z_position, grbl_comm.ConvertMetricFeedToUnitsX100(500u));
-          // Clear cmd
-          cmd_id = 0u;
-          // Clear state
-          state = PROBE_CNT;
-          // Enable screen change
-          ProbeScr::GetInstance().EnableScreenChange();
+          // Done
+          StopProbing();
         }
       }
     }
@@ -1874,12 +1974,8 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
   {
     // Send Stop command
     grbl_comm.Stop();
-    // Clear cmd
-    cmd_id = 0u;
-    // Clear state
-    state = PROBE_CNT;
-    // Enable screen change
-    ProbeScr::GetInstance().EnableScreenChange();
+    // Stop probing
+    StopProbing();
   }
 
   // Return result
@@ -1892,29 +1988,87 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
 Result ToolOffsetTab::ProcessCallback(const void* ptr)
 {
   Result result = Result::RESULT_OK;
+  // ID for commands that aren't tracked
+  uint32_t id = 0u;
 
+  // Tool offset entered: write it, apply it if the tool is current
+  if(ptr == &change_box)
+  {
+    if(change_box.GetResult() && table_mode && (state == PROBE_CNT))
+    {
+      result = grbl_comm.SetToolTableOffset(tool, change_box.GetValue(), id);
+      if(result.IsGood() && (tool == grbl_comm.GetCurrentTool())) result = ApplyTool(tool, id);
+      if(result.IsGood()) grbl_comm.RequestOffsets();
+    }
+  }
   // We can start probing only in IDLE state and if probing isn't started yet
-  if((grbl_comm.GetState() == GrblComm::IDLE) && (state == PROBE_CNT))
+  else if((grbl_comm.GetState() == GrblComm::IDLE) && (state == PROBE_CNT))
   {
     // Refuse to measure the tool offset without a valid base position: the
     // base window is 0 after boot and after a controller settings change,
     // and it is stale after a controller reboot or re-homing. The offset is
-    // the difference to the base, so a wrong base silently applies a G43.1
-    // offset of the full machine Z coordinate of the tool setter.
+    // the difference to the base, so a wrong base silently applies an offset
+    // of the full machine Z coordinate of the tool setter.
     if((ptr == &get_offset_btn) && (base_valid == false))
     {
       // Set Message Box parameters
-      msg_box.Setup("Error", "Measure BASE position\nfirst");
+      msg_box.Setup("Error", table_mode ? "Measure BASE position\nwith probe or tool\nfrom the table first" : "Measure BASE position\nfirst");
       // Show message box
       msg_box.Show(10000u);
+    }
+    // Tool offset window: enter offset of the selected tool
+    else if((ptr == &dw_tool) && table_mode)
+    {
+      // Tool caption is the title
+      change_box.Setup(name_tool_str, grbl_comm.GetReportUnits(), grbl_comm.GetToolOffset(tool), -grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.GetReportUnitsPrecision());
+      // Set AppTask
+      change_box.SetCallback(AppTask::GetCurrent());
+      // Show change box
+      change_box.Show(10000u);
+    }
+    // Left Soft button: make the selected tool current and apply its offset
+    else if((ptr == &Application::GetInstance().GetLeftButton()) && table_mode)
+    {
+      if(grbl_comm.IsToolUsable(tool))
+      {
+        result = ApplyTool(tool, id);
+        if(result.IsGood()) grbl_comm.RequestOffsets();
+      }
+      else
+      {
+        // Set Message Box parameters
+        msg_box.Setup("Error", "Can't select tool:\nit has X, Y or radius\ncompensation set.\nMeasure or enter its\noffset to clear them.");
+        // Show message box
+        msg_box.Show(10000u);
+      }
+    }
+    // Deselect/unload tool button: no tool is current, offset is disabled
+    else if((ptr == &clear_offset_btn) && table_mode)
+    {
+      result = grbl_comm.DeselectTool(id);
+      if(result.IsGood()) grbl_comm.RequestOffsets();
     }
     // Check buttons
     else if((ptr == &get_base_btn) || (ptr == &get_offset_btn) || (ptr == &clear_offset_btn))
     {
-      // Clear tool length offset
-      result |= grbl_comm.ClearToolLengthOffset();
-      // Request offsets to show it
-      result |= grbl_comm.RequestOffsets();
+      // With tool table offset isn't cleared: probe position is in machine
+      // coordinates and the offset is applied again after measurement. ATC
+      // loads the selected tool first, without ATC it has to be in the spindle.
+      if(table_mode)
+      {
+        if(grbl_comm.IsAtcPresent() && (tool != grbl_comm.GetCurrentTool()))
+        {
+          result = grbl_comm.ChangeTool(tool, cmd_id);
+          tool_change = result.IsGood();
+        }
+      }
+      else
+      {
+        // Clear tool length offset
+        result |= grbl_comm.ClearToolLengthOffset();
+        // Request offsets to show it
+        result |= grbl_comm.RequestOffsets();
+      }
       // Set state for probing only if result is good for previous commands
       if(result.IsGood() && ((ptr == &get_base_btn) || (ptr == &get_offset_btn)))
       {
@@ -1934,7 +2088,130 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
 }
 
 // *****************************************************************************
+// ***   Private: UpdateMode function   ****************************************
+// *****************************************************************************
+void ToolOffsetTab::UpdateMode(bool force)
+{
+  // Tool table is used if controller reported it
+  bool table = (grbl_comm.GetToolTableCount() > 0u);
+
+  // Update the screen only if it changed or update is forced
+  if(force || (table != table_mode))
+  {
+    table_mode = table;
+    // Tool offset window is clickable with tool table: offset can be entered
+    dw_tool.SetActive(table_mode);
+    if(table_mode)
+    {
+      // Select the current tool if it is in the table
+      tool = grbl_comm.IsToolInTable(grbl_comm.GetCurrentTool()) ? grbl_comm.GetCurrentTool() : 1u;
+      UpdateToolName();
+      // Left Soft button makes the selected tool current(ATC changes it)
+      Application::GetInstance().GetLeftButton().SetString(grbl_comm.IsAtcPresent() ? "CHANGE TOOL" : "SELECT TOOL");
+      Application::GetInstance().GetLeftButton().Show(102);
+      // Offset is cleared by entering zero, the button deselects the tool(ATC unloads it)
+      clear_offset_btn.SetString(grbl_comm.IsAtcPresent() ? "UNLOAD TOOL" : "DESELECT TOOL");
+    }
+    else
+    {
+      ClearToolName();
+      Application::GetInstance().GetLeftButton().Hide();
+      clear_offset_btn.SetString("CLEAR OFFSET");
+    }
+  }
+}
+
+// *****************************************************************************
+// ***   Private: UpdateToolName function   ************************************
+// *****************************************************************************
+void ToolOffsetTab::UpdateToolName()
+{
+  // Caption is set only when the tool changes: setting it redraws it
+  if(tool != shown_tool)
+  {
+    name_tool.SetString(name_tool_str, NumberOf(name_tool_str), "T%lu", tool);
+    shown_tool = tool;
+  }
+  // Green border if the selected tool is the current one
+  dw_tool.SetBorderColor((tool == grbl_comm.GetCurrentTool()) ? COLOR_GREEN : COLOR_BLUE);
+}
+
+// *****************************************************************************
+// ***   Private: ApplyTool function   *****************************************
+// *****************************************************************************
+Result ToolOffsetTab::ApplyTool(uint32_t t, uint32_t& id)
+{
+  Result result = Result::RESULT_OK;
+
+  // Tool that isn't usable stays as it is. Without ATC tool without offset
+  // isn't made current, it is deselected instead. ATC changes it anyway.
+  if(grbl_comm.IsToolUsable(t))
+  {
+    if(grbl_comm.IsToolOffsetValid(t) || grbl_comm.IsAtcPresent()) result = grbl_comm.ChangeTool(t, id);
+    else                                                           result = grbl_comm.DeselectTool(id);
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Private: ClearToolName function   *************************************
+// *****************************************************************************
+void ToolOffsetTab::ClearToolName()
+{
+  name_tool.SetString("");
+  shown_tool = 0u;
+  dw_tool.SetBorderColor(COLOR_BLUE);
+}
+
+// *****************************************************************************
+// ***   Private: StopProbing function   ***************************************
+// *****************************************************************************
+void ToolOffsetTab::StopProbing()
+{
+  // Clear cmd
+  cmd_id = 0u;
+  // Clear state
+  state = PROBE_CNT;
+  tool_change = false;
+  // Enable screen change
+  ProbeScr::GetInstance().EnableScreenChange();
+}
+
+// *****************************************************************************
+// ***   Private: ProcessEncoderCallback function   ****************************
+// *****************************************************************************
+Result ToolOffsetTab::ProcessEncoderCallback(ToolOffsetTab* obj_ptr, void* ptr)
+{
+  Result result = Result::ERR_NULL_PTR;
+
+  // Check pointer
+  if(obj_ptr != nullptr)
+  {
+    // Cast pointer to "this". Since we can't use non-static members as callback,
+    // we have to provide pinter to object.
+    ToolOffsetTab& ths = *obj_ptr;
+    // Cast pointer itself to integer value
+    int32_t enc_val = (int32_t)ptr;
+
+    // Select tool, not while probing: the selected tool is the one being measured
+    if((enc_val != 0) && ths.table_mode && (ths.state == PROBE_CNT))
+    {
+      int32_t new_tool = (int32_t)ths.tool + enc_val;
+      if(new_tool < 1) new_tool = 1;
+      if(new_tool > (int32_t)ths.grbl_comm.GetToolTableCount()) new_tool = (int32_t)ths.grbl_comm.GetToolTableCount();
+      ths.tool = (uint32_t)new_tool;
+    }
+    // Set ok result
+    result = Result::RESULT_OK;
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
 // ***   ToolOffsetTab constructor   *******************************************
 // *****************************************************************************
-ToolOffsetTab::ToolOffsetTab() : msg_box(Application::GetInstance().GetMsgBox()) {};
-
+ToolOffsetTab::ToolOffsetTab() : msg_box(Application::GetInstance().GetMsgBox()), change_box(Application::GetInstance().GetChangeValueBox()) {};

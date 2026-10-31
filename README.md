@@ -107,13 +107,27 @@ You can select which axes will be used for searching. Active axes are highlighte
 Active axes are highlighted in red. You can also select which direction to travel using `+` and `-` fields.
 At the end of the process probe will be positioned at the very edge. `CLEARANCE` controls how far probe will be raised after the process.
 
-`PRECISE` button allows performing 2 consequent measurements by rotating probe 180 deg after the first measurement for improved precision.
-
 `TIP DIAMETER` shows the probe ball diameter used to compensate the measured position. It is changed in Settings -> Probe -> Ball tip.
+
+### Precise measurement
+
+`PRECISE` button on Center Finder and Edge Finder performs 2 measurements with the probe turned 180 deg between them and uses the average, so a bent or misaligned stylus doesn't matter. Default state of the button is set in Settings -> Probe -> Precise by default.
+
+The pendant asks to turn the probe by hand. If the spindle motor is a servo connected to a rotary axis of the controller(it holds the spindle, so the probe can't be turned by hand), set Settings -> Probe -> Spindle axis and Spindle speed: the pendant turns the probe itself and turns it back after the measurement, so the cable doesn't wrap around the spindle. Spindle speed is in degrees per second, -360 to 360: 360 turns the probe in 0.5 s, 180 in 1 s, 90 in 2 s. The sign sets the direction of the first turn.
+
+**Important:** the spindle axis is a setting of the pendant, not of the controller. If the pendant is connected to another machine, or the controller is reconfigured, and that axis is a rotary axis there(a rotary table, for example), precise measurement will turn it. Check Settings -> Probe -> Spindle axis every time the pendant is used with a different machine.
 
 ### Tool Offset 
 
 After using first tool, jog over probe and click `measure base` before changing. Change to the next tool and click `measure offset`. After process is completed, new tool offset will be set to match first tool length.
+
+If the controller has a tool table, the tab works with it. The top window shows the selected tool and its offset from the table, the encoder selects the tool, a green border marks the current tool. Click the window to enter the offset by hand.
+- `measure base` - with the probe or any tool which offset is already in the table.
+- `measure offset` - measures the selected tool, writes its offset to the table and makes it current.
+- `SELECT TOOL`(left button) - makes the selected tool current and applies its offset(`M61`), `DESELECT TOOL` - no tool, offset disabled.
+- With ATC the buttons are `CHANGE TOOL` and `UNLOAD TOOL` and the tool is changed(`T M6`), `measure offset` loads the selected tool first.
+
+A tool with zero offset is never applied. A tool with X, Y or radius set in the table can't be selected from the pendant until its offset is measured or entered here, which clears the rest.
 
 
 ## Schematic

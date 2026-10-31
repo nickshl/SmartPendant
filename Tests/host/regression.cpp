@@ -201,6 +201,181 @@ void probe_tests() {
   std::cout << "Probe validation and randomized bounds tests passed\n";
 }
 
+// Tool table from "$#", current tool from status report, tool table commands
+void tool_table_tests() {
+  GrblComm comm;
+  FakeUart raw;
+  setup(comm, raw);
+  comm.number_of_axis = 3;
+  auto parse = [&](const std::string& report) { raw.line(report + "\n"); comm.PollSerial(); };
+  auto sent = [&]() {
+    assert(!comm.messages.empty());
+    std::string cmd((const char*)comm.messages.back().data() + sizeof(uint32_t));
+    comm.messages.clear();
+    return cmd.substr(0, cmd.find('\0'));
+  };
+
+  // Format before build 20251111: number, offsets, radius. Tool number is
+  // the index, number of tools is the highest number.
+  parse("[G54:0.000,0.000,0.000]");
+  parse("[T:1|0.000,0.000,-12.345|0.000]");
+  parse("[T:2|0.000,0.000,0.000|0.000]");
+  parse("[T:3|0.000,0.000,3.000|0.000]");
+  // Number of tools is published when the report ends: "[TLO:...]" follows
+  // the tool table in "$#"
+  assert(comm.GetToolTableCount() == 0);
+  parse("[TLO:0.000]");
+  assert(comm.GetToolTableCount() == 3);
+  // Reported alone it doesn't change the number of tools
+  parse("[TLO:1.000]");
+  assert(comm.GetToolTableCount() == 3);
+  assert(comm.IsToolUsable(1) && comm.IsToolOffsetValid(1) && comm.GetToolOffset(1) == -12345);
+  // Zero Z: usable, offset isn't set
+  assert(comm.IsToolUsable(2) && !comm.IsToolOffsetValid(2) && comm.GetToolOffset(2) == 0);
+  assert(comm.IsToolOffsetValid(3) && comm.GetToolOffset(3) == 3000);
+  // Out of range tools
+  assert(!comm.IsToolInTable(0) && !comm.IsToolInTable(4) && !comm.IsToolInTable(33) && comm.GetToolOffset(4) == 0);
+  assert(!comm.IsToolUsable(0) && !comm.IsToolUsable(4) && !comm.IsToolUsable(33));
+
+  // Since 20251111 lathe data, name and pocket follow. A tool with any other
+  // offset or radius set isn't usable: its offset can't be applied safely.
+  comm.number_of_axis = 4;
+  // While the table is reported again number of tools doesn't change: it
+  // doesn't drop to zero and grow back
+  parse("[G54:0.000,0.000,0.000,0.000]");
+  assert(comm.GetToolTableCount() == 3 && comm.IsToolInTable(1));
+  parse("[T:1|0.000,0.000,-5.500,0.000|0.000|6,0,0|End mill 6mm|1]");
+  assert(comm.GetToolTableCount() == 3);
+  parse("[T:2|1.000,0.000,1.000,0.000|0.000|6,0,0|]");
+  parse("[T:3|0.000,-1.000,1.000,0.000|0.000|6,0,0|]");
+  parse("[T:4|0.000,0.000,1.000,0.000|0.500|6,0,0|]");
+  parse("[T:5|0.000,0.000,1.000,15.000|0.000|6,0,0|]");
+  parse("[T:6|0.000,0.000,1.000,0.000|0.000|6,0,0|]");
+  assert(comm.GetToolTableCount() == 3);
+  parse("[TLO:0.000]");
+  assert(comm.GetToolTableCount() == 6);
+  assert(comm.IsToolOffsetValid(1) && comm.GetToolOffset(1) == -5500);
+  // Not usable tools keep their Z for display
+  for(uint32_t tool : {2u, 3u, 4u, 5u}) assert(comm.IsToolInTable(tool) && !comm.IsToolUsable(tool) && !comm.IsToolOffsetValid(tool) && comm.GetToolOffset(tool) == 1000);
+  assert(comm.IsToolUsable(6) && comm.IsToolOffsetValid(6) && comm.GetToolOffset(6) == 1000);
+  // Same tool again replaces its data, usable both ways
+  parse("[T:2|0.000,0.000,2.000,0.000|0.000|6,0,0|]");
+  assert(comm.IsToolUsable(2) && comm.IsToolOffsetValid(2) && comm.GetToolOffset(2) == 2000);
+  parse("[T:1|0.000,0.000,-5.500,0.000|0.100|6,0,0|]");
+  assert(!comm.IsToolUsable(1) && !comm.IsToolOffsetValid(1) && comm.GetToolOffset(1) == -5500);
+
+  // Malformed entries and tools above the table size are ignored
+  for(const auto& bad : {"[T:|0,0,1,0|0]", "[T:8|0,0,1,0]", "[T:]", "[T:x|0,0,1,0|0]", "[T:9]", "[T:-1|0,0,1,0|0]",
+      "[T:0|0,0,1,0|0]", "[T:33|0,0,1,0|0]", "[T:101|0,0,1,0|0]"}) {
+    parse(bad);
+    assert(comm.GetToolTableCount() == 6);
+  }
+
+  // Imperial: values are in report units
+  comm.measurement_system = GrblComm::MEASUREMENT_SYSTEM_IMPERIAL;
+  parse("[G54:0.0000,0.0000,0.0000,0.0000]");
+  parse("[T:1|0.0000,0.0000,-0.5000,0.000|0.0000]");
+  parse("[TLO:0.0000]");
+  // Tools removed from the table don't stay
+  assert(comm.GetToolTableCount() == 1);
+  assert(comm.GetToolOffset(1) == -5000);
+
+  // Current tool: status report, full report on settings request
+  parse("<Idle|MPos:0.000,0.000,0.000,0.000|FS:0,0|T:5>");
+  assert(comm.GetCurrentTool() == 5);
+  parse("<Idle|MPos:0.000,0.000,0.000,0.000|FS:0,0>"); // Reported only on change
+  assert(comm.GetCurrentTool() == 5);
+  comm.request_settings = true;
+  comm.status_received = true;
+  raw.outgoing.clear();
+  RtosTick::now += 1000;
+  comm.TimerExpired(0);
+  assert(raw.outgoing.size() == 1 && raw.outgoing[0] == std::vector<uint8_t>{GrblComm::CMD_STATUS_REPORT_ALL});
+  parse("<Idle|MPos:0.000,0.000,0.000,0.000|FS:0,0|T:6>");
+  assert(comm.GetCurrentTool() == 6 && comm.GetState() == GrblComm::IDLE);
+  comm.messages.clear();
+
+  // Commands: value in report units with units in the same block
+  parse("[G54:0.000,0.000,0.000,0.000]");
+  parse("[T:1|0.000,0.000,-0.5000,0.000|0.000]");
+  parse("[T:2|0.000,0.000,0.000,0.000|0.000]");
+  parse("[T:3|1.000,0.000,0.000,0.000|0.000]");
+  parse("[TLO:0.000]");
+  uint32_t id = 0;
+  // All other offsets and radius are zeroed, also for a tool that has them:
+  // it is usable after that
+  assert(comm.SetToolTableOffset(1, -5000, id).IsGood() && sent() == "G20G10L1P1X0Y0Z-0.5000A0R0\r");
+  comm.measurement_system = GrblComm::MEASUREMENT_SYSTEM_METRIC;
+  assert(!comm.IsToolUsable(3));
+  assert(comm.SetToolTableOffset(3, -12345, id).IsGood() && sent() == "G21G10L1P3X0Y0Z-12.345A0R0\r");
+  assert(comm.IsToolUsable(3) && comm.IsToolOffsetValid(3));
+  comm.number_of_axis = 3;
+  assert(!comm.IsToolOffsetValid(2));
+  assert(comm.SetToolTableOffset(2, 1000, id).IsGood() && sent() == "G21G10L1P2X0Y0Z1.000R0\r");
+  // Copy is updated at once, so the offset can be applied right after it
+  assert(comm.IsToolOffsetValid(2) && comm.GetToolOffset(2) == 1000);
+  comm.number_of_axis = 6;
+  assert(comm.SetToolTableOffset(2, 1000, id).IsGood() && sent() == "G21G10L1P2X0Y0Z1.000A0B0C0R0\r");
+  // Without ATC tool is declared current. Offset that isn't set is never
+  // applied: zero Z, also tool with X set - it can be loaded to measure it.
+  assert(comm.SetToolTableOffset(2, 0, id).IsGood());
+  parse("[T:3|1.000,0.000,1.000,0.000,0.000,0.000|0.000]");
+  assert(!comm.IsToolUsable(3) && !comm.IsToolOffsetValid(3) && comm.GetToolOffset(3) == 1000);
+  comm.messages.clear();
+  parse("[NEWOPT:ENUMS,RT+,HOME,TC,SED]");
+  assert(!comm.IsAtcPresent() && !comm.IsAtcOnline());
+  assert(comm.ChangeTool(1, id).IsGood() && sent() == "M61Q1G43H1\r");
+  assert(comm.ChangeTool(2, id).IsGood() && sent() == "M61Q2G49\r");
+  assert(comm.ChangeTool(3, id).IsGood() && sent() == "M61Q3G49\r");
+  // With ATC tool is changed, refused while ATC is offline
+  parse("[NEWOPT:ENUMS,RT+,HOME,ATC=1,SED]");
+  assert(comm.IsAtcPresent() && comm.IsAtcOnline());
+  assert(comm.ChangeTool(1, id).IsGood() && sent() == "T1M6G43H1\r");
+  assert(comm.ChangeTool(2, id).IsGood() && sent() == "T2M6G49\r");
+  // Current tool isn't changed, its offset is applied again - also when ATC
+  // is offline
+  parse("<Idle|MPos:0.000,0.000,0.000,0.000|FS:0,0|T:1>");
+  assert(comm.ChangeTool(1, id).IsGood() && sent() == "M61Q1G43H1\r");
+  parse("[NEWOPT:ENUMS,RT+,HOME,ATC=0,SED]");
+  assert(comm.IsAtcPresent() && !comm.IsAtcOnline());
+  assert(comm.ChangeTool(1, id).IsGood() && sent() == "M61Q1G43H1\r");
+  assert(comm.ChangeTool(2, id) == Result::ERR_CANNOT_EXECUTE && comm.messages.empty());
+  // Deselect: tool 0 is no tool, offset is disabled. ATC unloads the tool,
+  // refused while ATC is offline.
+  assert(comm.DeselectTool(id) == Result::ERR_CANNOT_EXECUTE && comm.messages.empty());
+  parse("[NEWOPT:ENUMS,RT+,HOME,ATC=1,SED]");
+  assert(comm.DeselectTool(id).IsGood() && sent() == "T0M6G49\r");
+  parse("<Idle|MPos:0.000,0.000,0.000,0.000|FS:0,0|T:0>");
+  assert(comm.DeselectTool(id).IsGood() && sent() == "M61Q0G49\r");
+  parse("[NEWOPT:ENUMS,RT+,HOME,ATC=0,SED]");
+  assert(comm.DeselectTool(id).IsGood() && sent() == "M61Q0G49\r");
+  parse("[NEWOPT:ENUMS,RT+,HOME,SED]");
+  assert(!comm.IsAtcPresent());
+  parse("<Idle|MPos:0.000,0.000,0.000,0.000|FS:0,0|T:1>");
+  assert(comm.DeselectTool(id).IsGood() && sent() == "M61Q0G49\r");
+  // Tools that aren't in the table
+  for(uint32_t tool : {4u, 33u}) {
+    assert(comm.SetToolTableOffset(tool, 0, id) == Result::ERR_BAD_PARAMETER);
+    assert(comm.ChangeTool(tool, id) == Result::ERR_BAD_PARAMETER && comm.messages.empty());
+  }
+  // Only in Idle
+  comm.grbl_state = GrblComm::RUN;
+  assert(comm.SetToolTableOffset(1, 0, id) == Result::ERR_CANNOT_EXECUTE);
+  assert(comm.ChangeTool(1, id) == Result::ERR_CANNOT_EXECUTE && comm.messages.empty());
+  assert(comm.DeselectTool(id) == Result::ERR_CANNOT_EXECUTE && comm.messages.empty());
+
+  // Random garbage must not fault
+  std::mt19937 rng(std::random_device{}());
+  for(int test = 0; test < 10000; test++) {
+    std::string text;
+    for(unsigned n = rng() % 60; n; n--) text += "0123456789.,|:]-+ abx"[rng() % 21];
+    std::vector<char> data(text.begin(), text.end()); data.push_back(0);
+    comm.ParseToolData(data.data());
+    assert(comm.GetToolTableCount() <= NumberOf(comm.tool_table_z));
+  }
+  std::cout << "Tool table tests passed\n";
+}
+
 void sender_tests() {
   for(auto status : {GrblComm::Status_OK, GrblComm::Status_Comm_Error,
                      GrblComm::Status_Next_Cmd_Executed, GrblComm::Status_Cmd_Not_Executed_Yet}) {
@@ -552,4 +727,4 @@ void decimal_tests() {
   std::cout << "Decimal32 parsing and fixed point tests passed\n";
 }
 
-int main() { comm_tests(); status_after_cmd_tests(); probe_tests(); decimal_tests(); sender_tests(); line_number_tests(); interpreter_tests(); }
+int main() { comm_tests(); status_after_cmd_tests(); probe_tests(); tool_table_tests(); decimal_tests(); sender_tests(); line_number_tests(); interpreter_tests(); }
