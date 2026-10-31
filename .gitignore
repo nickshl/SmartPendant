@@ -6,6 +6,7 @@
 Debug
 Release
 build
+SmartPendant.zip
 
 # Except Release hex
 !release/SmartPendant.hex
