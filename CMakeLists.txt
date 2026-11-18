@@ -12,7 +12,9 @@ file(GLOB_RECURSE SRC
 add_executable(SmartPendant ${SRC})
 
 target_compile_definitions(SmartPendant PRIVATE $<$<CONFIG:DEBUG>:DEBUG>
-  USE_HAL_DRIVER STM32F411xE INCLUDE_xQueueGetMutexHolder)
+  USE_HAL_DRIVER STM32F411xE)
+
+target_compile_options(SmartPendant PRIVATE -ffunction-sections -fdata-sections)
 
 target_include_directories(
   SmartPendant PRIVATE
@@ -46,9 +48,6 @@ target_link_libraries(
   -T${CMAKE_CURRENT_SOURCE_DIR}/STM32F411CEUX_FLASH.ld
 )
 
-target_compile_definitions(SmartPendant
-  PRIVATE SWAP_BUTTONS=1)
-        
 add_custom_command(
   TARGET SmartPendant
   POST_BUILD
