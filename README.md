@@ -75,7 +75,7 @@ Note that pendant itself needs 5v power supply, it won't work with 3v.
 
 * Controller running latest GrblHAL
 
-* Available UART port
+* Available UART port, or USB connection to a host program on a PC that speaks GrblHAL protocol(`Transport` setting: `USB`)
 
 * Controller's UART port should be configured in "MPG & DRO mode"
 
@@ -90,6 +90,16 @@ Consider turning on these options inside GRBLHAL General section:
 * Overrides
 
 * Enable when homing
+
+## Tool change (M6)
+
+A program with `M6` pauses at the tool change, the controller state is `Tool`. Change the tool and press `RUN` on the pendant(or cycle start on the machine) to continue. Jogging isn't possible while a program runs.
+
+* `$341=0` - for tools with repeatable length(e.g. BT30). The controller doesn't move anything. Tool lengths come from the tool table(`G43 H`), the program has to raise Z before `M6` and move back after it, as CAM post-processors normally do.
+
+* `$341=3` - for tools without repeatable length(e.g. R8). Z goes up on `M6`, after cycle start the controller measures the tool on the tool setter(G59.3 position) and returns. X, Y and Z have to be homed. **Homing clears the length reference: the first measurement after homing becomes the reference, not an offset. Measure the tool work Z was set with first**(e.g. an `M6` for it at the start of the program), otherwise Z is wrong for every following tool.
+
+* `$341=1` and `$341=2` aren't recommended: cycle start is blocked until `$TPW` is executed, and the pendant can't send it during a program.
 
 ## Debugging
 
@@ -127,7 +137,9 @@ If the controller has a tool table, the tab works with it. The top window shows 
 - `SELECT TOOL`(left button) - makes the selected tool current and applies its offset(`M61`), `DESELECT TOOL` - no tool, offset disabled.
 - With ATC the buttons are `CHANGE TOOL` and `UNLOAD TOOL` and the tool is changed(`T M6`), `measure offset` loads the selected tool first.
 
-A tool with zero offset is never applied. A tool with X, Y or radius set in the table can't be selected from the pendant until its offset is measured or entered here, which clears the rest.
+- `DIAMETER` window(under the buttons) - diameter of the selected tool. Click it to enter the diameter, the pendant writes the radius to the table(`G10 L1 R`). Measuring or entering the offset doesn't change the radius.
+
+A tool with zero offset is never applied. A tool with X or Y offset set in the table can't be selected from the pendant until its offset is measured or entered here, which clears them. The radius doesn't matter.
 
 
 ## Schematic

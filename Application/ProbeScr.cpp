@@ -1727,22 +1727,37 @@ Result ToolOffsetTab::Setup(int32_t y, int32_t height)
   clear_offset_btn.SetParams("CLEAR OFFSET", get_offset_btn.GetEndX() + BORDER_W, dw_tool.GetEndY() + BORDER_W*2, (display_drv.GetScreenW() - BORDER_W*3) / 2, Font_8x12::GetInstance().GetCharH() * 5, true);
   clear_offset_btn.SetCallback(AppTask::GetCurrent());
 
-  // Tool offset Name
+  // Tool diameter, under the offset buttons: it belongs to the tool. Shown
+  // only with the tool table(UpdateMode()), the row is empty without it.
+  dw_diameter.SetParams(BORDER_W, get_offset_btn.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetReportUnitsPrecision());
+  dw_diameter.SetBorder(BORDER_W, COLOR_CYAN);
+  dw_diameter.SetDataFont(Font_8x12::GetInstance(), 2u);
+  dw_diameter.SetNumber(0);
+  dw_diameter.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
+  dw_diameter.SetCallback(AppTask::GetCurrent());
+  dw_diameter.SetActive(true);
+  // Diameter caption, drawn over the window like the tool caption
+  name_diameter.SetParams("DIAMETER", dw_diameter.GetStartX() + BORDER_W*2, dw_diameter.GetStartY() + BORDER_W*2, COLOR_WHITE, Font_8x12::GetInstance());
+
+  // Base position: window in the left half, measure button in the right half
+  int32_t half_w = (display_drv.GetScreenW() - BORDER_W*3) / 2;
+  // Tool offset Name, over the base window
   name_base.SetParams("BASE POSITION", 0, 0, COLOR_WHITE, Font_12x16::GetInstance());
-  name_base.Move((display_drv.GetScreenW()  / 2) - (name_base.GetWidth() / 2), get_offset_btn.GetEndY() + BORDER_W * 2u);
+  name_base.Move(BORDER_W + (half_w / 2) - (name_base.GetWidth() / 2), dw_diameter.GetEndY() + BORDER_W * 2u);
   // Tool offset position
-  dw_base.SetParams(BORDER_W, name_base.GetEndY() + BORDER_W, display_drv.GetScreenW() - BORDER_W*2,  window_height, 7u, grbl_comm.GetReportUnitsPrecision());
+  dw_base.SetParams(BORDER_W, name_base.GetEndY() + BORDER_W, half_w,  window_height, 7u, grbl_comm.GetReportUnitsPrecision());
   dw_base.SetBorder(BORDER_W, COLOR_MAGENTA);
   dw_base.SetDataFont(Font_8x12::GetInstance(), 2u);
   dw_base.SetNumber(0); // Get current position at startup
-  dw_base.SetUnits(grbl_comm.GetReportUnits(), DataWindow::RIGHT);
+  // Units under the number: the half width window has no room right of it
+  dw_base.SetUnits(grbl_comm.GetReportUnits(), DataWindow::BOTTOM_RIGHT);
   dw_base.SetCallback(AppTask::GetCurrent());
   dw_base.SetActive(false);
   // Base window is reset above: Setup() runs at boot and on controller
   // settings change(metric/imperial flip), so the base must be measured again
   base_valid = false;
   // Measure offset button
-  get_base_btn.SetParams("MEASURE BASE", BORDER_W, dw_base.GetEndY() + BORDER_W*2, display_drv.GetScreenW() - BORDER_W*2, Font_8x12::GetInstance().GetCharH() * 5, true);
+  get_base_btn.SetParams("MEASURE BASE", dw_base.GetEndX() + 1 + BORDER_W, dw_base.GetStartY(), half_w, window_height, true);
   get_base_btn.SetCallback(AppTask::GetCurrent());
 
   // All good
@@ -1818,6 +1833,9 @@ Result ToolOffsetTab::Hide()
   // Tool offset window and name
   name_tool.Hide();
   dw_tool.Hide();
+  // Diameter window and name
+  name_diameter.Hide();
+  dw_diameter.Hide();
 
   // Base position window and name
   name_base.Hide();
@@ -1858,8 +1876,9 @@ Result ToolOffsetTab::TimerExpired(uint32_t interval)
   {
     // Number of tools can decrease
     if(tool > grbl_comm.GetToolTableCount()) tool = grbl_comm.GetToolTableCount();
-    // Offset of the selected tool from the tool table
+    // Offset and diameter of the selected tool from the tool table
     dw_tool.SetNumber(grbl_comm.GetToolOffset(tool));
+    dw_diameter.SetNumber(GetToolDiameter(tool));
     // Tool number and if it is current
     UpdateToolName();
   }
@@ -1991,13 +2010,29 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
   // ID for commands that aren't tracked
   uint32_t id = 0u;
 
-  // Tool offset entered: write it, apply it if the tool is current
+  // Tool offset or diameter entered
   if(ptr == &change_box)
   {
     if(change_box.GetResult() && table_mode && (state == PROBE_CNT))
     {
-      result = grbl_comm.SetToolTableOffset(tool, change_box.GetValue(), id);
-      if(result.IsGood() && (tool == grbl_comm.GetCurrentTool())) result = ApplyTool(tool, id);
+      // Diameter: written alone, nothing to apply - G43 doesn't use it,
+      // cutter compensation takes it from the table when it is programmed
+      if(change_box.GetId() == CHANGE_DIAMETER)
+      {
+        // Radius is half of the diameter. Odd diameter gives one more decimal
+        // (diameter * 5 with ten times the scaler), so it is sent exactly.
+        int32_t d = change_box.GetValue();
+        int32_t scaler = grbl_comm.GetReportUnitsScaler();
+        Decimal32 r = (d % 2) ? Decimal32(d * 5, scaler * 10u) : Decimal32(d / 2, scaler);
+        result = grbl_comm.SetToolTableRadius(tool, r, id);
+      }
+      // Offset: write it, apply it if the tool is current
+      else
+      {
+        result = grbl_comm.SetToolTableOffset(tool, change_box.GetValue(), id);
+        if(result.IsGood() && (tool == grbl_comm.GetCurrentTool())) result = ApplyTool(tool, id);
+      }
+      // Read the table back
       if(result.IsGood()) grbl_comm.RequestOffsets();
     }
   }
@@ -2023,6 +2058,22 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
       change_box.Setup(name_tool_str, grbl_comm.GetReportUnits(), grbl_comm.GetToolOffset(tool), -grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.ConvertMetricToUnits(1000000), grbl_comm.GetReportUnitsPrecision());
       // Set AppTask
       change_box.SetCallback(AppTask::GetCurrent());
+      // What is entered
+      change_box.SetId(CHANGE_OFFSET);
+      // Show change box
+      change_box.Show(10000u);
+    }
+    // Tool diameter window: enter diameter of the selected tool
+    else if((ptr == &dw_diameter) && table_mode)
+    {
+      // Title: tool and what is entered
+      snprintf(diameter_title_str, NumberOf(diameter_title_str), "T%lu diameter", tool);
+      // Zero to 500 mm - no cutter is bigger. Small title: it is long.
+      change_box.Setup(diameter_title_str, grbl_comm.GetReportUnits(), GetToolDiameter(tool), 0, grbl_comm.ConvertMetricToUnits(500000), grbl_comm.GetReportUnitsPrecision(), 1u);
+      // Set AppTask
+      change_box.SetCallback(AppTask::GetCurrent());
+      // What is entered
+      change_box.SetId(CHANGE_DIAMETER);
       // Show change box
       change_box.Show(10000u);
     }
@@ -2037,7 +2088,7 @@ Result ToolOffsetTab::ProcessCallback(const void* ptr)
       else
       {
         // Set Message Box parameters
-        msg_box.Setup("Error", "Can't select tool:\nit has X, Y or radius\ncompensation set.\nMeasure or enter its\noffset to clear them.");
+        msg_box.Setup("Error", "Can't select tool:\nit has an offset on\nan axis other than Z.\nMeasure or enter its\noffset to clear it.");
         // Show message box
         msg_box.Show(10000u);
       }
@@ -2101,6 +2152,18 @@ void ToolOffsetTab::UpdateMode(bool force)
     table_mode = table;
     // Tool offset window is clickable with tool table: offset can be entered
     dw_tool.SetActive(table_mode);
+    // Diameter window only with the tool table. Checked against the offset
+    // window, so it is never shown while the tab is hidden.
+    if(table_mode && dw_tool.IsShow())
+    {
+      dw_diameter.Show(100);
+      name_diameter.Show(100);
+    }
+    else
+    {
+      name_diameter.Hide();
+      dw_diameter.Hide();
+    }
     if(table_mode)
     {
       // Select the current tool if it is in the table
@@ -2119,6 +2182,19 @@ void ToolOffsetTab::UpdateMode(bool force)
       clear_offset_btn.SetString("CLEAR OFFSET");
     }
   }
+}
+
+// *****************************************************************************
+// ***   Private: GetToolDiameter function   ***********************************
+// *****************************************************************************
+int32_t ToolOffsetTab::GetToolDiameter(uint32_t t)
+{
+  // Twice the radius with one more decimal than the report units: a radius
+  // entered as diameter / 2 gives back the diameter entered. Reported radius
+  // is rounded by the controller, so an odd last digit may come back higher.
+  int32_t d10 = grbl_comm.GetToolRadius(t).ToFixedPoint(grbl_comm.GetReportUnitsScaler() * 10u) * 2;
+  // Round half away from zero to report units
+  return (d10 + ((d10 < 0) ? -5 : 5)) / 10;
 }
 
 // *****************************************************************************

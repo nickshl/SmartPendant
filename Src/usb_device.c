@@ -38,6 +38,9 @@
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
 
+/* Installs the application's CDC interface callbacks if the USB interface
+ * is in use(Application/UsbCdcUart.cpp) */
+void UsbCdcUart_RegisterInterface(void);
 /* USER CODE END PFP */
 
 /* USB Device Core handle declaration. */
@@ -86,6 +89,7 @@ void MX_USB_DEVICE_Init(void)
   }
 
   /* USER CODE BEGIN USB_DEVICE_Init_PostTreatment */
+  UsbCdcUart_RegisterInterface();
 
   /* USER CODE END USB_DEVICE_Init_PostTreatment */
 }

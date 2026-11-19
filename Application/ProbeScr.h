@@ -490,6 +490,10 @@ class ToolOffsetTab : public IScreen
   private:
     static const uint8_t BORDER_W = 4u;
 
+    // ID of the change box: what is entered
+    static const uint32_t CHANGE_OFFSET = 0u;
+    static const uint32_t CHANGE_DIAMETER = 1u;
+
     // Enum to track state
     typedef enum
     {
@@ -514,6 +518,8 @@ class ToolOffsetTab : public IScreen
     uint32_t shown_tool = 0u;
     // Buffer for tool caption
     char name_tool_str[16u] = {0};
+    // Buffer for the title of the diameter box
+    char diameter_title_str[16u] = {0};
 
     // Current selected axis
     // Scale to move axis
@@ -528,6 +534,11 @@ class ToolOffsetTab : public IScreen
     String name_tool;
     // Data windows to show tool offset
     DataWindow dw_tool;
+
+    // Caption of the diameter window
+    String name_diameter;
+    // Data window to show and enter tool diameter(tool table only)
+    DataWindow dw_diameter;
 
     // String for caption
     String name_base;
@@ -564,6 +575,12 @@ class ToolOffsetTab : public IScreen
     // ***   Private: UpdateMode function   ************************************
     // *************************************************************************
     void UpdateMode(bool force);
+
+    // *************************************************************************
+    // ***   Private: GetToolDiameter function   *******************************
+    // *************************************************************************
+    // * Diameter of the tool in report units: twice the radius, rounded.
+    int32_t GetToolDiameter(uint32_t t);
 
     // *************************************************************************
     // ***   Private: UpdateToolName function   ********************************

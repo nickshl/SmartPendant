@@ -26,6 +26,15 @@
 #include <new>    // For std::nothrow
 
 // *****************************************************************************
+// ***   Static members   ******************************************************
+// *****************************************************************************
+// Before C++17 a static constexpr member that is used as an object (here its
+// address is passed to snprintf) needs a definition outside the class.
+// Redundant but allowed in C++17.
+constexpr char ProgramSender::PROGRAM_START_MARKER[];
+constexpr char ProgramSender::PROGRAM_END_MARKER[];
+
+// *****************************************************************************
 // ***   Get Instance   ********************************************************
 // *****************************************************************************
 ProgramSender& ProgramSender::GetInstance()
@@ -239,9 +248,28 @@ Result ProgramSender::TimerExpired(uint32_t interval)
     // Process speed & feed change
     ProcessSpeedFeed();
 
-    // We should stream program if state is Idle, Run or Hold and we in control
-    if(((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::RUN) || (grbl_comm.GetState() == GrblComm::HOLD)) && (grbl_comm.IsInControl()))
+    // Manual tool change(M6): controller stops reading input, the line sent
+    // after M6 isn't answered until cycle start. Program waits for it.
+    bool tool = (grbl_comm.GetState() == GrblComm::TOOL);
+
+    // We should stream program if state is Idle, Run, Hold or Tool and we in control
+    if(((grbl_comm.GetState() == GrblComm::IDLE) || (grbl_comm.GetState() == GrblComm::RUN) || (grbl_comm.GetState() == GrblComm::HOLD) || tool) && (grbl_comm.IsInControl()))
     {
+      // Acknowledge the tool change once: controller's tool change modes
+      // 1-3 handle cycle start(probing, return to position) only after it.
+      // Input already received is put aside until cycle start, anything
+      // that comes after it is executed at once. So it isn't priority: it
+      // has to go after the line queued before it, and no line is sent in
+      // Tool state(below).
+      if(tool && !tool_ack)
+      {
+        tool_ack = grbl_comm.SendRealTimeCmd(GrblComm::CMD_TOOL_ACK, false).IsGood();
+      }
+      else if(!tool)
+      {
+        tool_ack = false;
+      }
+
       // If we finished streaming
       if(finished)
       {
@@ -263,7 +291,9 @@ Result ProgramSender::TimerExpired(uint32_t interval)
         GrblComm::status_t result = (id != 0u) ? grbl_comm.GetCmdResult(id) : GrblComm::Status_OK;
         // Only an acknowledged command permits the next line. A superseded
         // result is unknown, including commands invalidated by Stop or reset.
-        if(result == GrblComm::Status_OK)
+        // Nothing is sent in Tool state: after CMD_TOOL_ACK controller would
+        // execute it at once, during the tool change.
+        if((result == GrblComm::Status_OK) && !tool)
         {
           // The first numbered line is acknowledged: controller has parsed
           // it, so every line number it reports from now on belongs to this
@@ -280,13 +310,31 @@ Result ProgramSender::TimerExpired(uint32_t interval)
           // not to stall the task on a long block of comments.
           for(uint32_t i = 0u; !cmd_ready && !finished && (i < MAX_LINES_PER_TICK); i++)
           {
-            // Buffer for line: 80 + CR + LF + \0
-            char line[128] = {0};
-            // Get next line, it also handles the end of program and errors
-            if(GetNextLine(line, NumberOf(line)))
+            if(mark == MARK_PROGRAM)
             {
-              send_line++;
-              cmd_ready = BuildCommand(line, send_line, cmd, NumberOf(cmd));
+              // Buffer for line: 80 + CR + LF + \0
+              char line[128] = {0};
+              // Get next line, it also handles the end of program and errors
+              if(GetNextLine(line, NumberOf(line)))
+              {
+                send_line++;
+                cmd_ready = BuildCommand(line, send_line, cmd, NumberOf(cmd));
+              }
+            }
+            else if(mark == MARK_DONE)
+            {
+              // End marker is acknowledged: everything is sent
+              finished = true;
+            }
+            else
+            {
+              // Start marker before the first line, end marker after the
+              // last. Not numbered, sent as they are. Only a program that
+              // ended normally gets the end marker - a host program must not
+              // take a stopped one as complete and run it.
+              snprintf(cmd, NumberOf(cmd), "%s\r", (mark == MARK_START) ? PROGRAM_START_MARKER : PROGRAM_END_MARKER);
+              cmd_ready = true;
+              mark = (mark == MARK_START) ? MARK_PROGRAM : MARK_DONE;
             }
           }
           // Send command. It is kept until accepted: the line is already
@@ -299,9 +347,9 @@ Result ProgramSender::TimerExpired(uint32_t interval)
             if((first_numbered_id == 0u) && (cmd[0] == 'N')) first_numbered_id = id;
           }
         }
-        else if(result == GrblComm::Status_Cmd_Not_Executed_Yet)
+        else if((result == GrblComm::Status_Cmd_Not_Executed_Yet) || (result == GrblComm::Status_OK))
         {
-          ; // Wait until command will be executed
+          ; // Wait until command will be executed or tool change ends
         }
         else // In case of any error - stop executing program
         {
@@ -425,8 +473,8 @@ bool ProgramSender::GetNextLine(char* line, uint32_t size)
     }
     else if(f_eof(&SDFile))
     {
-      // End of program
-      finished = true;
+      // End of program: end marker is sent next
+      mark = MARK_END;
     }
     else
     {
@@ -444,10 +492,10 @@ bool ProgramSender::GetNextLine(char* line, uint32_t size)
   {
     // Lines are counted the way text box does it: empty lines don't exist
     while((p_send != nullptr) && ((*p_send == '\n') || (*p_send == '\r'))) p_send++;
-    // Check end of program
+    // Check end of program: end marker is sent next
     if((p_send == nullptr) || (*p_send == '\0'))
     {
-      finished = true;
+      mark = MARK_END;
     }
     else
     {
@@ -1204,6 +1252,10 @@ Result ProgramSender::ProcessCallback(const void* ptr)
       send_line = 0u;
       p_send = text_box.GetText();
       cmd_ready = false;
+      // Start marker goes first
+      mark = MARK_START;
+      // No tool change yet
+      tool_ack = false;
       // Nothing is known about line numbers from controller yet
       first_numbered_id = 0u;
       line_number_valid = false;

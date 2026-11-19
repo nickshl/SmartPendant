@@ -100,6 +100,12 @@ struct ProgramSender {
   const char* p_send = nullptr;
   char cmd[TextBox::MAX_LINE_LEN + 16u] = {0};
   bool cmd_ready = false;
+  typedef enum : uint8_t { MARK_START, MARK_PROGRAM, MARK_END, MARK_DONE } mark_t;
+  static constexpr char PROGRAM_START_MARKER[] = ";$PROGRAM=START";
+  static constexpr char PROGRAM_END_MARKER[] = ";$PROGRAM=END";
+  // As Run button sets it: start marker goes first
+  mark_t mark = MARK_START;
+  bool tool_ack = false;
   uint32_t first_numbered_id = 0u;
   bool line_number_valid = false;
   enum LineMode : uint8_t { LINE_EXECUTED, LINE_SENT };

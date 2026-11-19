@@ -202,6 +202,34 @@ void probe_tests() {
 }
 
 // Tool table from "$#", current tool from status report, tool table commands
+// Status report fields are split by NextField(), not strtok(): newlib
+// allocates the strtok() state on the first call.
+void status_fields_tests() {
+  // NextField() terminates the field and returns the next one
+  char str[] = "Idle||Ln:7>";
+  char* next = GrblComm::NextField(str);
+  assert(std::string(str) == "Idle" && next == str + 5);
+  char* last = GrblComm::NextField(next);
+  assert(std::string(next) == "" && std::string(last) == "Ln:7>");
+  assert(GrblComm::NextField(last) == nullptr && std::string(last) == "Ln:7>");
+  GrblComm comm;
+  FakeUart raw;
+  setup(comm, raw);
+  comm.number_of_axis = 3;
+  auto parse = [&](const std::string& report) { raw.line(report + "\n"); comm.PollSerial(); };
+  parse("<Run|MPos:0.000,0.000,0.000|Ln:12|FS:0,0|T:4>");
+  assert(comm.GetState() == GrblComm::RUN && comm.GetLineNumber() == 12u && comm.GetCurrentTool() == 4u);
+  // Empty fields match nothing, the fields after them are still parsed
+  parse("<Hold:0||Ln:7||T:2>");
+  assert(comm.GetState() == GrblComm::HOLD && comm.GetLineNumber() == 7u && comm.GetCurrentTool() == 2u);
+  // Reports without other fields don't break parsing(grblHAL always sends
+  // a position after the state)
+  parse("<Idle>");
+  parse("<>");
+  parse("<|>");
+  std::cout << "Status field tests passed\n";
+}
+
 void tool_table_tests() {
   GrblComm comm;
   FakeUart raw;
@@ -237,8 +265,9 @@ void tool_table_tests() {
   assert(!comm.IsToolInTable(0) && !comm.IsToolInTable(4) && !comm.IsToolInTable(33) && comm.GetToolOffset(4) == 0);
   assert(!comm.IsToolUsable(0) && !comm.IsToolUsable(4) && !comm.IsToolUsable(33));
 
-  // Since 20251111 lathe data, name and pocket follow. A tool with any other
-  // offset or radius set isn't usable: its offset can't be applied safely.
+  // Since 20251111 lathe data, name and pocket follow. A tool with an offset
+  // on any other axis isn't usable: its offset can't be applied safely. The
+  // radius doesn't make it unusable - G43 never uses it.
   comm.number_of_axis = 4;
   // While the table is reported again number of tools doesn't change: it
   // doesn't drop to zero and grow back
@@ -256,13 +285,24 @@ void tool_table_tests() {
   assert(comm.GetToolTableCount() == 6);
   assert(comm.IsToolOffsetValid(1) && comm.GetToolOffset(1) == -5500);
   // Not usable tools keep their Z for display
-  for(uint32_t tool : {2u, 3u, 4u, 5u}) assert(comm.IsToolInTable(tool) && !comm.IsToolUsable(tool) && !comm.IsToolOffsetValid(tool) && comm.GetToolOffset(tool) == 1000);
+  for(uint32_t tool : {2u, 3u, 5u}) assert(comm.IsToolInTable(tool) && !comm.IsToolUsable(tool) && !comm.IsToolOffsetValid(tool) && comm.GetToolOffset(tool) == 1000);
+  // Radius is kept and shown as diameter, the tool with it is usable
+  assert(comm.IsToolUsable(4) && comm.IsToolOffsetValid(4) && comm.GetToolOffset(4) == 1000 && comm.GetToolRadius(4) == Decimal32(500, 1000));
+  for(uint32_t tool : {1u, 2u, 3u, 5u, 6u}) assert(comm.GetToolRadius(tool) == Decimal32());
   assert(comm.IsToolUsable(6) && comm.IsToolOffsetValid(6) && comm.GetToolOffset(6) == 1000);
   // Same tool again replaces its data, usable both ways
   parse("[T:2|0.000,0.000,2.000,0.000|0.000|6,0,0|]");
   assert(comm.IsToolUsable(2) && comm.IsToolOffsetValid(2) && comm.GetToolOffset(2) == 2000);
   parse("[T:1|0.000,0.000,-5.500,0.000|0.100|6,0,0|]");
-  assert(!comm.IsToolUsable(1) && !comm.IsToolOffsetValid(1) && comm.GetToolOffset(1) == -5500);
+  assert(comm.IsToolUsable(1) && comm.IsToolOffsetValid(1) && comm.GetToolOffset(1) == -5500 && comm.GetToolRadius(1) == Decimal32(100, 1000));
+  // Radius is kept as reported, with its decimals
+  parse("[T:1|0.000,0.000,-5.500,0.000|1.5875|6,0,0|]");
+  assert(comm.GetToolRadius(1) == Decimal32(15875, 10000));
+  // Radius back to zero is replaced too
+  parse("[T:1|0.000,0.000,-5.500,0.000|0.000|6,0,0|]");
+  assert(comm.GetToolRadius(1) == Decimal32());
+  // No radius for tools out of the table
+  assert(comm.GetToolRadius(0) == Decimal32() && comm.GetToolRadius(7) == Decimal32() && comm.GetToolRadius(33) == Decimal32());
 
   // Malformed entries and tools above the table size are ignored
   for(const auto& bad : {"[T:|0,0,1,0|0]", "[T:8|0,0,1,0]", "[T:]", "[T:x|0,0,1,0|0]", "[T:9]", "[T:-1|0,0,1,0|0]",
@@ -274,11 +314,11 @@ void tool_table_tests() {
   // Imperial: values are in report units
   comm.measurement_system = GrblComm::MEASUREMENT_SYSTEM_IMPERIAL;
   parse("[G54:0.0000,0.0000,0.0000,0.0000]");
-  parse("[T:1|0.0000,0.0000,-0.5000,0.000|0.0000]");
+  parse("[T:1|0.0000,0.0000,-0.5000,0.000|0.1250]");
   parse("[TLO:0.0000]");
   // Tools removed from the table don't stay
   assert(comm.GetToolTableCount() == 1);
-  assert(comm.GetToolOffset(1) == -5000);
+  assert(comm.GetToolOffset(1) == -5000 && comm.GetToolRadius(1) == Decimal32(1250, 10000));
 
   // Current tool: status report, full report on settings request
   parse("<Idle|MPos:0.000,0.000,0.000,0.000|FS:0,0|T:5>");
@@ -299,23 +339,38 @@ void tool_table_tests() {
   parse("[G54:0.000,0.000,0.000,0.000]");
   parse("[T:1|0.000,0.000,-0.5000,0.000|0.000]");
   parse("[T:2|0.000,0.000,0.000,0.000|0.000]");
-  parse("[T:3|1.000,0.000,0.000,0.000|0.000]");
+  parse("[T:3|1.000,0.000,0.000,0.000|3.000]");
   parse("[TLO:0.000]");
   uint32_t id = 0;
-  // All other offsets and radius are zeroed, also for a tool that has them:
-  // it is usable after that
-  assert(comm.SetToolTableOffset(1, -5000, id).IsGood() && sent() == "G20G10L1P1X0Y0Z-0.5000A0R0\r");
+  // All other offsets are zeroed, also for a tool that has them: it is
+  // usable after that. The radius isn't sent - the controller keeps it.
+  assert(comm.SetToolTableOffset(1, -5000, id).IsGood() && sent() == "G20G10L1P1X0Y0Z-0.5000A0\r");
   comm.measurement_system = GrblComm::MEASUREMENT_SYSTEM_METRIC;
   assert(!comm.IsToolUsable(3));
-  assert(comm.SetToolTableOffset(3, -12345, id).IsGood() && sent() == "G21G10L1P3X0Y0Z-12.345A0R0\r");
-  assert(comm.IsToolUsable(3) && comm.IsToolOffsetValid(3));
+  assert(comm.SetToolTableOffset(3, -12345, id).IsGood() && sent() == "G21G10L1P3X0Y0Z-12.345A0\r");
+  assert(comm.IsToolUsable(3) && comm.IsToolOffsetValid(3) && comm.GetToolRadius(3) == Decimal32(3000, 1000));
   comm.number_of_axis = 3;
   assert(!comm.IsToolOffsetValid(2));
-  assert(comm.SetToolTableOffset(2, 1000, id).IsGood() && sent() == "G21G10L1P2X0Y0Z1.000R0\r");
+  assert(comm.SetToolTableOffset(2, 1000, id).IsGood() && sent() == "G21G10L1P2X0Y0Z1.000\r");
   // Copy is updated at once, so the offset can be applied right after it
   assert(comm.IsToolOffsetValid(2) && comm.GetToolOffset(2) == 1000);
   comm.number_of_axis = 6;
-  assert(comm.SetToolTableOffset(2, 1000, id).IsGood() && sent() == "G21G10L1P2X0Y0Z1.000A0B0C0R0\r");
+  assert(comm.SetToolTableOffset(2, 1000, id).IsGood() && sent() == "G21G10L1P2X0Y0Z1.000A0B0C0\r");
+  // Radius: only R, with its own decimals, units in the same block. The
+  // copy is updated at once, offsets aren't touched.
+  assert(comm.SetToolTableRadius(2, Decimal32(3175, 1000), id).IsGood() && sent() == "G21G10L1P2R3.175\r");
+  assert(comm.GetToolRadius(2) == Decimal32(3175, 1000) && comm.GetToolOffset(2) == 1000 && comm.IsToolUsable(2));
+  assert(comm.SetToolTableRadius(2, Decimal32(15875, 10000), id).IsGood() && sent() == "G21G10L1P2R1.5875\r");
+  assert(comm.GetToolRadius(2) == Decimal32(15875, 10000));
+  assert(comm.SetToolTableRadius(2, Decimal32(0, 1000), id).IsGood() && sent() == "G21G10L1P2R0.000\r");
+  assert(comm.GetToolRadius(2) == Decimal32());
+  comm.measurement_system = GrblComm::MEASUREMENT_SYSTEM_IMPERIAL;
+  assert(comm.SetToolTableRadius(3, Decimal32(1250, 10000), id).IsGood() && sent() == "G20G10L1P3R0.1250\r");
+  assert(comm.SetToolTableRadius(3, Decimal32(6255, 100000), id).IsGood() && sent() == "G20G10L1P3R0.06255\r");
+  assert(comm.GetToolRadius(3) == Decimal32(6255, 100000));
+  comm.measurement_system = GrblComm::MEASUREMENT_SYSTEM_METRIC;
+  // Negative radius isn't a cutter
+  assert(comm.SetToolTableRadius(2, Decimal32(-1, 1000), id) == Result::ERR_BAD_PARAMETER && comm.messages.empty());
   // Without ATC tool is declared current. Offset that isn't set is never
   // applied: zero Z, also tool with X set - it can be loaded to measure it.
   assert(comm.SetToolTableOffset(2, 0, id).IsGood());
@@ -354,13 +409,16 @@ void tool_table_tests() {
   parse("<Idle|MPos:0.000,0.000,0.000,0.000|FS:0,0|T:1>");
   assert(comm.DeselectTool(id).IsGood() && sent() == "M61Q0G49\r");
   // Tools that aren't in the table
+  assert(comm.SetToolTableRadius(0, Decimal32(), id) == Result::ERR_BAD_PARAMETER && comm.messages.empty());
   for(uint32_t tool : {4u, 33u}) {
     assert(comm.SetToolTableOffset(tool, 0, id) == Result::ERR_BAD_PARAMETER);
+    assert(comm.SetToolTableRadius(tool, Decimal32(), id) == Result::ERR_BAD_PARAMETER && comm.messages.empty());
     assert(comm.ChangeTool(tool, id) == Result::ERR_BAD_PARAMETER && comm.messages.empty());
   }
   // Only in Idle
   comm.grbl_state = GrblComm::RUN;
   assert(comm.SetToolTableOffset(1, 0, id) == Result::ERR_CANNOT_EXECUTE);
+  assert(comm.SetToolTableRadius(1, Decimal32(), id) == Result::ERR_CANNOT_EXECUTE && comm.messages.empty());
   assert(comm.ChangeTool(1, id) == Result::ERR_CANNOT_EXECUTE && comm.messages.empty());
   assert(comm.DeselectTool(id) == Result::ERR_CANNOT_EXECUTE && comm.messages.empty());
 
@@ -390,7 +448,10 @@ void sender_tests() {
     ProgramSender sender(comm);
     sender.TimerExpired(1);
     if(status == GrblComm::Status_OK) {
-      assert(sender.run && comm.messages.size() == 1 && sender.send_line == 1);
+      // Start marker goes first, it isn't a line of the program
+      assert(sender.run && comm.messages.size() == 1 && sender.send_line == 0);
+      std::string cmd((const char*)comm.messages.back().data() + sizeof(uint32_t));
+      assert(cmd.substr(0, cmd.find('\0')) == ";$PROGRAM=START\r");
     } else {
       assert(comm.messages.empty() && sender.send_line == 0);
       assert(sender.run == (status == GrblComm::Status_Cmd_Not_Executed_Yet));
@@ -429,6 +490,14 @@ struct Rig {
   explicit Rig(const char* program) : sender(comm, program) {
     setup(comm, wire);
     sender.id = 0; // Nothing is sent yet
+    // Start marker goes before the first line: not numbered, nothing taken
+    // from the program
+    assert(tick() && sent.back() == ";$PROGRAM=START\r" && sender.send_line == 0 && sender.mark == ProgramSender::MARK_PROGRAM);
+    sent.clear();
+  }
+  // End marker after the last line, then everything is sent
+  bool end() {
+    return tick() && (sent.back() == ";$PROGRAM=END\r") && !sender.finished && !tick() && sender.finished;
   }
   // One timer tick. If a command went out it is recorded and acknowledged.
   bool tick() {
@@ -496,14 +565,14 @@ void line_number_tests() {
     r.report("Run|WPos:0,0,0|Ln:99");                  // Not a line of this program
     assert(r.tick() && box.selection == 2);
     r.report("Run|WPos:0,0,0|Ln:2");                   // Never back
-    assert(!r.tick() && r.sender.finished && r.sender.run && box.selection == 2);
+    assert(r.end() && r.sender.run && box.selection == 2);
     r.report("Run|WPos:0,0,0");                        // A report without the number changes nothing
     assert(!r.tick() && box.selection == 2);
     r.report("Run|WPos:0,0,0|Ln:6");
     assert(!r.tick() && r.sender.run && box.selection == 5);
     r.report("Idle|WPos:0,0,0|Ln:6");
     assert(!r.tick() && !r.sender.run && box.Selected() == "G1 X3 (last)");
-    assert((r.sent == std::vector<std::string>{"N1G21\r", "N3G1 X1 F100\r", "N4G1 X2\r", "$G\r", "N6G1 X3 (last)\r"}));
+    assert((r.sent == std::vector<std::string>{"N1G21\r", "N3G1 X1 F100\r", "N4G1 X2\r", "$G\r", "N6G1 X3 (last)\r", ";$PROGRAM=END\r"}));
   }
 
   // Program in memory: selection goes to the executed line at once, there is
@@ -528,14 +597,14 @@ void line_number_tests() {
     assert(r.tick() && r.sender.line_mode == ProgramSender::LINE_EXECUTED && box.selection == 2);
     // The last line has no motion and is never reported: it is selected when program has ended
     r.report("Run|WPos:0,0,0|Ln:4");
-    assert(!r.tick() && r.sender.finished && box.selection == 3);
+    assert(r.end() && box.selection == 3);
   }
   {
     Rig r("G1 X1\nG1 X2\nM5\nM30");
     auto& box = r.sender.text_box;
     assert(r.tick() && r.tick());
     r.report("Run|WPos:0,0,0|Ln:2");
-    assert(r.tick() && r.tick() && !r.tick() && r.sender.finished && box.selection == 1);
+    assert(r.tick() && r.tick() && r.end() && box.selection == 1);
     r.report("Idle|WPos:0,0,0");
     assert(!r.tick() && !r.sender.run && box.Selected() == "M30");
   }
@@ -549,10 +618,10 @@ void line_number_tests() {
     box.selector_fill = 2;                             // As Run sets it for this mode
     r.report("Run|WPos:0,0,0|Ln:1");                   // Whatever it says
     assert(r.tick() && box.selection == 2 && r.tick() && box.selection == 3);
-    assert(r.tick() && box.selection == 3 && !r.tick() && r.sender.finished);
+    assert(r.tick() && box.selection == 3 && r.end());
     r.report("Idle|WPos:0,0,0");
     assert(!r.tick() && !r.sender.run && box.selector_fill == 0); // Program has ended: everything is executed
-    assert((r.sent == std::vector<std::string>{"N1G0 X1\r", "N2G0 X2\r", "N3G0 X3\r", "N4M2\r"}));
+    assert((r.sent == std::vector<std::string>{"N1G0 X1\r", "N2G0 X2\r", "N3G0 X3\r", "N4M2\r", ";$PROGRAM=END\r"}));
   }
 
   // Number left by a program that ran before isn't taken for this one, even
@@ -565,7 +634,7 @@ void line_number_tests() {
     r.report("Run|WPos:0,0,0|Ln:1");
     assert(r.tick() && box.selection == 0 && r.sender.exec_line == 1);
     r.report("Run|WPos:0,0,0|Ln:3");
-    assert(!r.tick() && box.selection == 2);
+    assert(r.end() && box.selection == 2);
   }
   // Nor before the first line of this one is acknowledged
   {
@@ -574,11 +643,53 @@ void line_number_tests() {
     assert(r.tick() && r.sender.send_line == 3 && r.sender.text_box.selection == 0);
   }
 
+  // Program markers: one pair around every program, the program itself goes
+  // out as before - "%" lines too, numbered like any other line. A marker
+  // written in the program file is a ';' comment: never sent.
+  {
+    Rig r("%\nG0 X1\n;$PROGRAM=END\nG0 X2 ;$PROGRAM=START\n % \n");
+    auto& box = r.sender.text_box;
+    for(int guard = 0; !r.sender.finished && guard < 20; guard++) r.tick();
+    // "%" lines go out as they are written, as they always did
+    assert((r.sent == std::vector<std::string>{"%\r", "N2G0 X1\r", "N4G0 X2\r", "% \r", ";$PROGRAM=END\r"}));
+    assert(r.sender.send_line == 5);
+    r.report("Idle|WPos:0,0,0|Ln:4");
+    assert(!r.tick() && !r.sender.run && r.sender.exec_line == 5 && box.Selected() == " % ");
+  }
+  // Empty program: still exactly one pair
+  {
+    Rig r("; nothing\n");
+    assert(r.end() && r.sent == std::vector<std::string>{";$PROGRAM=END\r"});
+  }
+  // A program that is stopped by an error gets no end marker: a host program
+  // must not take the part that was sent as a complete program
+  {
+    Rig r("G0 X1\nG0 X2\nG0 X3\n");
+    assert(r.tick());
+    r.sender.TimerExpired(1);
+    dispatch(r.comm);
+    r.wire.line("error:20\n"); r.comm.PollSerial();
+    for(int i = 0; i < 5; i++) r.sender.TimerExpired(1);
+    assert(!r.sender.run && r.sender.finished && r.comm.messages.empty() && r.sender.msg_box.shown == 1);
+    std::string last(r.wire.outgoing.back().begin(), r.wire.outgoing.back().end());
+    assert(last == "N2G0 X2\r");
+  }
+  // Streamed from SD card: the same
+  {
+    Rig r(nullptr);
+    File disp;
+    r.sender.p_send = nullptr;
+    r.sender.SDFile.data = disp.data = "%\nO1000 (name)\nG0 X1\n%\n";
+    r.sender.p_disp_file = &disp;
+    for(int guard = 0; !r.sender.finished && guard < 20; guard++) r.tick();
+    assert((r.sent == std::vector<std::string>{"%\r", "N2O1000 (name)\r", "N3G0 X1\r", "%\r", ";$PROGRAM=END\r"}) && r.sender.send_line == 4);
+  }
+
   // The only numbered line is the last one: no command is sent after it
   {
     Rig r("$H\n$G\nG0 X1\n");
     auto& box = r.sender.text_box;
-    assert(r.tick() && r.tick() && r.tick() && !r.tick() && r.sender.finished && box.selection == 0);
+    assert(r.tick() && r.tick() && r.tick() && r.end() && box.selection == 0);
     r.report("Idle|WPos:0,0,0|Ln:3");
     assert(!r.tick() && !r.sender.run && r.sender.line_mode == ProgramSender::LINE_EXECUTED && box.Selected() == "G0 X1");
   }
@@ -588,7 +699,7 @@ void line_number_tests() {
   const std::string file = "N1 G21\nG0 X0\n\n; note\nG1 X1\nG1 X2\nN70 G1 X3\nG1 X4\nG1 X5\nG1 X6\nG1 X7\nM2\n";
   const std::vector<std::string> shown = {"G21", "G0 X0", "", "; note", "G1 X1", "G1 X2", "G1 X3", "G1 X4", "G1 X5", "G1 X6", "G1 X7", "M2"};
   const std::vector<std::string> commands = {"N1G21\r", "N2G0 X0\r", "N5G1 X1\r", "N6G1 X2\r", "N7G1 X3\r", "N8G1 X4\r", "N9G1 X5\r",
-                                             "N10G1 X6\r", "N11G1 X7\r", "N12M2\r"};
+                                             "N10G1 X6\r", "N11G1 X7\r", "N12M2\r", ";$PROGRAM=END\r"};
   auto open = [&](Rig& r, File& disp) {
     r.sender.text_box.SetText(nullptr);
     r.sender.p_send = nullptr;
@@ -645,6 +756,123 @@ void line_number_tests() {
     assert(r.sender.text_box.selection == 0 && r.sender.text_box.Selected() == shown[0]);
   }
   std::cout << "Program line number and executed line tests passed\n";
+}
+
+// Manual tool change(M6): controller stops reading input before the "ok" for
+// M6, the next line waits unanswered until cycle start. CMD_TOOL_ACK puts the
+// input received before it aside, anything after it is executed at once.
+void tool_change_tests() {
+  const std::vector<uint8_t> ack{GrblComm::CMD_TOOL_ACK};
+  // Sender runs one tick, whatever it queued goes out in queue order
+  auto step = [](Rig& r) {
+    r.sender.TimerExpired(1);
+    while(!r.comm.messages.empty()) dispatch(r.comm);
+  };
+  auto ok = [](Rig& r) { r.wire.line("ok\n"); r.comm.PollSerial(); };
+  auto last = [](Rig& r) { return std::string(r.wire.outgoing.back().begin(), r.wire.outgoing.back().end()); };
+  // "ok" for M6 comes first: the next line is sent, it is in controller's
+  // buffer before the ack
+  {
+    Rig r("G0 X1\nM6 T2\nG0 X2\nM6 T3\nG0 X3");
+    assert(r.tick() && r.tick() && r.sent.back() == "N2M6 T2\r");
+    r.report("Run|WPos:0,0,0");
+    step(r);
+    assert(last(r) == "N3G0 X2\r");
+    size_t count = r.wire.outgoing.size();
+    r.report("Tool|WPos:0,0,0");
+    step(r);
+    assert(r.wire.outgoing.size() == count + 1 && r.wire.outgoing.back() == ack);
+    // Once per tool change, nothing else while it lasts
+    for(int i = 0; i < 5; i++) { r.report("Tool|WPos:0,0,0"); step(r); }
+    assert(r.wire.outgoing.size() == count + 1 && r.sender.run);
+    // Cycle start: the line is executed, streaming goes on
+    r.report("Run|WPos:0,0,0");
+    step(r);
+    assert(r.wire.outgoing.size() == count + 1);
+    ok(r);
+    step(r);
+    assert(last(r) == "N4M6 T3\r");
+    // Next tool change: Tool before the "ok" for M6. Acknowledged at once:
+    // nothing after M6 is in controller's buffer.
+    count = r.wire.outgoing.size();
+    r.report("Tool|WPos:0,0,0");
+    step(r);
+    assert(r.wire.outgoing.size() == count + 1 && r.wire.outgoing.back() == ack);
+    // "ok" for M6 now: the next line waits for the end of the tool change,
+    // after the ack controller would execute it at once
+    ok(r);
+    for(int i = 0; i < 5; i++) { r.report("Tool|WPos:0,0,0"); step(r); }
+    assert(r.wire.outgoing.size() == count + 1 && r.sender.run && r.sender.send_line == 4);
+    r.report("Idle|WPos:0,0,0");
+    step(r);
+    assert(last(r) == "N5G0 X3\r");
+    ok(r);
+    assert(r.end());
+    r.report("Idle|WPos:0,0,0");
+    assert(!r.tick() && !r.sender.run);
+  }
+  // Line queued before Tool is seen goes out before the ack: ack isn't
+  // priority. Stop or Reset still overtakes both.
+  {
+    Rig r("M6 T2\nG0 X2");
+    assert(r.tick() && r.sent.back() == "N1M6 T2\r");
+    r.report("Run|WPos:0,0,0");
+    r.sender.TimerExpired(1);
+    r.report("Tool|WPos:0,0,0");
+    r.sender.TimerExpired(1);
+    assert(r.comm.messages.size() == 2);
+    size_t count = r.wire.outgoing.size();
+    while(!r.comm.messages.empty()) dispatch(r.comm);
+    assert(r.wire.outgoing.size() == count + 2 && r.wire.outgoing[count] == std::vector<uint8_t>({'N','2','G','0',' ','X','2','\r'}) && r.wire.outgoing.back() == ack);
+    assert(r.comm.SendRealTimeCmd('!').IsGood() && r.comm.SendRealTimeCmd(GrblComm::CMD_TOOL_ACK, false).IsGood() && r.comm.SendRealTimeCmd(0x18).IsGood());
+    dispatch(r.comm);
+    assert(r.wire.outgoing.back() == std::vector<uint8_t>{0x18});
+    r.comm.messages.clear();
+  }
+  // M6 is the last line: the end marker waits like a line
+  {
+    Rig r("G0 X1\nM6 T2");
+    assert(r.tick() && r.tick() && r.sent.back() == "N2M6 T2\r");
+    r.report("Tool|WPos:0,0,0");
+    step(r);
+    assert(r.wire.outgoing.back() == ack && !r.sender.finished);
+    r.report("Idle|WPos:0,0,0");
+    assert(r.end());
+    r.report("Idle|WPos:0,0,0");
+    assert(!r.tick() && !r.sender.run);
+  }
+  // Stop during the tool change ends the program, nothing more is sent
+  {
+    Rig r("M6 T2\nG0 X2\nG0 X3");
+    assert(r.tick());
+    r.report("Run|WPos:0,0,0");
+    step(r);
+    r.report("Tool|WPos:0,0,0");
+    step(r);
+    assert(r.wire.outgoing.back() == ack);
+    r.comm.Stop();
+    dispatch(r.comm);
+    size_t count = r.wire.outgoing.size();
+    r.report("Idle|WPos:0,0,0");
+    step(r);
+    assert(!r.sender.run && r.wire.outgoing.size() == count);
+  }
+  // Not in control: no ack, the program is stopped as in any other state
+  {
+    Rig r("M6 T2\nG0 X2");
+    assert(r.tick());
+    r.comm.grbl_mpgMode = false;
+    r.report("Tool|WPos:0,0,0");
+    size_t count = r.wire.outgoing.size();
+    r.sender.TimerExpired(1);
+    assert(r.comm.messages.empty() && r.wire.outgoing.size() == count && !r.sender.run);
+  }
+  // Run starts without a tool change acknowledged
+  {
+    Rig r("M6 T2");
+    assert(!r.sender.tool_ack);
+  }
+  std::cout << "Tool change tests passed\n";
 }
 
 void interpreter_tests() {
@@ -727,4 +955,4 @@ void decimal_tests() {
   std::cout << "Decimal32 parsing and fixed point tests passed\n";
 }
 
-int main() { comm_tests(); status_after_cmd_tests(); probe_tests(); tool_table_tests(); decimal_tests(); sender_tests(); line_number_tests(); interpreter_tests(); }
+int main() { comm_tests(); status_after_cmd_tests(); probe_tests(); status_fields_tests(); tool_table_tests(); decimal_tests(); sender_tests(); line_number_tests(); tool_change_tests(); interpreter_tests(); }

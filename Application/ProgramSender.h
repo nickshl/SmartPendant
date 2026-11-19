@@ -132,6 +132,24 @@ class ProgramSender : public IScreen
     // one is '/', 'N' with seven digits, the line itself and CR.
     char cmd[TextBox::MAX_LINE_LEN + 16u] = {0};
     bool cmd_ready = false;
+    // Program start and end markers, sent before the first line and after
+    // the last one. A host program on USB takes them as program start and
+    // end and has to match the whole line. For grblHAL they are comments:
+    // a line starting with ';' is answered "ok" and nothing else, not even
+    // comment hooks are called. A program file can't fake them: BuildCommand()
+    // cuts ';' comments off and doesn't send a line with nothing left.
+    static constexpr char PROGRAM_START_MARKER[] = ";$PROGRAM=START";
+    static constexpr char PROGRAM_END_MARKER[] = ";$PROGRAM=END";
+    typedef enum : uint8_t
+    {
+      MARK_START,    // Start marker is the next to send
+      MARK_PROGRAM,  // Program lines are sent
+      MARK_END,      // Program ended normally: end marker is the next to send
+      MARK_DONE      // End marker is sent
+    } mark_t;
+    mark_t mark = MARK_START;
+    // CMD_TOOL_ACK is sent for this tool change(Tool state)
+    bool tool_ack = false;
     // ID of the first command sent with a line number, zero if none yet
     uint32_t first_numbered_id = 0u;
     // Set when that command is acknowledged: line numbers controller reports

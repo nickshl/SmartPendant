@@ -127,8 +127,9 @@ Result Tetris::Loop()
   // Play Sound (Demo)
   sound_drv.PlaySound(music_data_table, NumberOf(music_data_table), 120U, true);
 
-  // Initialize random seed
-  srand(RtosTick::GetTickCount());
+  // Initialize random seed. Zero state stays zero forever.
+  random_state = RtosTick::GetTickCount();
+  if(random_state == 0u) random_state = 1u;
 
   // Show bucket, shape, next shape and score string on screen
   bucket.Show(1);
@@ -163,7 +164,7 @@ Result Tetris::Loop()
     // Copy next shape to current one
     shape.PopulateShapeArray(next_shape);
     // Create next shape
-    next_shape.PopulateShapeArray(rand()%7, 1+(rand()%5));
+    next_shape.PopulateShapeArray(Random() % 7u, 1u + (Random() % 5u));
     next_shape.MoveShape(WIDTH + 2u, 5);
 
     if(bucket.CheckShapeCollisionIntoBucket(shape))
@@ -291,6 +292,17 @@ Result Tetris::Loop()
 
   // Always run
   return Result::RESULT_OK;
+}
+
+// *****************************************************************************
+// ***   Private: Random function   ********************************************
+// *****************************************************************************
+uint32_t Tetris::Random()
+{
+  random_state ^= random_state << 13u;
+  random_state ^= random_state >> 17u;
+  random_state ^= random_state << 5u;
+  return random_state;
 }
 
 // *****************************************************************************

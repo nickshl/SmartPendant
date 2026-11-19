@@ -28,6 +28,8 @@
 // *****************************************************************************
 // ***   Debug defines   *******************************************************
 // *****************************************************************************
+// Mirrors the traffic to the USB CDC port. Inactive while the USB interface
+// is the transport(NVM::TRANSPORT_USB), which carries the link itself on it.
 //#define SEND_DATA_TO_USB
 
 // *****************************************************************************
@@ -681,7 +683,9 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: IsToolUsable function   ***********************************
     // *************************************************************************
-    // * Tool is in the table and has nothing but Z set: no other axes, no radius
+    // * Tool is in the table and has no offset on axes other than Z. The radius
+    // * doesn't matter: tool length offset(G43) never uses it, only cutter
+    // * compensation(G41/G42) does.
     inline bool IsToolUsable(uint32_t tool) {return IsToolInTable(tool) && (tool_usable_mask & (1u << (tool - 1u)));}
 
     // *************************************************************************
@@ -695,6 +699,13 @@ class GrblComm : public AppTask
     // *************************************************************************
     // * Z offset of the tool in report units
     inline int32_t GetToolOffset(uint32_t tool) {return IsToolInTable(tool) ? tool_table_z[tool - 1u].ToFixedPoint(GetReportUnitsScaler()) : 0;}
+
+    // *************************************************************************
+    // ***   Public: GetToolRadius function   **********************************
+    // *************************************************************************
+    // * Radius of the tool as reported in "[T:...]", in report units. Zero for
+    // * a tool that isn't in the table.
+    inline Decimal32 GetToolRadius(uint32_t tool) {return IsToolInTable(tool) ? tool_table_r[tool - 1u] : Decimal32();}
 
     // *************************************************************************
     // ***   Public: GetLineNumber function   **********************************
@@ -803,7 +814,10 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: SendRealTimeCmd   *****************************************
     // *************************************************************************
-    Result SendRealTimeCmd(uint8_t cmd);
+    // * Priority command goes to the front of the queue(Stop, Hold, ...).
+    // * Otherwise it goes after the commands already queued and is sent after
+    // * them(CMD_TOOL_ACK has to follow the line sent before it).
+    Result SendRealTimeCmd(uint8_t cmd, bool priority = true);
 
     // *************************************************************************
     // ***   Public: SendCmd   *************************************************
@@ -1002,8 +1016,16 @@ class GrblComm : public AppTask
     // *************************************************************************
     // ***   Public: SetToolTableOffset   **************************************
     // *************************************************************************
-    // * G10 L1 P<tool> X0 Y0 Z<offset> ... R0, offset in effect isn't changed
+    // * G10 L1 P<tool> X0 Y0 Z<offset> ..., offset in effect isn't changed.
+    // * The radius isn't sent, so the controller keeps it.
     Result SetToolTableOffset(uint32_t tool, int32_t offset, uint32_t &id);
+
+    // *************************************************************************
+    // ***   Public: SetToolTableRadius   **************************************
+    // *************************************************************************
+    // * G10 L1 P<tool> R<radius>: only the radius, offsets aren't changed.
+    // * Radius in report units, sent with as many decimals as it has.
+    Result SetToolTableRadius(uint32_t tool, Decimal32 radius, uint32_t &id);
 
     // *************************************************************************
     // ***   Public: ChangeTool   **********************************************
@@ -1187,7 +1209,9 @@ class GrblComm : public AppTask
 
     // Z offsets from "$#", index is tool - 1(grblHAL core table has 32 tools max)
     Decimal32 tool_table_z[32u];
-    // Tools with nothing but Z set, bit 0 is tool 1
+    // Radius from "$#", same index. Kept for display and editing only.
+    Decimal32 tool_table_r[32u];
+    // Tools without offsets on axes other than Z, bit 0 is tool 1
     uint32_t tool_usable_mask = 0u;
     // Number of tools, updated at the end of "$#" so it doesn't change while received
     uint32_t tool_table_cnt = 0u;
@@ -1347,6 +1371,13 @@ class GrblComm : public AppTask
     void ParseFeedSpeed(char* data);
 
     // *************************************************************************
+    // ***   Private: NextField function   *************************************
+    // *************************************************************************
+    // * Field of a status report: terminates the field at the next '|' and
+    // * returns the field after it, nullptr if this one is the last.
+    static char* NextField(char* field);
+
+    // *************************************************************************
     // ***   Private: ParseData function   *************************************
     // *************************************************************************
     void ParseData(void);
@@ -1360,6 +1391,13 @@ class GrblComm : public AppTask
     // ***   Private: GetNextId function   *************************************
     // *************************************************************************
     uint32_t GetNextId(void);
+
+#if defined(SEND_DATA_TO_USB)
+    // *************************************************************************
+    // ***   Private: SendToUsb function   *************************************
+    // *************************************************************************
+    void SendToUsb(uint8_t* buf, uint32_t len);
+#endif
 
     // *************************************************************************
     // ***   Private constructor   *********************************************

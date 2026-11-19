@@ -20,6 +20,7 @@
 // *****************************************************************************
 #include "SettingsScr.h"
 #include "FramedUart.h"
+#include "UsbCdcUart.h"
 
 #include "Application.h"
 
@@ -265,7 +266,10 @@ Result SettingsScr::ProcessMenuCallback(SettingsScr* obj_ptr, void* ptr)
       }
       else if(nvm_idx == NVM::TRANSPORT)
       {
-        ths.nvm.SetValue(NVM::TRANSPORT, !ths.nvm.GetValue(NVM::TRANSPORT));
+        // Plain -> Framed -> USB -> Plain. Applied on reboot.
+        int32_t val = ths.nvm.GetValue(NVM::TRANSPORT) + 1;
+        if((val < 0) || (val >= NVM::TRANSPORT_CNT)) val = NVM::TRANSPORT_PLAIN;
+        ths.nvm.SetValue(NVM::TRANSPORT, val);
       }
       else if(nvm_idx == NVM::FRAME_ATTEMPTS)
       {
@@ -601,6 +605,12 @@ void SettingsScr::UpdateStrings(void)
   char tmp_str[20u] = {0};
   // Count for menu
   uint32_t cnt = 0;
+  // Transport chosen in settings(unknown value is plain, as in AppMain()) and
+  // the one in use(changes on reboot)
+  static const char* const transport_str[NVM::TRANSPORT_CNT] = {"Plain", "Framed", "USB"};
+  int32_t transport = nvm.GetValue(NVM::TRANSPORT);
+  if((transport < 0) || (transport >= NVM::TRANSPORT_CNT)) transport = NVM::TRANSPORT_PLAIN;
+  int32_t transport_in_use = (UsbCdcUart::GetInstance() != nullptr) ? NVM::TRANSPORT_USB : framed_transport_in_use ? NVM::TRANSPORT_FRAMED : NVM::TRANSPORT_PLAIN;
   // General tab
   if(tabs.GetSelectedTab() == GENERAL_TAB)
   {
@@ -608,7 +618,8 @@ void SettingsScr::UpdateStrings(void)
     // is converted to NVM index by adding the first parameter of the tab
     menu.CreateString(menu_items[cnt++], GetMenuString(NVM::TX_CONTROL), (nvm.GetCtrlTx() == GrblComm::CTRL_GPIO_PIN) ? "dedicated pin" : (nvm.GetCtrlTx() == GrblComm::CTRL_SW_COMMAND) ? "sw command" : (nvm.GetCtrlTx() == GrblComm::CTRL_PIN_AND_SW_CMD) ? "pin & sw cmd": "full control");
     menu.CreateString(menu_items[cnt++], GetMenuString(NVM::BAUD_RATE), psnprintf(tmp_str, NumberOf(tmp_str), "%lu", nvm.GetValue(NVM::BAUD_RATE)));
-    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::TRANSPORT), nvm.GetValue(NVM::TRANSPORT) ? "Framed" : "Plain");
+    // Transport takes effect on reboot - say so while it differs from the one in use
+    menu.CreateString(menu_items[cnt++], GetMenuString(NVM::TRANSPORT), (transport == transport_in_use) ? transport_str[transport] : psnprintf(tmp_str, NumberOf(tmp_str), "%s(reboot)", transport_str[transport]));
     menu.CreateString(menu_items[cnt++], GetMenuString(NVM::FRAME_ATTEMPTS), psnprintf(tmp_str, NumberOf(tmp_str), "%lu", nvm.GetValue(NVM::FRAME_ATTEMPTS)));
     menu.CreateString(menu_items[cnt++], GetMenuString(NVM::ACK_MIN_MS), nvm.GetValue(NVM::ACK_MIN_MS) ? psnprintf(tmp_str, NumberOf(tmp_str), "%lu ms", nvm.GetValue(NVM::ACK_MIN_MS)) : "auto");
     menu.CreateString(menu_items[cnt++], GetMenuString(NVM::AUTO_MPG_ON_START), nvm.GetValue(NVM::AUTO_MPG_ON_START) ? "enabled" : "disabled");
@@ -652,7 +663,7 @@ void SettingsScr::UpdateStrings(void)
   {
     // Transport in use, not the one in settings - the counters below belong
     // to it, and it changes on reboot only
-    menu.CreateString(menu_items[cnt++], "Transport", framed_transport_in_use ? "Framed" : "Plain");
+    menu.CreateString(menu_items[cnt++], "Transport", transport_str[transport_in_use]);
 
     if(framed_transport_in_use)
     {

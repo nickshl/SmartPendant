@@ -78,6 +78,17 @@ class NVM
     // Number of banks. Used for wear leveling.
     static constexpr uint32_t BANKS_CNT = 2u;
 
+    // Values of TRANSPORT: link to the controller. Plain and framed are the
+    // UART, USB is the virtual COM port(always a plain byte stream - USB has
+    // its own error checking and retransmission). Unknown value is plain.
+    enum Transport : uint8_t
+    {
+      TRANSPORT_PLAIN = 0,
+      TRANSPORT_FRAMED = 1,
+      TRANSPORT_USB = 2,
+      TRANSPORT_CNT
+    };
+
     // *************************************************************************
     // ***   Public: Get Instance   ********************************************
     // *************************************************************************

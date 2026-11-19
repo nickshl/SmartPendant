@@ -27,6 +27,7 @@
 #include "Application.h"
 #include "GrblComm.h"
 #include "FramedUart.h"
+#include "UsbCdcUart.h"
 #include "Tetris.h"
 
 // Hardware
@@ -115,10 +116,19 @@ extern "C" void AppMain(void)
     framed_uart.SetAttempts(NVM::GetInstance().GetValue(NVM::FRAME_ATTEMPTS));
     // Floor under the baud derived acknowledge timeout, 0 = derived value
     framed_uart.SetAckTimeoutFloor(NVM::GetInstance().GetValue(NVM::ACK_MIN_MS));
+    // Transport: plain or framed UART, or USB virtual COM port
+    int32_t transport = NVM::GetInstance().GetValue(NVM::TRANSPORT);
+    // USB is created only when selected: it lives on the heap, so a UART user
+    // doesn't pay RAM for it. If it can't be created plain UART is used.
+    UsbCdcUart* usb_uart = nullptr;
+    if(transport == NVM::TRANSPORT_USB)
+    {
+      usb_uart = UsbCdcUart::Create();
+    }
     // Find which uart class should be used - plain or framed
-    framed_transport_in_use = (NVM::GetInstance().GetValue(NVM::TRANSPORT) != 0);
+    framed_transport_in_use = (transport == NVM::TRANSPORT_FRAMED);
     // Init GRBL Communication task with appropriate uart handle
-    GrblComm::GetInstance().InitTask(framed_transport_in_use ? (IUart&)framed_uart : (IUart&)uart);
+    GrblComm::GetInstance().InitTask((usb_uart != nullptr) ? (IUart&)*usb_uart : framed_transport_in_use ? (IUart&)framed_uart : (IUart&)uart);
     // Init Application Task
     Application::GetInstance().InitTask();
   }

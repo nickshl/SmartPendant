@@ -28,6 +28,7 @@ What to run after a change:
 |---|---|
 | a script in `Scripts/` | `script_checks.py` |
 | `Little-C.*`, `GrblComm.*`, `FramedUart.*`, `ProgramSender.cpp` | `run.py` and `script_checks.py` |
+| `UsbCdcUart.*` | `run.py` |
 | `DevCore/Math/Decimal32.h` | `run.py` and `script_checks.py` |
 | `NVM.*` | `run.py`, then again with other seeds(`NVM_SEED`) |
 | menu comment parser in `GCodeGeneratorScr.cpp` | `script_checks.py` |
@@ -38,6 +39,9 @@ members of `ProgramSender` that the extracted code uses, `stubs/DevCore.h`
 the RTOS, the task configuration(`DevCfgUsr.h` defines) and the mutex. When
 one of those changes in the firmware, change the double too, or `run.py`
 doesn't compile.
+
+`stubs_usb/` holds the doubles for the USB CDC interface test(`usb_cdc_uart.cpp`):
+the CDC class driver and the parts of the USB device handle `UsbCdcUart` uses.
 
 `stubs_nvm/DevCore.h` is the double for the settings storage test: the EEPROM
 with pages, wear counters and fault injection. It is separate because

@@ -70,6 +70,8 @@ class Tetris : public AppTask
     bool round = true;
     // drop flag
     bool drop = false;
+    // State of the random number generator, never zero(see Random())
+    uint32_t random_state = 1u;
 
     // Input driver instance
     InputDrv& input_drv = InputDrv::GetInstance();
@@ -78,6 +80,14 @@ class Tetris : public AppTask
     DisplayDrv& display_drv = DisplayDrv::GetInstance();
     // Sound driver instance
     SoundDrv& sound_drv = SoundDrv::GetInstance();
+
+    // *************************************************************************
+    // ***   Private: Random function   ****************************************
+    // *************************************************************************
+    // * xorshift32(G. Marsaglia, 2003). Replaces rand(): newlib allocates the
+    // * rand() state on the first call, and that allocation can fail(see
+    // * CLAUDE.md).
+    uint32_t Random();
 
     // *************************************************************************
     // ** Private constructor. Only GetInstance() allow to access this class. **

@@ -27,6 +27,7 @@
 #if defined(SEND_DATA_TO_USB) // For sending messages to USB
 #include "usb_device.h"
 #include "usbd_cdc.h"
+#include "UsbCdcUart.h"
 extern USBD_HandleTypeDef hUsbDeviceFS;
 #endif
 
@@ -153,11 +154,7 @@ Result GrblComm::TimerExpired(uint32_t missed_cnt)
 
 #if defined(SEND_DATA_TO_USB)
     // Send to USB
-    if(USBD_CDC_SetTxBuffer(&hUsbDeviceFS, (uint8_t*)"?", 1u) == USBD_OK)
-    {
-      // Send packet - no waiting
-      USBD_CDC_TransmitPacket(&hUsbDeviceFS);
-    }
+    SendToUsb((uint8_t*)"?", 1u);
 #endif
   }
 
@@ -205,11 +202,7 @@ Result GrblComm::ProcessMessage()
 
 #if defined(SEND_DATA_TO_USB)
       // Send to USB
-      if(USBD_CDC_SetTxBuffer(&hUsbDeviceFS, tx_buf, strlen((char*)tx_buf)) == USBD_OK)
-      {
-        // Send packet - no waiting
-        USBD_CDC_TransmitPacket(&hUsbDeviceFS);
-      }
+      SendToUsb(tx_buf, strlen((char*)tx_buf));
 #endif
     }
     else if(IsInControl() && !respond_pending)
@@ -252,11 +245,7 @@ Result GrblComm::ProcessMessage()
 
 #if defined(SEND_DATA_TO_USB)
         // Send to USB
-        if(USBD_CDC_SetTxBuffer(&hUsbDeviceFS, tx_buf, strlen((char*)tx_buf)) == USBD_OK)
-        {
-          // Send packet - no waiting
-          USBD_CDC_TransmitPacket(&hUsbDeviceFS);
-        }
+        SendToUsb(tx_buf, strlen((char*)tx_buf));
 #endif
       }
       else
@@ -720,7 +709,7 @@ Result GrblComm::SendCmd(const char* cmd, uint32_t &id)
 // *****************************************************************************
 // ***   Public: SendRealTimeCmd   *********************************************
 // *****************************************************************************
-Result GrblComm::SendRealTimeCmd(uint8_t cmd)
+Result GrblComm::SendRealTimeCmd(uint8_t cmd, bool priority)
 {
   // Real time commands can be send any time
   TaskQueueMsg msg;
@@ -730,8 +719,8 @@ Result GrblComm::SendRealTimeCmd(uint8_t cmd)
   msg.cmd[0] = cmd;
   msg.cmd[1] = '\0';
 
-  // Send the message as priority since it is real-time command
-  return SendTaskMessage(&msg, true);
+  // Send the message as priority unless order matters
+  return SendTaskMessage(&msg, priority);
 }
 
 // *****************************************************************************
@@ -1237,13 +1226,15 @@ Result GrblComm::SetToolTableOffset(uint32_t tool, int32_t offset, uint32_t &id)
       char offset_str[16u];
       // Convert offset value to string
       ValueToString(offset_str, NumberOf(offset_str), offset, GetReportUnitsScaler());
-      // Create command: all other offsets and radius are zeroed
+      // Create command: offsets of all other axes are zeroed, so the measured
+      // tool is usable. The radius isn't there: G10 L1 changes only the words
+      // present, and zeroing the radius would break cutter compensation.
       int32_t len = snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG10L1P%lu", GetMeasurementSystemGcode(), tool);
       for(int32_t i = 0; i < number_of_axis; i++)
       {
         len += snprintf((char*)msg.cmd + len, NumberOf(msg.cmd) - len, "%s%s", axis_str[i], (i == AXIS_Z) ? offset_str : "0");
       }
-      snprintf((char*)msg.cmd + len, NumberOf(msg.cmd) - len, "R0\r");
+      snprintf((char*)msg.cmd + len, NumberOf(msg.cmd) - len, "\r");
 
       // Send message
       result = SendTaskMessage(&msg);
@@ -1255,6 +1246,49 @@ Result GrblComm::SetToolTableOffset(uint32_t tool, int32_t offset, uint32_t &id)
       {
         tool_table_z[tool - 1u] = Decimal32(offset, GetReportUnitsScaler());
         tool_usable_mask |= (1u << (tool - 1u));
+      }
+    }
+    else
+    {
+      result = Result::ERR_CANNOT_EXECUTE;
+    }
+  }
+
+  // Return result
+  return result;
+}
+
+// *****************************************************************************
+// ***   Public: SetToolTableRadius   ******************************************
+// *****************************************************************************
+Result GrblComm::SetToolTableRadius(uint32_t tool, Decimal32 radius, uint32_t &id)
+{
+  Result result = Result::ERR_BAD_PARAMETER;
+
+  // A cutter has no negative radius
+  if(IsToolInTable(tool) && (radius >= Decimal32()))
+  {
+    // Same states as the offset: the table is written, nothing moves
+    if(IsInControl() && (grbl_state == IDLE))
+    {
+      TaskQueueMsg msg;
+      // Set ID for command
+      msg.id = GetNextId();
+
+      // Buffer for radius string
+      char radius_str[Decimal32::STR_SIZE];
+      // Create command: only the radius, G10 L1 leaves the offsets as they are
+      snprintf((char*)msg.cmd, NumberOf(msg.cmd), "%sG10L1P%luR%s\r", GetMeasurementSystemGcode(), tool, radius.ToString(radius_str, NumberOf(radius_str)));
+
+      // Send message
+      result = SendTaskMessage(&msg);
+      // Save ID
+      id = msg.id;
+
+      // Update the copy at once, like the offset; "$#" confirms it
+      if(result.IsGood())
+      {
+        tool_table_r[tool - 1u] = radius;
       }
     }
     else
@@ -1754,10 +1788,12 @@ void GrblComm::ParseToolData(char* data)
       ParseAxisData(offsets + 1, axis);
       ParseDecimal(r, radius + 1);
 
-      // Save Z offset
+      // Save Z offset and radius
       tool_table_z[tool - 1u] = axis[AXIS_Z];
-      // Tool with anything but Z set can't be applied safely: not usable
-      bool z_only = (r == Decimal32());
+      tool_table_r[tool - 1u] = r;
+      // Tool with an offset on any other axis can't be applied safely: not
+      // usable. The radius doesn't count - G43 never uses it.
+      bool z_only = true;
       for(int32_t i = 0; i < number_of_axis; i++)
       {
         if((i != AXIS_Z) && (axis[i] != Decimal32())) z_only = false;
@@ -1890,6 +1926,22 @@ void GrblComm::ParseFeedSpeed(char* data)
 }
 
 // *****************************************************************************
+// ***   Private: NextField function   *****************************************
+// *****************************************************************************
+char* GrblComm::NextField(char* field)
+{
+  char* sep = strchr(field, '|');
+  if(sep != nullptr)
+  {
+    // Terminate the current field
+    *sep = '\0';
+    // Next field starts after the separator
+    sep++;
+  }
+  return sep;
+}
+
+// *****************************************************************************
 // ***   Private: ParseData function   *****************************************
 // *****************************************************************************
 void GrblComm::ParseData(void)
@@ -1920,7 +1972,10 @@ void GrblComm::ParseData(void)
     pins = false;
     // Line number isn't present in every report
     uint32_t line_number = 0u;
-    line = strtok(&line[1], "|");
+    // Fields are split by '|'. Not strtok(): newlib allocates its state on the
+    // first call, and that allocation can fail(see CLAUDE.md).
+    line = &line[1];
+    char* next = NextField(line);
 
     if(line)
     {
@@ -1934,11 +1989,14 @@ void GrblComm::ParseData(void)
         grbl_alarm = 0u;
         grbl_changed.alarm = false;
       }
-      line = strtok(NULL, "|");
+      line = next;
     }
 
     while(line)
     {
+      // Cut the current field off the rest
+      next = NextField(line);
+
       if(!strncmp(line, "WPos:", 5))
       {
         if(!grbl_useWPos)
@@ -2055,7 +2113,7 @@ void GrblComm::ParseData(void)
 //        if((grbl_changed.message = !!strcmp(grbl_message, line + 3))) strncpy(grbl_message, line + 3, 250);
       }
 
-      line = strtok(NULL, "|");
+      line = next;
     }
 
     if(!pins && (grbl_changed.pins = (grbl_pins[0] != '\0'))) grbl_pins[0] = '\0';
@@ -2244,11 +2302,7 @@ void GrblComm::PollSerial(void)
   if(rx_usb_cnt > 0)
   {
     // Send to USB
-    if(USBD_CDC_SetTxBuffer(&hUsbDeviceFS, usb_data, rx_usb_cnt) == USBD_OK)
-    {
-      // Send packet - no waiting
-      USBD_CDC_TransmitPacket(&hUsbDeviceFS);
-    }
+    SendToUsb(usb_data, rx_usb_cnt);
   }
 #endif
 }
@@ -2271,3 +2325,25 @@ uint32_t GrblComm::GetNextId(void)
   // Return result
   return nid;
 }
+
+#if defined(SEND_DATA_TO_USB)
+// *****************************************************************************
+// ***   Private: SendToUsb function   *****************************************
+// *****************************************************************************
+void GrblComm::SendToUsb(uint8_t* buf, uint32_t len)
+{
+  // With the USB interface selected the CDC port is the link to the
+  // controller itself: a mirror would put its copies into that stream and
+  // overwrite the buffer of a transfer in progress. So it is quiet when the
+  // link is the USB one. No RTTI - the pointers are compared(nullptr while
+  // the USB interface isn't in use).
+  if(uart != UsbCdcUart::GetInstance())
+  {
+    if(USBD_CDC_SetTxBuffer(&hUsbDeviceFS, buf, len) == USBD_OK)
+    {
+      // Send packet - no waiting
+      USBD_CDC_TransmitPacket(&hUsbDeviceFS);
+    }
+  }
+}
+#endif

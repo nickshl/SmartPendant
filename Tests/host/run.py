@@ -63,6 +63,20 @@ subprocess.run(flags[:-2] + ["-I", str(nvm_stage), str(nvm_stage / "NVM.cpp"), s
 subprocess.run([str(nvm_binary), os.environ.get("NVM_SEED", "1"), os.environ.get("NVM_SEEDS", "3000")],
                check=True, timeout=600, env=env)
 
+# USB CDC interface: the real UsbCdcUart.cpp over a simulated CDC class driver
+# and host. Own stage and doubles(stubs_usb/), like the settings storage test.
+usb_stage = stage / "usb"
+usb_stage.mkdir()
+for stub in (TESTS / "stubs_usb").glob("*.h"):
+    shutil.copy(stub, usb_stage)
+for path in ["Application/UsbCdcUart.cpp", "Application/UsbCdcUart.h",
+             "DevCore/Framework/Result.h", "DevCore/Interfaces/IUart.h"]:
+    shutil.copy(ROOT / path, usb_stage)
+usb_binary = usb_stage / "usb_cdc_uart"
+subprocess.run(flags[:-2] + ["-I", str(usb_stage), str(usb_stage / "UsbCdcUart.cpp"),
+                             str(TESTS / "usb_cdc_uart.cpp"), "-o", str(usb_binary)], check=True)
+subprocess.run([str(usb_binary)], check=True, timeout=60, env=env)
+
 # Compare stock script output with the version before this fix batch. Override
 # BASELINE_REF when rerunning after committing the fixes.
 baseline_ref = os.environ.get("BASELINE_REF", "HEAD")
